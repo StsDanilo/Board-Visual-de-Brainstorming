@@ -4,6 +4,7 @@ import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardShape;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.css.PseudoClass;
 import javafx.scene.Node;
 import javafx.scene.control.TextArea;
@@ -112,6 +113,11 @@ public class CardView extends Region {
             }
         }
         return false;
+    }
+
+    /** Verdadeiro enquanto o texto do card está sendo editado. */
+    public ReadOnlyBooleanProperty textFocusedProperty() {
+        return textArea.focusedProperty();
     }
 
     public void focusText() {

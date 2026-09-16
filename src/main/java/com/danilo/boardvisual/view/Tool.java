@@ -15,7 +15,8 @@ import javafx.scene.input.KeyCode;
 public enum Tool {
 
     SELECT("Selecionar", KeyCode.V, null, Icons.SELECT,
-            "Clique para selecionar  ·  Arraste o card para mover  ·  Arraste o fundo para navegar  ·  Roda do mouse: zoom"),
+            "Clique para selecionar (Shift soma)  ·  Arraste o fundo para selecionar vários  ·  "
+                    + "Espaço+arrastar ou botão direito: mover a visão  ·  Roda do mouse: zoom"),
     RECTANGLE("Retângulo", KeyCode.R, CardShape.RECTANGLE, Icons.shape(CardShape.RECTANGLE),
             "Clique no canvas para criar um card retangular"),
     ELLIPSE("Elipse", KeyCode.E, CardShape.ELLIPSE, Icons.shape(CardShape.ELLIPSE),

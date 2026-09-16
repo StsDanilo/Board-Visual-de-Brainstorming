@@ -30,14 +30,17 @@ public class SelectionActionsController {
 
     private final BoardView view;
     private final SelectionToolbarView selectionToolbar;
+    private final EditHistory history;
 
     /** Cards observados, para a barra refletir mudanças de cor e formato vindas de qualquer lugar. */
     private final Set<Card> observedCards = new HashSet<>();
     private final InvalidationListener appearanceListener = obs -> refreshToolbar();
 
-    public SelectionActionsController(BoardView view, ToolBarView toolBar, SelectionToolbarView selectionToolbar) {
+    public SelectionActionsController(BoardView view, ToolBarView toolBar, SelectionToolbarView selectionToolbar,
+                                      EditHistory history) {
         this.view = view;
         this.selectionToolbar = selectionToolbar;
+        this.history = history;
 
         toolBar.setOnColorPicked(this::applyColor);
         selectionToolbar.getColorButton().setOnColorPicked(this::applyColor);
@@ -54,11 +57,11 @@ public class SelectionActionsController {
     }
 
     private void applyColor(String color) {
-        selectedCards().forEach(card -> card.setColor(color));
+        history.perform(() -> selectedCards().forEach(card -> card.setColor(color)));
     }
 
     private void applyShape(CardShape shape) {
-        selectedCards().forEach(card -> card.changeShape(shape));
+        history.perform(() -> selectedCards().forEach(card -> card.changeShape(shape)));
     }
 
     public void duplicateSelection() {
@@ -67,13 +70,15 @@ public class SelectionActionsController {
             return;
         }
         List<Card> copies = new ArrayList<>();
-        for (Card card : selectedCards()) {
-            Card copy = card.copy();
-            copy.setX(card.getX() + DUPLICATE_OFFSET);
-            copy.setY(card.getY() + DUPLICATE_OFFSET);
-            board.addCard(copy);
-            copies.add(copy);
-        }
+        history.perform(() -> {
+            for (Card card : selectedCards()) {
+                Card copy = card.copy();
+                copy.setX(card.getX() + DUPLICATE_OFFSET);
+                copy.setY(card.getY() + DUPLICATE_OFFSET);
+                board.addCard(copy);
+                copies.add(copy);
+            }
+        });
         // A seleção passa para as cópias: duplicar de novo gera uma "escada".
         view.setSelection(copies);
     }
@@ -81,7 +86,7 @@ public class SelectionActionsController {
     public void deleteSelection() {
         Board board = view.getBoard();
         if (board != null) {
-            selectedCards().forEach(board::removeCard);
+            history.perform(() -> selectedCards().forEach(board::removeCard));
         }
     }
 

@@ -26,13 +26,15 @@ public class ConnectionController {
 
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;
+    private final EditHistory history;
 
     private CardView source;
     private CardView highlighted;
 
-    public ConnectionController(BoardView view, ObjectProperty<Tool> activeTool) {
+    public ConnectionController(BoardView view, ObjectProperty<Tool> activeTool, EditHistory history) {
         this.view = view;
         this.activeTool = activeTool;
+        this.history = history;
     }
 
     public void attach(CardView cardView) {
@@ -64,7 +66,8 @@ public class ConnectionController {
             if (source != cardView) {
                 return;
             }
-            targetAt(e).ifPresent(target -> view.getBoard().connect(cardView.getCard(), target.getCard()));
+            targetAt(e).ifPresent(target ->
+                    history.perform(() -> view.getBoard().connect(cardView.getCard(), target.getCard())));
             view.hideConnectionPreview();
             highlight(null);
             source = null;

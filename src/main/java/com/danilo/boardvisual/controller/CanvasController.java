@@ -13,12 +13,18 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * Interações com o fundo do canvas.
  *
- * - Em qualquer ferramenta: arrastar o fundo (botão esquerdo) ou qualquer
- *   lugar (botão do meio) faz pan; roda do mouse / pinça faz zoom.
- * - Selecionar: clicar no fundo limpa a seleção.
+ * - Mover a visão (pan): botão do meio ou direito em qualquer lugar,
+ *   Espaço + arrastar, ou arrastar o fundo nas ferramentas de criação/conexão.
+ * - Zoom: roda do mouse / pinça, em torno do cursor.
+ * - Selecionar: clicar no fundo limpa a seleção; arrastar o fundo desenha a
+ *   caixa de seleção (com Shift, soma à seleção atual).
  * - Retângulo / Elipse / Losango: clicar no fundo cria um card desse formato
  *   ali (com a cor atual da barra) e volta para Selecionar.
  */
@@ -29,32 +35,52 @@ public class CanvasController {
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;
     private final ObservableValue<String> newCardColor;
+    private final EditHistory history;
+
+    private boolean spaceDown;
 
     private boolean panPressed;
     private double lastSceneX;
     private double lastSceneY;
 
-    public CanvasController(BoardView view, ObjectProperty<Tool> activeTool, ObservableValue<String> newCardColor) {
+    private boolean marqueePressed;
+    private double marqueeStartX;
+    private double marqueeStartY;
+    private Set<Card> selectionBeforeMarquee = Set.of();
+
+    public CanvasController(BoardView view, ObjectProperty<Tool> activeTool,
+                            ObservableValue<String> newCardColor, EditHistory history) {
         this.view = view;
         this.activeTool = activeTool;
         this.newCardColor = newCardColor;
+        this.history = history;
         installHandlers();
     }
 
+    /** Informado pelo controller de teclado: com Espaço pressionado, arrastar move a visão. */
+    public void setSpaceDown(boolean down) {
+        spaceDown = down;
+        view.setSpacePan(down);
+    }
+
     private void installHandlers() {
-        // Botão do meio faz pan mesmo sobre um card, por isso é filtro (pega o evento antes dos filhos).
+        // Filtro: pega o clique antes dos cards, para o pan funcionar mesmo sobre eles.
         view.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
-            if (e.getButton() == MouseButton.MIDDLE) {
+            boolean panButton = e.getButton() == MouseButton.MIDDLE || e.getButton() == MouseButton.SECONDARY;
+            if (panButton || (spaceDown && e.getButton() == MouseButton.PRIMARY)) {
+                view.requestFocus();
                 startPan(e);
                 e.consume();
             }
         });
         view.addEventHandler(MouseEvent.MOUSE_PRESSED, e -> {
-            if (e.getButton() == MouseButton.PRIMARY && isBackground(e)) {
-                view.requestFocus(); // tira o foco do texto de um card
-                if (activeTool.get() == Tool.SELECT) {
-                    view.clearSelection();
-                }
+            if (e.getButton() != MouseButton.PRIMARY || !isBackground(e)) {
+                return;
+            }
+            view.requestFocus(); // tira o foco do texto de um card
+            if (activeTool.get() == Tool.SELECT) {
+                startMarquee(e);
+            } else {
                 startPan(e);
             }
         });
@@ -65,6 +91,9 @@ public class CanvasController {
                 lastSceneX = e.getSceneX();
                 lastSceneY = e.getSceneY();
                 e.consume();
+            } else if (marqueePressed) {
+                updateMarquee(e);
+                e.consume();
             }
         });
         view.addEventFilter(MouseEvent.MOUSE_RELEASED, e -> {
@@ -72,13 +101,18 @@ public class CanvasController {
                 panPressed = false;
                 view.setPanning(false);
             }
+            if (marqueePressed) {
+                marqueePressed = false;
+                view.hideMarquee();
+            }
         });
         view.addEventHandler(MouseEvent.MOUSE_CLICKED, e -> {
-            if (activeTool.get().getShape() != null
+            CardShape shape = activeTool.get().getShape();
+            if (shape != null
                     && e.getButton() == MouseButton.PRIMARY
                     && e.isStillSincePress()
                     && isBackground(e)) {
-                createCardAt(activeTool.get().getShape(), e.getSceneX(), e.getSceneY());
+                createCardAt(shape, e.getSceneX(), e.getSceneY());
                 activeTool.set(Tool.SELECT);
             }
         });
@@ -99,6 +133,26 @@ public class CanvasController {
         lastSceneY = e.getSceneY();
     }
 
+    private void startMarquee(MouseEvent e) {
+        marqueePressed = true;
+        marqueeStartX = e.getSceneX();
+        marqueeStartY = e.getSceneY();
+        if (e.isShiftDown()) {
+            selectionBeforeMarquee = Set.copyOf(view.getSelection());
+        } else {
+            selectionBeforeMarquee = Set.of();
+            view.clearSelection();
+        }
+    }
+
+    private void updateMarquee(MouseEvent e) {
+        view.showMarquee(marqueeStartX, marqueeStartY, e.getSceneX(), e.getSceneY());
+        List<Card> touched = view.cardsInSceneRect(marqueeStartX, marqueeStartY, e.getSceneX(), e.getSceneY());
+        Set<Card> selection = new LinkedHashSet<>(selectionBeforeMarquee);
+        selection.addAll(touched);
+        view.setSelection(selection);
+    }
+
     private boolean isBackground(MouseEvent e) {
         return e.getPickResult().getIntersectedNode() == view;
     }
@@ -111,7 +165,7 @@ public class CanvasController {
         Point2D p = view.sceneToWorld(sceneX, sceneY);
         Card card = Card.create(shape, p.getX(), p.getY());
         card.setColor(newCardColor.getValue());
-        board.addCard(card);
+        history.perform(() -> board.addCard(card));
         view.select(card);
         view.getCardView(card).ifPresent(CardView::focusText);
     }

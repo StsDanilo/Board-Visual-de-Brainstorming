@@ -34,6 +34,9 @@ public class MainWindow extends BorderPane {
     private final MenuItem saveAsItem = new MenuItem("Salvar como...");
     private final MenuItem exitItem = new MenuItem("Sair");
     private final MenuItem resetViewItem = new MenuItem("Redefinir visualização");
+    private final MenuItem undoItem = new MenuItem("Desfazer");
+    private final MenuItem redoItem = new MenuItem("Refazer");
+    private final MenuItem selectAllItem = new MenuItem("Selecionar tudo");
 
     public MainWindow() {
         getStyleClass().add("main-window");
@@ -43,11 +46,17 @@ public class MainWindow extends BorderPane {
         saveItem.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN));
         saveAsItem.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN));
         resetViewItem.setAccelerator(new KeyCodeCombination(KeyCode.DIGIT0, KeyCombination.SHORTCUT_DOWN));
+        // Atalhos de menu só disparam se o componente com foco não usar a tecla:
+        // editando texto, Ctrl+Z e Ctrl+A continuam agindo no próprio texto.
+        undoItem.setAccelerator(new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN));
+        redoItem.setAccelerator(new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN));
+        selectAllItem.setAccelerator(new KeyCodeCombination(KeyCode.A, KeyCombination.SHORTCUT_DOWN));
 
         Menu fileMenu = new Menu("Arquivo", null,
                 newItem, openItem, new SeparatorMenuItem(), saveItem, saveAsItem, new SeparatorMenuItem(), exitItem);
+        Menu editMenu = new Menu("Editar", null, undoItem, redoItem, new SeparatorMenuItem(), selectAllItem);
         Menu viewMenu = new Menu("Exibir", null, resetViewItem);
-        setTop(new MenuBar(fileMenu, viewMenu));
+        setTop(new MenuBar(fileMenu, editMenu, viewMenu));
 
         boardView.setSelectionOverlay(selectionToolbar);
         StackPane canvasArea = new StackPane(boardView, toolBar);
@@ -85,4 +94,7 @@ public class MainWindow extends BorderPane {
     public MenuItem getSaveAsItem() { return saveAsItem; }
     public MenuItem getExitItem() { return exitItem; }
     public MenuItem getResetViewItem() { return resetViewItem; }
+    public MenuItem getUndoItem() { return undoItem; }
+    public MenuItem getRedoItem() { return redoItem; }
+    public MenuItem getSelectAllItem() { return selectAllItem; }
 }

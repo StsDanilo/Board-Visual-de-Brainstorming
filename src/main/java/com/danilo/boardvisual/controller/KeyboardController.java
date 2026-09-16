@@ -15,11 +15,13 @@ import javafx.stage.Stage;
  * - Letra de cada ferramenta (definida em {@link Tool}): ativa a ferramenta.
  * - Delete / Backspace: exclui a seleção.
  * - Ctrl+D: duplica a seleção.
+ * - Ctrl+Shift+Z: refaz (alternativa ao Ctrl+Y do menu).
+ * - Espaço (segurado): arrastar move a visão.
  * - Esc: sai da edição de texto; senão volta para Selecionar; senão limpa a seleção.
  *
  * Enquanto o texto de um card está sendo editado, só o Esc funciona: as
  * outras teclas pertencem ao texto (digitar "v" não pode trocar de ferramenta).
- * Atalhos de menu (Ctrl+S, Ctrl+O...) são tratados pelo próprio menu.
+ * Ctrl+Z, Ctrl+Y, Ctrl+A e os atalhos de arquivo ficam nos menus.
  */
 public class KeyboardController {
 
@@ -27,15 +29,31 @@ public class KeyboardController {
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;
     private final SelectionActionsController selectionActions;
+    private final CanvasController canvas;
+    private final MainController main;
 
     public KeyboardController(Stage stage, BoardView view, ObjectProperty<Tool> activeTool,
-                              SelectionActionsController selectionActions) {
+                              SelectionActionsController selectionActions, CanvasController canvas,
+                              MainController main) {
         this.stage = stage;
         this.view = view;
         this.activeTool = activeTool;
         this.selectionActions = selectionActions;
+        this.canvas = canvas;
+        this.main = main;
         // Handler (não filtro) na janela: recebe só o que o componente com foco não consumiu.
         stage.addEventHandler(KeyEvent.KEY_PRESSED, this::onKeyPressed);
+        stage.addEventHandler(KeyEvent.KEY_RELEASED, e -> {
+            if (e.getCode() == KeyCode.SPACE) {
+                canvas.setSpaceDown(false);
+            }
+        });
+        // Se a janela perde o foco com Espaço segurado, o "soltar" nunca chega.
+        stage.focusedProperty().addListener((obs, was, focused) -> {
+            if (!focused) {
+                canvas.setSpaceDown(false);
+            }
+        });
     }
 
     private void onKeyPressed(KeyEvent e) {
@@ -48,25 +66,38 @@ public class KeyboardController {
             return;
         }
         boolean shortcutDown = e.isShortcutDown();
-        boolean otherModifiers = e.isAltDown() || e.isShiftDown() || (e.isMetaDown() && !shortcutDown);
+        boolean altOrMeta = e.isAltDown() || (e.isMetaDown() && !shortcutDown);
+        if (altOrMeta) {
+            return;
+        }
 
-        if (shortcutDown && !otherModifiers && e.getCode() == KeyCode.D) {
-            selectionActions.duplicateSelection();
-            e.consume();
-        } else if (!shortcutDown && !otherModifiers) {
-            if (e.getCode() == KeyCode.DELETE || e.getCode() == KeyCode.BACK_SPACE) {
-                selectionActions.deleteSelection();
+        if (shortcutDown) {
+            if (e.getCode() == KeyCode.D && !e.isShiftDown()) {
+                selectionActions.duplicateSelection();
                 e.consume();
+            } else if (e.getCode() == KeyCode.Z && e.isShiftDown()) {
+                main.redo();
+                e.consume();
+            }
+            return;
+        }
+        if (e.isShiftDown()) {
+            return;
+        }
+        switch (e.getCode()) {
+            case SPACE -> canvas.setSpaceDown(true);
+            case DELETE, BACK_SPACE -> selectionActions.deleteSelection();
+            default -> {
+                for (Tool tool : Tool.values()) {
+                    if (tool.getShortcut() == e.getCode()) {
+                        activeTool.set(tool);
+                        e.consume();
+                    }
+                }
                 return;
             }
-            for (Tool tool : Tool.values()) {
-                if (tool.getShortcut() == e.getCode()) {
-                    activeTool.set(tool);
-                    e.consume();
-                    return;
-                }
-            }
         }
+        e.consume();
     }
 
     private void handleEscape() {

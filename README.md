@@ -26,8 +26,10 @@ mvn test
 - Arrastar cards livremente; setas acompanham automaticamente
 - Conexões entre cards (ferramenta Conexão ou alça na borda do card)
 - Canvas com pan e zoom
+- Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
+- Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Conexão e cor dos novos cards
-- Barra flutuante do card selecionado: cor, formato, duplicar e excluir
+- Barra flutuante da seleção: cor, formato, duplicar e excluir
 - Salvar e abrir boards em arquivos JSON locais
 
 ## Atalhos de teclado
@@ -37,14 +39,21 @@ mvn test
 | `V` | Selecionar |
 | `R` / `E` / `L` | Criar retângulo / elipse / losango |
 | `C` | Conexão |
-| `Delete` / `Backspace` | Excluir card selecionado |
-| `Ctrl+D` | Duplicar card selecionado |
+| `Delete` / `Backspace` | Excluir seleção |
+| `Ctrl+D` | Duplicar seleção |
+| `Ctrl+A` | Selecionar tudo |
+| `Ctrl+Z` | Desfazer |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Refazer |
 | `Esc` | Sair da edição de texto → voltar para Selecionar → limpar seleção |
+| `Espaço` + arrastar | Mover a visão (também: botão do meio ou direito) |
+| `Shift` + clique | Somar/retirar card da seleção |
 | `Ctrl+N` / `Ctrl+O` | Novo board / abrir |
 | `Ctrl+S` / `Ctrl+Shift+S` | Salvar / salvar como |
 | `Ctrl+0` | Redefinir visualização |
 
-Enquanto o texto de um card está sendo editado, as teclas vão para o texto; só o `Esc` age como atalho.
+Enquanto o texto de um card está sendo editado, as teclas vão para o texto (inclusive `Ctrl+Z`,
+que desfaz dentro do próprio texto); só o `Esc` age como atalho. Ao sair da edição, tudo o que foi
+digitado vira um único passo no desfazer do board.
 
 ## Estrutura
 

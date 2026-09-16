@@ -5,9 +5,14 @@ import javafx.beans.property.StringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Um board: conjunto de cards e das conexões entre eles.
@@ -99,6 +104,50 @@ public class Board {
         }
         connections.add(connection);
         return true;
+    }
+
+    // ------------------------------------------------------ desfazer/refazer
+
+    public BoardSnapshot snapshot() {
+        return new BoardSnapshot(
+                cards.stream().map(BoardSnapshot.CardState::of).toList(),
+                connections.stream().map(BoardSnapshot.ConnectionState::of).toList());
+    }
+
+    /**
+     * Faz o board voltar a ficar igual à foto, alterando o mínimo possível:
+     * cards que continuam existindo são atualizados no lugar (mesmo objeto),
+     * então a view só cria ou remove nós para o que realmente entrou ou saiu.
+     */
+    public void restore(BoardSnapshot snapshot) {
+        Set<String> connectionIds = snapshot.connections().stream()
+                .map(BoardSnapshot.ConnectionState::id)
+                .collect(Collectors.toSet());
+        connections.removeIf(c -> !connectionIds.contains(c.getId()));
+
+        Map<String, BoardSnapshot.CardState> cardStates = new LinkedHashMap<>();
+        snapshot.cards().forEach(state -> cardStates.put(state.id(), state));
+        List.copyOf(cards).stream()
+                .filter(card -> !cardStates.containsKey(card.getId()))
+                .forEach(this::removeCard);
+
+        for (BoardSnapshot.CardState state : cardStates.values()) {
+            Optional<Card> existing = findCard(state.id());
+            Card card = existing.orElseGet(() -> new Card(state.id(), state.x(), state.y()));
+            state.applyTo(card);
+            if (existing.isEmpty()) {
+                cards.add(card);
+            }
+        }
+
+        for (BoardSnapshot.ConnectionState state : snapshot.connections()) {
+            boolean present = connections.stream().anyMatch(c -> c.getId().equals(state.id()));
+            Optional<Card> source = findCard(state.sourceId());
+            Optional<Card> target = findCard(state.targetId());
+            if (!present && source.isPresent() && target.isPresent()) {
+                addConnection(new Connection(state.id(), source.get(), target.get()));
+            }
+        }
     }
 
     /** Indica se já existe uma seta de {@code source} para {@code target}. */

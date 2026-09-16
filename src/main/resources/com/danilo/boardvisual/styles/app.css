@@ -39,8 +39,25 @@
     -fx-cursor: crosshair;
 }
 
-.board-view:panning {
+/* Espaço segurado: mão aberta em qualquer lugar do canvas, inclusive sobre cards. */
+.board-view:space-pan,
+.board-view:space-pan .card,
+.board-view:space-pan .card .card-text {
+    -fx-cursor: open-hand;
+}
+
+.board-view:panning,
+.board-view:panning .card,
+.board-view:panning .card .card-text {
     -fx-cursor: closed-hand;
+}
+
+/* Caixa de seleção desenhada ao arrastar o fundo. */
+.selection-marquee {
+    -fx-fill: rgba(79, 124, 255, 0.08);
+    -fx-stroke: -bv-accent;
+    -fx-stroke-width: 1;
+    -fx-stroke-type: inside;
 }
 
 /* ------------------------------------------------------------- cards */

@@ -31,10 +31,9 @@ public class MainController {
     private final BoardStorage storage = new BoardStorage();
 
     private final CanvasController canvasController;
-    private final CardDragController cardDragController;
-    private final ConnectionController connectionController;
     private final SelectionActionsController selectionActionsController;
     private final KeyboardController keyboardController;
+    private final EditHistory history;
 
     private Path currentFile;
 
@@ -47,15 +46,20 @@ public class MainController {
         boardView.setActiveTool(activeTool.get());
         activeTool.addListener((obs, old, tool) -> boardView.setActiveTool(tool));
 
-        canvasController = new CanvasController(boardView, activeTool, window.getToolBar().currentColorProperty());
-        cardDragController = new CardDragController(boardView, activeTool);
-        connectionController = new ConnectionController(boardView, activeTool);
+        history = new EditHistory(boardView::getBoard);
+        canvasController = new CanvasController(
+                boardView, activeTool, window.getToolBar().currentColorProperty(), history);
+        CardDragController cardDragController = new CardDragController(boardView, activeTool, history);
+        ConnectionController connectionController = new ConnectionController(boardView, activeTool, history);
+        TextEditController textEditController = new TextEditController(history);
         selectionActionsController = new SelectionActionsController(
-                boardView, window.getToolBar(), window.getSelectionToolbar());
-        keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController);
+                boardView, window.getToolBar(), window.getSelectionToolbar(), history);
+        keyboardController = new KeyboardController(
+                stage, boardView, activeTool, selectionActionsController, canvasController, this);
         boardView.setCardViewInitializer(cardView -> {
             cardDragController.attach(cardView);
             connectionController.attach(cardView);
+            textEditController.attach(cardView);
         });
 
         wireMenu();
@@ -69,6 +73,21 @@ public class MainController {
         window.getSaveAsItem().setOnAction(e -> saveAs());
         window.getExitItem().setOnAction(e -> Platform.exit());
         window.getResetViewItem().setOnAction(e -> boardView.resetView());
+        window.getUndoItem().setOnAction(e -> undo());
+        window.getRedoItem().setOnAction(e -> redo());
+        window.getSelectAllItem().setOnAction(e -> boardView.selectAll());
+        window.getUndoItem().disableProperty().bind(history.canUndoProperty().not());
+        window.getRedoItem().disableProperty().bind(history.canRedoProperty().not());
+    }
+
+    public void undo() {
+        boardView.requestFocus(); // conclui uma edição de texto em andamento antes de desfazer
+        history.undo();
+    }
+
+    public void redo() {
+        boardView.requestFocus();
+        history.redo();
     }
 
     public void newBoard() {
@@ -128,6 +147,7 @@ public class MainController {
     private void showBoard(Board board, Path file) {
         boardView.setBoard(board);
         boardView.resetView();
+        history.clear();
         activeTool.set(Tool.SELECT);
         currentFile = file;
         updateTitle();

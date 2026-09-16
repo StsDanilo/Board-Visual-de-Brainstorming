@@ -43,6 +43,7 @@ import java.util.function.Consumer;
  *      ├─ connectionLayer  (setas, ficam atrás dos cards)
  *      ├─ cardLayer        (cards)
  *      └─ overlayLayer     (prévia da seta sendo criada)
+ *  ├─ marquee          (caixa de seleção, em pixels de tela)
  *  └─ selectionOverlay (barra flutuante da seleção, em pixels de tela: não sofre zoom)
  * </pre>
  * Cards e setas usam coordenadas de "mundo"; pan/zoom só mexem nas
@@ -53,6 +54,8 @@ public class BoardView extends Pane {
     private static final double MIN_ZOOM = 0.2;
     private static final double MAX_ZOOM = 3.0;
     private static final PseudoClass PANNING = PseudoClass.getPseudoClass("panning");
+    /** Espaço pressionado: arrastar move a visão. */
+    private static final PseudoClass SPACE_PAN = PseudoClass.getPseudoClass("space-pan");
     /** Ativa com qualquer ferramenta que cria cards (retângulo, elipse, losango). */
     private static final PseudoClass TOOL_CREATE = PseudoClass.getPseudoClass("tool-create");
     /** Distância entre a barra flutuante e o card, e margem até as bordas do canvas. */
@@ -68,14 +71,12 @@ public class BoardView extends Pane {
     private final ReadOnlyDoubleWrapper zoom = new ReadOnlyDoubleWrapper(this, "zoom", 1);
 
     private final Line connectionPreview = new Line();
+    private final Rectangle marquee = new Rectangle();
 
     private final Map<Card, CardView> cardViews = new HashMap<>();
     private final Map<Connection, ConnectionView> connectionViews = new HashMap<>();
 
-    /**
-     * Cards selecionados. Já é um conjunto para a seleção múltipla encaixar
-     * sem mudança de estrutura; por enquanto só se seleciona um por vez.
-     */
+    /** Cards selecionados (um ou vários). */
     private final ObservableSet<Card> selection = FXCollections.observableSet(new LinkedHashSet<>());
     private final ObservableSet<Card> readOnlySelection = FXCollections.unmodifiableObservableSet(selection);
 
@@ -119,7 +120,13 @@ public class BoardView extends Pane {
         overlayLayer.setMouseTransparent(true);
 
         world.getChildren().addAll(connectionLayer, cardLayer, overlayLayer);
-        getChildren().add(world);
+
+        marquee.getStyleClass().add("selection-marquee");
+        marquee.setManaged(false);
+        marquee.setMouseTransparent(true);
+        marquee.setVisible(false);
+
+        getChildren().addAll(world, marquee);
 
         setMinSize(0, 0);
         setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
@@ -235,6 +242,10 @@ public class BoardView extends Pane {
         setSelection(card == null ? List.of() : List.of(card));
     }
 
+    public void selectAll() {
+        setSelection(cardViews.keySet());
+    }
+
     /** Substitui a seleção pelos cards informados (ignora cards fora do board). */
     public void setSelection(Collection<Card> cards) {
         Set<Card> wanted = new HashSet<>();
@@ -288,7 +299,8 @@ public class BoardView extends Pane {
             return;
         }
         Optional<Bounds> target = selectionBoundsInView();
-        selectionOverlay.setVisible(target.isPresent());
+        // Durante a caixa de seleção a barra some, para não ficar pulando a cada card incluído.
+        selectionOverlay.setVisible(target.isPresent() && !marquee.isVisible());
         if (target.isEmpty()) {
             return;
         }
@@ -328,6 +340,43 @@ public class BoardView extends Pane {
         return Optional.of(new BoundingBox(minX, minY, maxX - minX, maxY - minY));
     }
 
+    // ------------------------------------------------------ caixa de seleção
+
+    /** Mostra a caixa de seleção entre dois pontos (coordenadas de cena). */
+    public void showMarquee(double sceneX1, double sceneY1, double sceneX2, double sceneY2) {
+        Point2D a = sceneToLocal(sceneX1, sceneY1);
+        Point2D b = sceneToLocal(sceneX2, sceneY2);
+        marquee.setX(Math.min(a.getX(), b.getX()));
+        marquee.setY(Math.min(a.getY(), b.getY()));
+        marquee.setWidth(Math.abs(a.getX() - b.getX()));
+        marquee.setHeight(Math.abs(a.getY() - b.getY()));
+        if (!marquee.isVisible()) {
+            marquee.setVisible(true);
+            updateSelectionOverlay();
+        }
+    }
+
+    public void hideMarquee() {
+        if (marquee.isVisible()) {
+            marquee.setVisible(false);
+            updateSelectionOverlay();
+        }
+    }
+
+    /** Cards que tocam o retângulo entre dois pontos (coordenadas de cena). */
+    public List<Card> cardsInSceneRect(double sceneX1, double sceneY1, double sceneX2, double sceneY2) {
+        if (board == null) {
+            return List.of();
+        }
+        Point2D a = sceneToWorld(sceneX1, sceneY1);
+        Point2D b = sceneToWorld(sceneX2, sceneY2);
+        Bounds area = new BoundingBox(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()),
+                Math.abs(a.getX() - b.getX()), Math.abs(a.getY() - b.getY()));
+        return board.getCards().stream()
+                .filter(c -> area.intersects(c.getX(), c.getY(), c.getWidth(), c.getHeight()))
+                .toList();
+    }
+
     // ------------------------------------------------ estado visual da interação
 
     /** Reflete a ferramenta ativa como pseudo-classe (o CSS ajusta cursores e alças). */
@@ -336,6 +385,10 @@ public class BoardView extends Pane {
             pseudoClassStateChanged(tool.getPseudoClass(), tool == activeTool);
         }
         pseudoClassStateChanged(TOOL_CREATE, activeTool != null && activeTool.getShape() != null);
+    }
+
+    public void setSpacePan(boolean active) {
+        pseudoClassStateChanged(SPACE_PAN, active);
     }
 
     public void setPanning(boolean panning) {

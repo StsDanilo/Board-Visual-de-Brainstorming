@@ -25,5 +25,7 @@ public class BoardVisualApp extends Application {
         stage.setMinWidth(640);
         stage.setMinHeight(400);
         stage.show();
+        // Foco inicial no canvas: os atalhos de teclado funcionam sem precisar clicar antes.
+        window.getBoardView().requestFocus();
     }
 }
