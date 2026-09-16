@@ -1,14 +1,16 @@
 package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardShape;
 import javafx.beans.Observable;
+import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** Cálculos geométricos sobre o contorno de um card, usados pelas setas. */
+/** Cálculos geométricos sobre o contorno de cada formato de card. */
 final class CardGeometry {
 
     private CardGeometry() {
@@ -26,17 +28,37 @@ final class CardGeometry {
         if (dx == 0 && dy == 0) {
             return new Point2D(cx, cy);
         }
-        // Novos formatos (elipse, losango) ganham seu próprio cálculo aqui.
+        // t: quanto andar na direção (dx, dy) a partir do centro até tocar a borda.
+        double a = card.getWidth() / 2;
+        double b = card.getHeight() / 2;
         double t = switch (card.getShape()) {
-            case RECTANGLE -> rectangleScale(card.getWidth() / 2, card.getHeight() / 2, dx, dy);
+            case RECTANGLE -> Math.min(
+                    dx == 0 ? Double.POSITIVE_INFINITY : a / Math.abs(dx),
+                    dy == 0 ? Double.POSITIVE_INFINITY : b / Math.abs(dy));
+            // (x/a)² + (y/b)² = 1
+            case ELLIPSE -> 1 / Math.sqrt((dx / a) * (dx / a) + (dy / b) * (dy / b));
+            // |x|/a + |y|/b = 1
+            case DIAMOND -> 1 / (Math.abs(dx) / a + Math.abs(dy) / b);
         };
         return new Point2D(cx + dx * t, cy + dy * t);
     }
 
-    private static double rectangleScale(double halfWidth, double halfHeight, double dx, double dy) {
-        double sx = dx == 0 ? Double.POSITIVE_INFINITY : halfWidth / Math.abs(dx);
-        double sy = dy == 0 ? Double.POSITIVE_INFINITY : halfHeight / Math.abs(dy);
-        return Math.min(sx, sy);
+    /**
+     * Espaçamento interno para o texto caber dentro do formato: no retângulo é
+     * uma margem fixa; na elipse e no losango, o maior retângulo inscrito.
+     */
+    static Insets contentInsets(CardShape shape, double width, double height) {
+        return switch (shape) {
+            case RECTANGLE -> new Insets(12, 10, 10, 10);
+            // Retângulo inscrito na elipse: lados a·√2 e b·√2.
+            case ELLIPSE -> symmetric(width * (1 - Math.sqrt(0.5)) / 2 + 4, height * (1 - Math.sqrt(0.5)) / 2 + 2);
+            // Retângulo inscrito no losango: metade da largura e da altura.
+            case DIAMOND -> symmetric(width / 4 + 2, height / 4);
+        };
+    }
+
+    private static Insets symmetric(double horizontal, double vertical) {
+        return new Insets(vertical, horizontal, vertical, horizontal);
     }
 
     /** Propriedades que, ao mudar, alteram a geometria dos cards informados. */

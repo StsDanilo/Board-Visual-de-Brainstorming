@@ -30,7 +30,7 @@
 }
 
 /* Cursores conforme a ferramenta ativa (pseudo-classes aplicadas pelo BoardView). */
-.board-view:tool-card {
+.board-view:tool-create {
     -fx-cursor: crosshair;
 }
 
@@ -53,7 +53,6 @@
     -fx-border-color: -bv-border;
     -fx-border-radius: 8;
     -fx-border-width: 1;
-    -fx-padding: 0 10 10 10;
     -fx-cursor: move;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.08), 10, 0, 0, 2);
 }
@@ -84,9 +83,25 @@
     -fx-effect: dropshadow(gaussian, rgba(79, 124, 255, 0.45), 14, 0.3, 0, 0);
 }
 
-.card-header {
-    -fx-min-height: 12;
-    -fx-pref-height: 12;
+/*
+ * Formatos: a silhueta vem de -fx-shape (escalada ao tamanho do card), e
+ * fundo, borda e sombra a acompanham. O recuo do texto é calculado no código.
+ */
+.card.shape-ellipse {
+    -fx-shape: "M 0 50 A 50 50 0 1 1 100 50 A 50 50 0 1 1 0 50 Z";
+}
+
+.card.shape-diamond {
+    -fx-shape: "M 50 0 L 100 50 L 50 100 L 0 50 Z";
+}
+
+/* Em formatos não retangulares, o anel externo de seleção vira um brilho. */
+.card-view:selected .card.shape-ellipse,
+.card-view:selected .card.shape-diamond {
+    -fx-border-color: -bv-accent;
+    -fx-border-width: 1.5;
+    -fx-border-insets: 0;
+    -fx-effect: dropshadow(gaussian, rgba(79, 124, 255, 0.40), 12, 0.25, 0, 0);
 }
 
 /* Campo de texto "invisível": parece parte do card, não um input. */
@@ -106,6 +121,17 @@
     -fx-highlight-fill: -bv-accent-soft;
     -fx-highlight-text-fill: -bv-text;
     -fx-cursor: text;
+}
+
+/*
+ * Texto centralizado na horizontal. O TextArea não tem propriedade de
+ * alinhamento, mas desenha o conteúdo com um nó Text interno (.text), que
+ * aceita -fx-text-alignment; cursor, clique e seleção acompanham o alinhamento.
+ * Depende da estrutura interna do componente: se uma versão futura do JavaFX
+ * mudar isso, o texto apenas volta a ficar alinhado à esquerda.
+ */
+.card .card-text .text {
+    -fx-text-alignment: center;
 }
 
 .card .card-text .scroll-bar:vertical {
@@ -138,7 +164,7 @@
 }
 
 /* A alça é um atalho da ferramenta Selecionar; nas outras ela some. */
-.board-view:tool-card .connector-handle,
+.board-view:tool-create .connector-handle,
 .board-view:tool-connection .connector-handle {
     visibility: hidden;
 }
@@ -297,4 +323,18 @@
 .status-bar .label {
     -fx-text-fill: -bv-text-muted;
     -fx-font-size: 12px;
+}
+
+/* ------------------------------------------------------ seletor de formato */
+
+.shape-options {
+    -fx-spacing: 2;
+}
+
+.shape-option:selected {
+    -fx-background-color: rgba(79, 124, 255, 0.14);
+}
+
+.shape-option:selected .tool-icon {
+    -fx-stroke: -bv-accent;
 }

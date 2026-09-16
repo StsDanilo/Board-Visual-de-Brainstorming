@@ -53,6 +53,8 @@ public class BoardView extends Pane {
     private static final double MIN_ZOOM = 0.2;
     private static final double MAX_ZOOM = 3.0;
     private static final PseudoClass PANNING = PseudoClass.getPseudoClass("panning");
+    /** Ativa com qualquer ferramenta que cria cards (retângulo, elipse, losango). */
+    private static final PseudoClass TOOL_CREATE = PseudoClass.getPseudoClass("tool-create");
     /** Distância entre a barra flutuante e o card, e margem até as bordas do canvas. */
     private static final double OVERLAY_GAP = 10;
 
@@ -185,7 +187,8 @@ public class BoardView extends Pane {
         for (int i = children.size() - 1; i >= 0; i--) {
             if (children.get(i) instanceof CardView cardView) {
                 Point2D local = cardView.getBody().sceneToLocal(sceneX, sceneY);
-                if (local != null && cardView.getBody().getLayoutBounds().contains(local)) {
+                // contains() respeita a silhueta do formato (cantos da elipse não contam).
+                if (local != null && cardView.getBody().contains(local)) {
                     return Optional.of(cardView);
                 }
             }
@@ -332,6 +335,7 @@ public class BoardView extends Pane {
         for (Tool tool : Tool.values()) {
             pseudoClassStateChanged(tool.getPseudoClass(), tool == activeTool);
         }
+        pseudoClassStateChanged(TOOL_CREATE, activeTool != null && activeTool.getShape() != null);
     }
 
     public void setPanning(boolean panning) {

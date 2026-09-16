@@ -34,6 +34,7 @@ public class MainController {
     private final CardDragController cardDragController;
     private final ConnectionController connectionController;
     private final SelectionActionsController selectionActionsController;
+    private final KeyboardController keyboardController;
 
     private Path currentFile;
 
@@ -51,6 +52,7 @@ public class MainController {
         connectionController = new ConnectionController(boardView, activeTool);
         selectionActionsController = new SelectionActionsController(
                 boardView, window.getToolBar(), window.getSelectionToolbar());
+        keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController);
         boardView.setCardViewInitializer(cardView -> {
             cardDragController.attach(cardView);
             connectionController.attach(cardView);

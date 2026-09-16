@@ -80,11 +80,12 @@ public class BoardStorage {
                     continue;
                 }
                 Card card = new Card(cd.id(), cd.x(), cd.y());
-                card.setWidth(cd.width() > 0 ? cd.width() : Card.DEFAULT_WIDTH);
-                card.setHeight(cd.height() > 0 ? cd.height() : Card.DEFAULT_HEIGHT);
+                CardShape shape = CardShape.fromName(cd.shape());
+                card.setShape(shape);
+                card.setWidth(cd.width() > 0 ? cd.width() : shape.getDefaultWidth());
+                card.setHeight(cd.height() > 0 ? cd.height() : shape.getDefaultHeight());
                 card.setText(cd.text());
                 card.setColor(cd.color());
-                card.setShape(CardShape.fromName(cd.shape()));
                 board.addCard(card);
             }
         }

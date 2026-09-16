@@ -2,6 +2,7 @@ package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.view.BoardView;
 import com.danilo.boardvisual.view.CardView;
 import com.danilo.boardvisual.view.Tool;
@@ -18,8 +19,8 @@ import javafx.scene.input.ScrollEvent;
  * - Em qualquer ferramenta: arrastar o fundo (botão esquerdo) ou qualquer
  *   lugar (botão do meio) faz pan; roda do mouse / pinça faz zoom.
  * - Selecionar: clicar no fundo limpa a seleção.
- * - Card: clicar no fundo cria um card ali (com a cor atual da barra) e
- *   volta para Selecionar.
+ * - Retângulo / Elipse / Losango: clicar no fundo cria um card desse formato
+ *   ali (com a cor atual da barra) e volta para Selecionar.
  */
 public class CanvasController {
 
@@ -73,11 +74,11 @@ public class CanvasController {
             }
         });
         view.addEventHandler(MouseEvent.MOUSE_CLICKED, e -> {
-            if (activeTool.get() == Tool.CARD
+            if (activeTool.get().getShape() != null
                     && e.getButton() == MouseButton.PRIMARY
                     && e.isStillSincePress()
                     && isBackground(e)) {
-                createCardAt(e.getSceneX(), e.getSceneY());
+                createCardAt(activeTool.get().getShape(), e.getSceneX(), e.getSceneY());
                 activeTool.set(Tool.SELECT);
             }
         });
@@ -102,13 +103,13 @@ public class CanvasController {
         return e.getPickResult().getIntersectedNode() == view;
     }
 
-    private void createCardAt(double sceneX, double sceneY) {
+    private void createCardAt(CardShape shape, double sceneX, double sceneY) {
         Board board = view.getBoard();
         if (board == null) {
             return;
         }
         Point2D p = view.sceneToWorld(sceneX, sceneY);
-        Card card = new Card(p.getX() - Card.DEFAULT_WIDTH / 2, p.getY() - Card.DEFAULT_HEIGHT / 2);
+        Card card = Card.create(shape, p.getX(), p.getY());
         card.setColor(newCardColor.getValue());
         board.addCard(card);
         view.select(card);

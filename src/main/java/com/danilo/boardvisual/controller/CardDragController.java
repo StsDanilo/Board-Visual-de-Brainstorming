@@ -44,6 +44,7 @@ public class CardDragController {
                     || cardView.isTextNode(e.getPickResult().getIntersectedNode())) {
                 return;
             }
+            view.requestFocus(); // sai da edição de texto, liberando os atalhos de teclado
             Point2D p = view.sceneToWorld(e.getSceneX(), e.getSceneY());
             state.offsetX = p.getX() - card.getX();
             state.offsetY = p.getY() - card.getY();

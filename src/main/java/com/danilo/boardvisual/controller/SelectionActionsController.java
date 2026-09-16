@@ -2,6 +2,7 @@ package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.view.BoardView;
 import com.danilo.boardvisual.view.SelectionToolbarView;
 import com.danilo.boardvisual.view.ToolBarView;
@@ -16,7 +17,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Ações sobre os cards selecionados: cor, duplicar e excluir.
+ * Ações sobre os cards selecionados: cor, formato, duplicar e excluir.
  *
  * A cor pode vir da barra flutuante da seleção ou da barra de ferramentas
  * (que também define a cor dos próximos cards). Todas as ações já operam
@@ -30,9 +31,9 @@ public class SelectionActionsController {
     private final BoardView view;
     private final SelectionToolbarView selectionToolbar;
 
-    /** Cards cuja cor está sendo observada, para a bolinha da barra refletir qualquer mudança. */
+    /** Cards observados, para a barra refletir mudanças de cor e formato vindas de qualquer lugar. */
     private final Set<Card> observedCards = new HashSet<>();
-    private final InvalidationListener colorListener = obs -> refreshColor();
+    private final InvalidationListener appearanceListener = obs -> refreshToolbar();
 
     public SelectionActionsController(BoardView view, ToolBarView toolBar, SelectionToolbarView selectionToolbar) {
         this.view = view;
@@ -40,6 +41,7 @@ public class SelectionActionsController {
 
         toolBar.setOnColorPicked(this::applyColor);
         selectionToolbar.getColorButton().setOnColorPicked(this::applyColor);
+        selectionToolbar.getShapeButton().setOnShapePicked(this::applyShape);
         selectionToolbar.getDuplicateButton().setOnAction(e -> duplicateSelection());
         selectionToolbar.getDeleteButton().setOnAction(e -> deleteSelection());
 
@@ -55,8 +57,15 @@ public class SelectionActionsController {
         selectedCards().forEach(card -> card.setColor(color));
     }
 
-    private void duplicateSelection() {
+    private void applyShape(CardShape shape) {
+        selectedCards().forEach(card -> card.changeShape(shape));
+    }
+
+    public void duplicateSelection() {
         Board board = view.getBoard();
+        if (board == null) {
+            return;
+        }
         List<Card> copies = new ArrayList<>();
         for (Card card : selectedCards()) {
             Card copy = card.copy();
@@ -69,24 +78,35 @@ public class SelectionActionsController {
         view.setSelection(copies);
     }
 
-    private void deleteSelection() {
+    public void deleteSelection() {
         Board board = view.getBoard();
-        selectedCards().forEach(board::removeCard);
+        if (board != null) {
+            selectedCards().forEach(board::removeCard);
+        }
     }
 
     private void observeSelection() {
-        observedCards.forEach(card -> card.colorProperty().removeListener(colorListener));
+        observedCards.forEach(card -> {
+            card.colorProperty().removeListener(appearanceListener);
+            card.shapeProperty().removeListener(appearanceListener);
+        });
         observedCards.clear();
         observedCards.addAll(view.getSelection());
-        observedCards.forEach(card -> card.colorProperty().addListener(colorListener));
-        refreshColor();
+        observedCards.forEach(card -> {
+            card.colorProperty().addListener(appearanceListener);
+            card.shapeProperty().addListener(appearanceListener);
+        });
+        refreshToolbar();
     }
 
-    /** A bolinha mostra a cor da seleção; com cores diferentes, fica em estado "misto". */
-    private void refreshColor() {
+    /** Os botões mostram cor e formato da seleção; se os cards diferem, ficam em estado "misto". */
+    private void refreshToolbar() {
         Set<String> colors = view.getSelection().stream()
                 .map(card -> card.getColor().toUpperCase(Locale.ROOT))
                 .collect(Collectors.toSet());
         selectionToolbar.getColorButton().setColor(colors.size() == 1 ? colors.iterator().next() : null);
+
+        Set<CardShape> shapes = view.getSelection().stream().map(Card::getShape).collect(Collectors.toSet());
+        selectionToolbar.getShapeButton().setShape(shapes.size() == 1 ? shapes.iterator().next() : null);
     }
 }

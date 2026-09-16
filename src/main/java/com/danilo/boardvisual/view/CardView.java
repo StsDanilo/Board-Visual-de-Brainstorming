@@ -3,11 +3,13 @@ package com.danilo.boardvisual.view;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardShape;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.css.PseudoClass;
 import javafx.scene.Node;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -18,6 +20,14 @@ import javafx.scene.shape.Circle;
  * Só faz binding com o modelo: posição, tamanho, texto, cor e formato vêm do
  * card. Não trata eventos de mouse; os controllers se penduram nos nós
  * expostos aqui ({@link #getBody()}, {@link #getConnectorHandle()}).
+ *
+ * <pre>
+ * CardView
+ *  ├─ body (.card)            fundo e borda; o CSS dá a silhueta de cada formato
+ *  │   └─ content             área do texto, recuada para caber no formato
+ *  │       └─ textArea
+ *  └─ connectorHandle         alça para criar conexões
+ * </pre>
  */
 public class CardView extends Region {
 
@@ -26,7 +36,8 @@ public class CardView extends Region {
     private static final String SHAPE_CLASS_PREFIX = "shape-";
 
     private final Card card;
-    private final VBox body = new VBox();
+    private final StackPane body = new StackPane();
+    private final VBox content = new VBox();
     private final TextArea textArea = new TextArea();
     private final Circle connectorHandle = new Circle(6);
 
@@ -34,9 +45,6 @@ public class CardView extends Region {
         this.card = card;
         getStyleClass().add("card-view");
         setPickOnBounds(false);
-
-        Region header = new Region();
-        header.getStyleClass().add("card-header");
 
         textArea.getStyleClass().add("card-text");
         textArea.setWrapText(true);
@@ -47,12 +55,25 @@ public class CardView extends Region {
         VBox.setVgrow(textArea, Priority.ALWAYS);
         textArea.textProperty().bindBidirectional(card.textProperty());
 
+        // O recuo depende do formato e do tamanho, por isso é calculado aqui e
+        // não no CSS (e .card-content não deve definir -fx-padding no app.css).
+        content.getStyleClass().add("card-content");
+        content.paddingProperty().bind(Bindings.createObjectBinding(
+                () -> CardGeometry.contentInsets(card.getShape(), card.getWidth(), card.getHeight()),
+                card.shapeProperty(), card.widthProperty(), card.heightProperty()));
+        content.getChildren().add(textArea);
+        // A área ocupa o card todo (o recuo fica por dentro); só o texto deve
+        // ser clicável aqui, o resto cai no body, que respeita a silhueta.
+        content.setPickOnBounds(false);
+
         body.getStyleClass().add("card");
-        body.getChildren().addAll(header, textArea);
+        body.getChildren().add(content);
         body.prefWidthProperty().bind(card.widthProperty());
         body.prefHeightProperty().bind(card.heightProperty());
         body.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         body.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        // Cliques fora da silhueta (ex.: cantos da elipse) não pertencem ao card.
+        body.setPickOnBounds(false);
 
         // Alça na borda direita: arrastar a partir dela cria uma conexão.
         connectorHandle.getStyleClass().add("connector-handle");

@@ -65,7 +65,7 @@ public class ToolBarView extends VBox {
         ToggleButton button = new ToggleButton();
         button.getStyleClass().add("tool-button");
         button.setGraphic(Icons.create(tool.getIconPath()));
-        button.setTooltip(new Tooltip(tool.getLabel()));
+        button.setTooltip(new Tooltip(tool.getLabel() + "  (" + tool.getShortcut().getName() + ")"));
         button.setUserData(tool);
         button.setToggleGroup(group);
         // Não roubar o foco do texto de um card ao trocar de ferramenta.

@@ -22,13 +22,29 @@ mvn test
 
 ## Funcionalidades
 
-- Cards com texto editável direto no card
+- Cards com texto editável direto no card, em três formatos: retângulo, elipse e losango
 - Arrastar cards livremente; setas acompanham automaticamente
 - Conexões entre cards (ferramenta Conexão ou alça na borda do card)
 - Canvas com pan e zoom
-- Barra de ferramentas: Selecionar, Card, Conexão e cor dos novos cards
-- Barra flutuante do card selecionado: cor, duplicar e excluir
+- Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Conexão e cor dos novos cards
+- Barra flutuante do card selecionado: cor, formato, duplicar e excluir
 - Salvar e abrir boards em arquivos JSON locais
+
+## Atalhos de teclado
+
+| Tecla | Ação |
+|---|---|
+| `V` | Selecionar |
+| `R` / `E` / `L` | Criar retângulo / elipse / losango |
+| `C` | Conexão |
+| `Delete` / `Backspace` | Excluir card selecionado |
+| `Ctrl+D` | Duplicar card selecionado |
+| `Esc` | Sair da edição de texto → voltar para Selecionar → limpar seleção |
+| `Ctrl+N` / `Ctrl+O` | Novo board / abrir |
+| `Ctrl+S` / `Ctrl+Shift+S` | Salvar / salvar como |
+| `Ctrl+0` | Redefinir visualização |
+
+Enquanto o texto de um card está sendo editado, as teclas vão para o texto; só o `Esc` age como atalho.
 
 ## Estrutura
 

@@ -2,6 +2,7 @@ package com.danilo.boardvisual.persistence;
 
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.model.Connection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,6 +28,7 @@ class BoardStorageTest {
         a.setColor("#FFE8A3");
         Card b = new Card(400, 250);
         b.setWidth(260);
+        b.setShape(CardShape.ELLIPSE);
         board.addCard(a);
         board.addCard(b);
         board.connect(a, b);
@@ -45,6 +47,7 @@ class BoardStorageTest {
         assertEquals("Primeira ideia\ncom acentuação", loadedA.getText());
         assertEquals("#FFE8A3", loadedA.getColor());
         assertEquals(260, loaded.findCard(b.getId()).orElseThrow().getWidth());
+        assertEquals(CardShape.ELLIPSE, loaded.findCard(b.getId()).orElseThrow().getShape());
 
         Connection connection = loaded.getConnections().get(0);
         assertSame(loadedA, connection.getSource());

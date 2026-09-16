@@ -11,19 +11,20 @@ import javafx.scene.layout.HBox;
  * Barra flutuante que aparece logo acima do card selecionado (estilo Canva).
  *
  * O posicionamento é feito pelo {@link BoardView}; as ações, pelo controller.
- * Novas ações (formato, bloquear...) entram como mais botões aqui.
+ * Novas ações (bloquear...) entram como mais botões aqui.
  */
 public class SelectionToolbarView extends HBox {
 
     private final ColorPickerButton colorButton = new ColorPickerButton("Cor do card", Side.BOTTOM);
-    private final Button duplicateButton = actionButton("Duplicar", Icons.DUPLICATE);
-    private final Button deleteButton = actionButton("Excluir", Icons.DELETE);
+    private final ShapePickerButton shapeButton = new ShapePickerButton("Formato do card", Side.BOTTOM);
+    private final Button duplicateButton = actionButton("Duplicar  (Ctrl+D)", Icons.DUPLICATE);
+    private final Button deleteButton = actionButton("Excluir  (Delete)", Icons.DELETE);
 
     public SelectionToolbarView() {
         getStyleClass().addAll("floating-panel", "selection-toolbar");
         deleteButton.getStyleClass().add("danger");
 
-        getChildren().addAll(colorButton, new Separator(Orientation.VERTICAL), duplicateButton, deleteButton);
+        getChildren().addAll(colorButton, shapeButton, new Separator(Orientation.VERTICAL), duplicateButton, deleteButton);
     }
 
     private static Button actionButton(String tooltip, String iconPath) {
@@ -37,6 +38,10 @@ public class SelectionToolbarView extends HBox {
 
     public ColorPickerButton getColorButton() {
         return colorButton;
+    }
+
+    public ShapePickerButton getShapeButton() {
+        return shapeButton;
     }
 
     public Button getDuplicateButton() {
