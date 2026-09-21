@@ -18,6 +18,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
     }
 
     public record CardState(String id, double x, double y, double width, double height,
+                            double baseWidth, double baseHeight, double fontSize,
                             String text, String color, CardShape shape,
                             PanelMode panelMode, String detailText, List<String> listItems,
                             String childBoardId, BoardSnapshot childBoard) {
@@ -29,6 +30,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
         static CardState of(Card card) {
             Board child = card.getChildBoard();
             return new CardState(card.getId(), card.getX(), card.getY(), card.getWidth(), card.getHeight(),
+                    card.getBaseWidth(), card.getBaseHeight(), card.getFontSize(),
                     card.getText(), card.getColor(), card.getShape(),
                     card.getPanelMode(), card.getDetailText(), card.getListItemTexts(),
                     child == null ? null : child.getId(), child == null ? null : child.snapshot());
@@ -39,6 +41,9 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
             card.setY(y);
             card.setWidth(width);
             card.setHeight(height);
+            card.setBaseWidth(baseWidth);
+            card.setBaseHeight(baseHeight);
+            card.setFontSize(fontSize);
             card.setText(text);
             card.setColor(color);
             card.setShape(shape);

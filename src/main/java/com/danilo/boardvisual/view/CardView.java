@@ -19,6 +19,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 
+import java.util.Locale;
+
 /**
  * Representação visual de um {@link Card}.
  *
@@ -43,6 +45,8 @@ public class CardView extends Region {
     private static final PseudoClass PANEL_OPEN = PseudoClass.getPseudoClass("panel-open");
     private static final PseudoClass HAS_BOARD = PseudoClass.getPseudoClass("has-board");
     private static final String SHAPE_CLASS_PREFIX = "shape-";
+    /** Texto de exemplo do card vazio (também usado para ajustar a fonte automática). */
+    public static final String PROMPT_TEXT = "Escreva uma ideia...";
     /** Distância da alça de conexão para fora da borda direita. */
     private static final double CONNECTOR_OFFSET = 14;
 
@@ -61,7 +65,7 @@ public class CardView extends Region {
 
         textArea.getStyleClass().add("card-text");
         textArea.setWrapText(true);
-        textArea.setPromptText("Escreva uma ideia...");
+        textArea.setPromptText(PROMPT_TEXT);
         textArea.setPrefRowCount(1);
         textArea.setPrefColumnCount(1);
         textArea.setMinSize(0, 0);
@@ -168,6 +172,15 @@ public class CardView extends Region {
 
     public void focusText() {
         Platform.runLater(textArea::requestFocus);
+    }
+
+    /**
+     * Tamanho da fonte do texto (calculado por {@link CardTextFit}). A família
+     * vai junto para ser exatamente a mesma usada na medição.
+     */
+    public void setTextFontSize(double size) {
+        textArea.setStyle(String.format(Locale.ROOT, "-fx-font-family: \"%s\"; -fx-font-size: %.1fpx;",
+                CardTextFit.fontFamily(), size));
     }
 
     public void setSelected(boolean value) {

@@ -40,6 +40,25 @@ class BoardSnapshotTest {
     }
 
     @Test
+    void restoreBringsBackFontSizeAndManualSize() {
+        Board board = new Board("teste");
+        Card a = new Card(0, 0);
+        board.addCard(a);
+        BoardSnapshot before = board.snapshot();
+
+        a.resize(320, 90);
+        a.setHeight(150);
+        a.setFontSize(20);
+        assertNotEquals(before, board.snapshot());
+
+        board.restore(before);
+
+        assertEquals(Card.DEFAULT_WIDTH, a.getBaseWidth());
+        assertEquals(Card.DEFAULT_HEIGHT, a.getHeight());
+        assertTrue(a.isAutoFontSize());
+    }
+
+    @Test
     void restoreBringsBackDeletedCardWithItsConnections() {
         Board board = new Board("teste");
         Card a = new Card(0, 0);

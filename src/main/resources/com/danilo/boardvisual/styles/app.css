@@ -370,6 +370,32 @@
 
 /* ------------------------------------------------------ seletor de formato */
 
+/* Seletor de tamanho do texto: o botão mostra "Auto" ou o número. */
+.font-size-button {
+    -fx-text-fill: -bv-text;
+    -fx-font-size: 12px;
+    -fx-min-width: 44;
+}
+
+.font-size-body {
+    -fx-spacing: 4;
+}
+
+.font-size-options {
+    -fx-hgap: 2;
+    -fx-vgap: 2;
+}
+
+.font-size-option {
+    -fx-text-fill: -bv-text;
+    -fx-font-size: 12px;
+}
+
+.font-size-option:selected {
+    -fx-background-color: rgba(79, 124, 255, 0.14);
+    -fx-text-fill: -bv-accent;
+}
+
 .shape-options {
     -fx-spacing: 2;
 }

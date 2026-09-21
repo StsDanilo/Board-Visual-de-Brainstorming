@@ -27,6 +27,12 @@ import java.util.UUID;
  * Ou pode conter um board filho ({@link #getChildBoard()}): o botão do card
  * entra nesse board, que pode ter outros cards com boards filhos, sem limite.
  * O nome desse board é o texto do card.
+ *
+ * Tamanho: {@link #getBaseWidth()}/{@link #getBaseHeight()} guardam o tamanho
+ * definido à mão (ao criar ou redimensionar); {@link #getWidth()}/{@link #getHeight()}
+ * são o tamanho exibido, que pode ser maior quando o texto não cabe (o card
+ * cresce sozinho e volta ao tamanho definido à mão quando o texto diminui).
+ * Esse ajuste é feito fora do modelo, porque depende de medir o texto na tela.
  */
 public class Card {
 
@@ -35,12 +41,17 @@ public class Card {
     public static final double DEFAULT_HEIGHT = 120;
     /** Cor de fundo padrão, em hex CSS. */
     public static final String DEFAULT_COLOR = "#FFFFFF";
+    /** Valor de {@link #getFontSize()} que indica fonte automática (ajustada ao card). */
+    public static final double AUTO_FONT_SIZE = 0;
 
     private final String id;
     private final DoubleProperty x = new SimpleDoubleProperty(this, "x");
     private final DoubleProperty y = new SimpleDoubleProperty(this, "y");
     private final DoubleProperty width = new SimpleDoubleProperty(this, "width", DEFAULT_WIDTH);
     private final DoubleProperty height = new SimpleDoubleProperty(this, "height", DEFAULT_HEIGHT);
+    private final DoubleProperty baseWidth = new SimpleDoubleProperty(this, "baseWidth", DEFAULT_WIDTH);
+    private final DoubleProperty baseHeight = new SimpleDoubleProperty(this, "baseHeight", DEFAULT_HEIGHT);
+    private final DoubleProperty fontSize = new SimpleDoubleProperty(this, "fontSize", AUTO_FONT_SIZE);
     private final StringProperty text = new SimpleStringProperty(this, "text", "");
     private final StringProperty color = new SimpleStringProperty(this, "color", DEFAULT_COLOR);
     private final ObjectProperty<CardShape> shape = new SimpleObjectProperty<>(this, "shape", CardShape.RECTANGLE);
@@ -66,8 +77,7 @@ public class Card {
     public static Card create(CardShape shape, double centerX, double centerY) {
         Card card = new Card(centerX - shape.getDefaultWidth() / 2, centerY - shape.getDefaultHeight() / 2);
         card.setShape(shape);
-        card.setWidth(shape.getDefaultWidth());
-        card.setHeight(shape.getDefaultHeight());
+        card.resize(shape.getDefaultWidth(), shape.getDefaultHeight());
         return card;
     }
 
@@ -90,6 +100,32 @@ public class Card {
     public DoubleProperty heightProperty() { return height; }
     public double getHeight() { return height.get(); }
     public void setHeight(double value) { height.set(value); }
+
+    /** Tamanho definido à mão (ver a descrição da classe). */
+    public DoubleProperty baseWidthProperty() { return baseWidth; }
+    public double getBaseWidth() { return baseWidth.get(); }
+    public void setBaseWidth(double value) { baseWidth.set(value); }
+
+    public DoubleProperty baseHeightProperty() { return baseHeight; }
+    public double getBaseHeight() { return baseHeight.get(); }
+    public void setBaseHeight(double value) { baseHeight.set(value); }
+
+    /** Define o tamanho à mão: muda o tamanho definido à mão e o exibido. */
+    public void resize(double newWidth, double newHeight) {
+        setWidth(newWidth);
+        setHeight(newHeight);
+        setBaseWidth(newWidth);
+        setBaseHeight(newHeight);
+    }
+
+    /** Tamanho da fonte do texto, em px; {@link #AUTO_FONT_SIZE} = automático. */
+    public DoubleProperty fontSizeProperty() { return fontSize; }
+    public double getFontSize() { return fontSize.get(); }
+    public void setFontSize(double value) { fontSize.set(value > 0 ? value : AUTO_FONT_SIZE); }
+
+    public boolean isAutoFontSize() {
+        return getFontSize() == AUTO_FONT_SIZE;
+    }
 
     public StringProperty textProperty() { return text; }
     public String getText() { return text.get(); }
@@ -189,8 +225,8 @@ public class Card {
     // ---------------------------------------------------------------- formato
 
     /**
-     * Troca o formato mantendo o card no mesmo centro. Se o card ainda está no
-     * tamanho padrão do formato antigo, passa ao tamanho padrão do novo (a área
+     * Troca o formato mantendo o card no mesmo centro. Se o tamanho definido à
+     * mão ainda é o padrão do formato antigo, passa ao padrão do novo (a área
      * de texto de uma elipse ou losango é menor que a de um retângulo).
      */
     public void changeShape(CardShape newShape) {
@@ -198,14 +234,13 @@ public class Card {
         if (newShape == null || newShape == oldShape) {
             return;
         }
-        boolean hasDefaultSize = getWidth() == oldShape.getDefaultWidth()
-                && getHeight() == oldShape.getDefaultHeight();
+        boolean hasDefaultSize = getBaseWidth() == oldShape.getDefaultWidth()
+                && getBaseHeight() == oldShape.getDefaultHeight();
         double centerX = getCenterX();
         double centerY = getCenterY();
         setShape(newShape);
         if (hasDefaultSize) {
-            setWidth(newShape.getDefaultWidth());
-            setHeight(newShape.getDefaultHeight());
+            resize(newShape.getDefaultWidth(), newShape.getDefaultHeight());
             setX(centerX - getWidth() / 2);
             setY(centerY - getHeight() / 2);
         }
@@ -216,6 +251,9 @@ public class Card {
         Card copy = new Card(getX(), getY());
         copy.setWidth(getWidth());
         copy.setHeight(getHeight());
+        copy.setBaseWidth(getBaseWidth());
+        copy.setBaseHeight(getBaseHeight());
+        copy.setFontSize(getFontSize());
         copy.setText(getText());
         copy.setColor(getColor());
         copy.setShape(getShape());

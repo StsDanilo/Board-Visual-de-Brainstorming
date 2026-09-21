@@ -23,8 +23,13 @@ final class BoardFileFormat {
      * panelMode, detailText, listItems e childBoard foram adicionados depois da
      * versão 1; arquivos antigos simplesmente não os têm (viram card comum).
      * childBoard é um board completo, aninhado dentro do card (recursivo).
+     *
+     * baseWidth/baseHeight (tamanho definido à mão) e fontSize (null =
+     * automático) também vieram depois; sem eles, o tamanho definido à mão é
+     * o próprio tamanho salvo.
      */
     record CardData(String id, double x, double y, double width, double height,
+                    Double baseWidth, Double baseHeight, Double fontSize,
                     String text, String color, String shape,
                     String panelMode, String detailText, List<String> listItems,
                     BoardData childBoard) {

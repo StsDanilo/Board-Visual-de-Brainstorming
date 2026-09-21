@@ -32,12 +32,13 @@ class CardShapeTest {
     @Test
     void changeShapeKeepsCustomSize() {
         Card card = Card.create(CardShape.RECTANGLE, 400, 200);
-        card.setWidth(333);
+        card.resize(333, 120);
 
         card.changeShape(CardShape.DIAMOND);
 
         assertEquals(CardShape.DIAMOND, card.getShape());
         assertEquals(333, card.getWidth());
+        assertEquals(333, card.getBaseWidth());
     }
 
     @Test

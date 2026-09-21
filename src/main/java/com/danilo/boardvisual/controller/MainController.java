@@ -61,7 +61,9 @@ public class MainController {
         navigation = new NavigationController(boardView, window.getBreadcrumb(), history);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
                 canvasController, panelController, navigation, this);
+        CardTextFitController textFitController = new CardTextFitController();
         boardView.setCardViewInitializer(cardView -> {
+            textFitController.attach(cardView);
             cardDragController.attach(cardView);
             connectionController.attach(cardView);
             textEditController.attach(cardView);

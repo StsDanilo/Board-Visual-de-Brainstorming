@@ -76,6 +76,33 @@ class BoardStorageTest {
         assertEquals("", card.getText());
         assertEquals(PanelMode.NONE, card.getPanelMode());
         assertEquals(0, loaded.getConnections().size());
+        // Sem tamanho definido à mão nem fonte: usa o próprio tamanho e fonte automática.
+        assertEquals(Card.DEFAULT_WIDTH, card.getBaseWidth());
+        assertEquals(Card.DEFAULT_HEIGHT, card.getBaseHeight());
+        assertEquals(true, card.isAutoFontSize());
+    }
+
+    @Test
+    void savesAndLoadsFontSizeAndManualSize(@TempDir Path dir) throws IOException {
+        Board board = new Board("Fontes");
+        Card grown = new Card(0, 0);
+        grown.resize(300, 100);
+        grown.setHeight(180); // cresceu por causa do texto
+        grown.setFontSize(18);
+        Card auto = new Card(400, 0);
+        board.addCard(grown);
+        board.addCard(auto);
+
+        Path file = dir.resolve("fontes.json");
+        storage.save(board, file);
+        Board loaded = storage.load(file);
+
+        Card loadedGrown = loaded.findCard(grown.getId()).orElseThrow();
+        assertEquals(300, loadedGrown.getBaseWidth());
+        assertEquals(100, loadedGrown.getBaseHeight());
+        assertEquals(180, loadedGrown.getHeight());
+        assertEquals(18, loadedGrown.getFontSize());
+        assertEquals(true, loaded.findCard(auto.getId()).orElseThrow().isAutoFontSize());
     }
 
     @Test

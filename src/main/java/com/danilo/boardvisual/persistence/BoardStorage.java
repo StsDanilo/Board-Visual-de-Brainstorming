@@ -64,6 +64,7 @@ public class BoardStorage {
     private static BoardData toData(Board board) {
         List<CardData> cards = board.getCards().stream()
                 .map(c -> new CardData(c.getId(), c.getX(), c.getY(), c.getWidth(), c.getHeight(),
+                        c.getBaseWidth(), c.getBaseHeight(), c.isAutoFontSize() ? null : c.getFontSize(),
                         c.getText(), c.getColor(), c.getShape().name(),
                         c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts(),
                         c.hasChildBoard() ? toData(c.getChildBoard()) : null))
@@ -87,6 +88,9 @@ public class BoardStorage {
                 card.setShape(shape);
                 card.setWidth(cd.width() > 0 ? cd.width() : shape.getDefaultWidth());
                 card.setHeight(cd.height() > 0 ? cd.height() : shape.getDefaultHeight());
+                card.setBaseWidth(cd.baseWidth() != null && cd.baseWidth() > 0 ? cd.baseWidth() : card.getWidth());
+                card.setBaseHeight(cd.baseHeight() != null && cd.baseHeight() > 0 ? cd.baseHeight() : card.getHeight());
+                card.setFontSize(cd.fontSize() == null ? Card.AUTO_FONT_SIZE : cd.fontSize());
                 card.setText(cd.text());
                 card.setColor(cd.color());
                 card.setPanelMode(PanelMode.fromName(cd.panelMode()));

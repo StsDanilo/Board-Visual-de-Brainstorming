@@ -25,6 +25,8 @@ mvn test
 - Cards com texto editável direto no card, em três formatos: retângulo, elipse e losango
 - Arrastar cards livremente; setas acompanham automaticamente
 - Redimensionar cards pelas alças do card selecionado (elipse e losango mantêm a proporção)
+- Texto sempre inteiro à vista, sem rolagem: a fonte se ajusta sozinha ao card (ou tem tamanho
+  fixo, escolhido na barra flutuante) e o card cresce para baixo quando o texto não cabe
 - Alinhamento simplificado: ao arrastar ou redimensionar, bordas e centros grudam nos de outros cards, com linhas guia
   (segure `Alt` para posicionar livremente)
 - Conexões entre cards (ferramenta Conexão ou alça na borda do card)
@@ -36,7 +38,7 @@ mvn test
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Conexão e cor dos novos cards
-- Barra flutuante da seleção: cor, formato, duplicar e excluir
+- Barra flutuante da seleção: cor, formato, tamanho do texto, duplicar e excluir
 - Salvar e abrir boards em arquivos JSON locais
 
 ## Atalhos de teclado

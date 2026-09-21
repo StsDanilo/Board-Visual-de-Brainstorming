@@ -2,11 +2,13 @@ package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.alignment.Box;
 import com.danilo.boardvisual.alignment.BoxResizer;
+import com.danilo.boardvisual.alignment.Edge;
 import com.danilo.boardvisual.alignment.ResizeHandle;
 import com.danilo.boardvisual.model.BoardSnapshot;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.view.BoardView;
+import com.danilo.boardvisual.view.CardTextFit;
 import com.danilo.boardvisual.view.Tool;
 import javafx.beans.InvalidationListener;
 import javafx.beans.property.ObjectProperty;
@@ -26,6 +28,9 @@ import java.util.List;
  * - Elipse e losango: só os 4 cantos, sempre mantendo a proporção.
  * - As bordas puxadas grudam nas linhas de outros cards (mesmo alinhamento de
  *   quando se move; Alt desliga).
+ * - O card nunca fica menor do que o texto precisa (na fonte mínima, se a
+ *   fonte é automática): passando disso, a alça "trava" com o lado oposto parado.
+ * - O tamanho final vira o "tamanho definido à mão" do card.
  * - Cada gesto é um passo no desfazer. Setas, painel e barra flutuante
  *   acompanham sozinhos, porque dependem da largura/altura do modelo.
  *
@@ -33,12 +38,9 @@ import java.util.List;
  */
 public class CardResizeController {
 
-    /**
-     * Tamanho mínimo de um card. Provisório: quando o tamanho da fonte for
-     * automático (card [2] no Trello), o mínimo passa a depender do texto.
-     */
-    static final double MIN_WIDTH = 80;
-    static final double MIN_HEIGHT = 50;
+    /** Piso de tamanho, mesmo com pouco texto; acima dele, quem manda é o texto. */
+    static final double MIN_WIDTH = 60;
+    static final double MIN_HEIGHT = 40;
 
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;
@@ -89,8 +91,9 @@ public class CardResizeController {
             double threshold = e.isAltDown() ? 0 : CardDragController.SNAP_DISTANCE_PX / view.zoomProperty().get();
             BoxResizer.Result result = BoxResizer.resize(startBox, handle, p.getX() - start.getX(), p.getY() - start.getY(),
                     MIN_WIDTH, MIN_HEIGHT, keepAspect, others, threshold);
-            apply(target, result.box());
-            view.showGuides(result.guides());
+            Box box = fitText(target, handle, result.box());
+            apply(target, box);
+            view.showGuides(box.equals(result.box()) ? result.guides() : List.of());
             e.consume();
         });
         region.addEventHandler(MouseEvent.MOUSE_RELEASED, e -> {
@@ -122,11 +125,24 @@ public class CardResizeController {
         view.setResizeTarget(target, target != null && target.getShape() != CardShape.RECTANGLE);
     }
 
+    /**
+     * Aumenta a caixa até o texto caber, mantendo parado o lado oposto à alça
+     * (o texto é o mínimo "de verdade" do card).
+     */
+    private static Box fitText(Card card, ResizeHandle handle, Box box) {
+        CardTextFit.Fit fit = CardTextFit.forScreen().fit(card, box.width(), box.height());
+        if (fit.width() <= box.width() && fit.height() <= box.height()) {
+            return box;
+        }
+        double x = handle.xEdge() == Edge.START ? box.x() + box.width() - fit.width() : box.x();
+        double y = handle.yEdge() == Edge.START ? box.y() + box.height() - fit.height() : box.y();
+        return new Box(x, y, fit.width(), fit.height());
+    }
+
     private static void apply(Card card, Box box) {
         card.setX(box.x());
         card.setY(box.y());
-        card.setWidth(box.width());
-        card.setHeight(box.height());
+        card.resize(box.width(), box.height());
     }
 
     private static Box boxOf(Card card) {

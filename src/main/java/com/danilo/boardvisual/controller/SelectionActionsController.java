@@ -17,7 +17,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Ações sobre os cards selecionados: cor, formato, duplicar e excluir.
+ * Ações sobre os cards selecionados: cor, formato, tamanho do texto, duplicar e excluir.
  *
  * A cor pode vir da barra flutuante da seleção ou da barra de ferramentas
  * (que também define a cor dos próximos cards). Todas as ações já operam
@@ -45,6 +45,7 @@ public class SelectionActionsController {
         toolBar.setOnColorPicked(this::applyColor);
         selectionToolbar.getColorButton().setOnColorPicked(this::applyColor);
         selectionToolbar.getShapeButton().setOnShapePicked(this::applyShape);
+        selectionToolbar.getFontSizeButton().setOnFontSizePicked(this::applyFontSize);
         selectionToolbar.getDuplicateButton().setOnAction(e -> duplicateSelection());
         selectionToolbar.getDeleteButton().setOnAction(e -> deleteSelection());
 
@@ -62,6 +63,10 @@ public class SelectionActionsController {
 
     private void applyShape(CardShape shape) {
         history.perform(() -> selectedCards().forEach(card -> card.changeShape(shape)));
+    }
+
+    private void applyFontSize(double size) {
+        history.perform(() -> selectedCards().forEach(card -> card.setFontSize(size)));
     }
 
     public void duplicateSelection() {
@@ -94,17 +99,19 @@ public class SelectionActionsController {
         observedCards.forEach(card -> {
             card.colorProperty().removeListener(appearanceListener);
             card.shapeProperty().removeListener(appearanceListener);
+            card.fontSizeProperty().removeListener(appearanceListener);
         });
         observedCards.clear();
         observedCards.addAll(view.getSelection());
         observedCards.forEach(card -> {
             card.colorProperty().addListener(appearanceListener);
             card.shapeProperty().addListener(appearanceListener);
+            card.fontSizeProperty().addListener(appearanceListener);
         });
         refreshToolbar();
     }
 
-    /** Os botões mostram cor e formato da seleção; se os cards diferem, ficam em estado "misto". */
+    /** Os botões mostram cor, formato e tamanho do texto da seleção; se os cards diferem, ficam em estado "misto". */
     private void refreshToolbar() {
         Set<String> colors = view.getSelection().stream()
                 .map(card -> card.getColor().toUpperCase(Locale.ROOT))
@@ -113,5 +120,8 @@ public class SelectionActionsController {
 
         Set<CardShape> shapes = view.getSelection().stream().map(Card::getShape).collect(Collectors.toSet());
         selectionToolbar.getShapeButton().setShape(shapes.size() == 1 ? shapes.iterator().next() : null);
+
+        Set<Double> fontSizes = view.getSelection().stream().map(Card::getFontSize).collect(Collectors.toSet());
+        selectionToolbar.getFontSizeButton().setFontSize(fontSizes.size() == 1 ? fontSizes.iterator().next() : Double.NaN);
     }
 }

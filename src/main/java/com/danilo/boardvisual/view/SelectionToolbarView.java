@@ -24,6 +24,7 @@ public class SelectionToolbarView extends HBox {
 
     private final ColorPickerButton colorButton = new ColorPickerButton("Cor do card", Side.BOTTOM);
     private final ShapePickerButton shapeButton = new ShapePickerButton("Formato do card", Side.BOTTOM);
+    private final FontSizePickerButton fontSizeButton = new FontSizePickerButton("Tamanho do texto", Side.BOTTOM);
     private final Button duplicateButton = actionButton("Duplicar  (Ctrl+D)", Icons.DUPLICATE);
     private final Button deleteButton = actionButton("Excluir  (Delete)", Icons.DELETE);
     private final Button textModeButton = actionButton("Painel: texto", Icons.PANEL_TEXT);
@@ -42,7 +43,7 @@ public class SelectionToolbarView extends HBox {
         panelModeGroup.managedProperty().bind(panelModeGroup.visibleProperty());
         panelModeGroup.setVisible(false);
 
-        getChildren().addAll(colorButton, shapeButton, panelModeGroup,
+        getChildren().addAll(colorButton, shapeButton, fontSizeButton, panelModeGroup,
                 new Separator(Orientation.VERTICAL), duplicateButton, deleteButton);
     }
 
@@ -79,6 +80,10 @@ public class SelectionToolbarView extends HBox {
 
     public ShapePickerButton getShapeButton() {
         return shapeButton;
+    }
+
+    public FontSizePickerButton getFontSizeButton() {
+        return fontSizeButton;
     }
 
     public Button getDuplicateButton() {

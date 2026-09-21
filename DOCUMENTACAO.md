@@ -2,7 +2,7 @@
 
 > Documento de estudo e referência do projeto, mantido junto com o código: toda mudança relevante
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
-> Estado descrito: até o redimensionamento de cards.
+> Estado descrito: até a fonte automática e o crescimento automático dos cards.
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -95,7 +95,7 @@ sem tocar no modelo.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `Card` | Um card: id, x, y, largura, altura, texto, cor (hex), formato. Tudo como propriedade observável. |
+| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato. Tudo como propriedade observável. |
 | `CardShape` | Enum dos formatos (`RECTANGLE`, `ELLIPSE`, `DIAMOND`) com o tamanho padrão de cada um. |
 | `Connection` | Uma seta: id, card de origem, card de destino. Imutável. |
 | `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada). |
@@ -115,14 +115,15 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 | `CardView` | Desenho de um card: fundo com a silhueta do formato, campo de texto, alça de conexão. |
 | `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards. |
 | `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato; recuo do texto dentro do formato. |
+| `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). |
 | `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica. |
 | `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. |
-| `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato, modo do painel (Texto/Lista), duplicar, excluir. |
+| `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato, tamanho do texto, modo do painel (Texto/Lista), duplicar, excluir. |
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar. |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
 | `PopupButton` | Base de "botão que abre um painelzinho". |
-| `ColorPickerButton` / `ShapePickerButton` | Os dois botões com popup (cor e formato). |
+| `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
 | `CardPalette` | As 8 cores oferecidas. |
 | `Icons` | Ícones desenhados com path SVG. |
@@ -135,8 +136,9 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 | `CanvasController` | Mouse no fundo: pan, zoom, caixa de seleção, criar card. |
 | `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo), com alinhamento. |
 | `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas. |
+| `CardTextFitController` | Reaplica a fonte e o crescimento de cada card quando o texto, a fonte ou o tamanho mudam. |
 | `ConnectionController` | Criar setas arrastando de um card a outro. |
-| `SelectionActionsController` | Cor, formato, duplicar e excluir aplicados à seleção. |
+| `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção. |
 | `TextEditController` | Registra a edição de texto no histórico (sessões de edição). |
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
 | `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível; guarda o board principal. |
@@ -510,15 +512,20 @@ MOUSE_DRAGGED
   BoxResizer.resize(caixaInicial, alça, dx, dy, mínimo, manterProporção, referências, 6 / zoom)
     1. puxa só as linhas da alça (borda direita → largura; borda esquerda → x e largura)
     2. alinhamento só nessas linhas (AlignmentGuides.snap com os Edges da alça)
-    3. aplica o tamanho mínimo com o lado oposto parado
-  aplica x/y/largura/altura no card; mostra as guias
+    3. aplica o piso de tamanho (60 × 40) com o lado oposto parado
+  fitText: aumenta a caixa até o texto caber (CardTextFit, 3.14), lado oposto parado
+  card.resize(...) → vira o "tamanho definido à mão"; mostra as guias
 MOUSE_RELEASED
   esconde as guias; history.record(foto)  → um passo no desfazer
 ```
 
 - **O lado oposto à alça fica parado** (puxar a borda esquerda não mexe na direita).
-- **Tamanho mínimo:** 80 × 50, por enquanto. Com a fonte automática (card [2]), o mínimo passa a
-  depender do texto.
+- **Tamanho mínimo = o que o texto precisa** (na fonte mínima, se a fonte é automática), com um
+  piso de 60 × 40 para cards quase vazios. Passando disso, a alça "trava": o card não encolhe mais e
+  o lado oposto continua parado (puxar a borda de cima para baixo não empurra a de baixo). Enquanto
+  trava, as guias somem (a caixa não é mais a do alinhamento).
+- **O tamanho final vira o "tamanho definido à mão"** (`Card.resize`), a base do crescimento
+  automático (3.14).
 - **Alt** desliga o alinhamento, como ao mover.
 - Setas, painel flutuante e barra flutuante acompanham sozinhos: todos dependem de largura e altura
   do modelo por binding ou listener.
@@ -530,10 +537,56 @@ MOUSE_RELEASED
   centro (`-fx-background-insets`), o resto é margem transparente que também aceita clique.
 - **Card pequeno na tela** (ou zoom baixo): as alças do meio das bordas somem quando não há espaço
   para elas entre os cantos (menos de 3 alças de largura/altura); os cantos sempre ficam.
-- **Decisão:** o card [1] previa uma propriedade separada de "tamanho definido à mão". Sem crescimento
-  automático, ela seria idêntica à largura/altura, então fica para o card [2], quando passa a ter uso.
+- **Decisão:** o card [1] previa a propriedade de "tamanho definido à mão"; ela entrou junto com o
+  crescimento automático (3.14), quando passou a ter uso.
 
-## 3.14 Atalhos de teclado
+## 3.14 Fonte automática e crescimento do card
+
+Objetivo: **nenhum card fica com rolagem**; o que aparece na tela é o que vai para o PDF (card [3]).
+
+Dois tamanhos no `Card`:
+
+| Propriedade | O que é | Quem muda |
+|---|---|---|
+| `baseWidth` / `baseHeight` | Tamanho **definido à mão** | Criar card, trocar formato (se ainda no padrão), redimensionar — sempre por `Card.resize(w, h)` |
+| `width` / `height` | Tamanho **exibido** (≥ o definido à mão) | `CardTextFitController`, quando o texto não cabe |
+
+E a fonte: `fontSize` = `Card.AUTO_FONT_SIZE` (0, automático) ou um valor manual em px.
+
+```
+texto / fonte / tamanho à mão / formato / botão do card mudou   (CardTextFitController)
+  CardTextFit.fit(card)  — sempre a partir do tamanho definido à mão
+    automático: maior fonte entre 9 e 24 px em que o texto cabe
+                (altura das linhas + cada palavra inteira na largura; busca binária de 0,5 em 0,5)
+      nem 9 px cabe → fonte 9 e o card cresce
+    manual: a fonte escolhida; se não cabe, o card cresce
+    crescer: retângulo → só a altura (conta direta); elipse/losango → escala os dois lados
+             (busca binária), mantendo a proporção
+  CardView.setTextFontSize(fonte)       (estilo inline no TextArea)
+  card.width/height = resultado; x ajustado para o centro da largura não mudar
+```
+
+- **Cresce para baixo:** o topo fica parado. Elipse e losango crescem para os dois lados, com o centro
+  horizontal parado.
+- **Encolhe sozinho:** como o cálculo parte sempre do tamanho definido à mão, apagar texto volta a
+  ele — nunca menor.
+- **Aumentar o card à mão** muda o tamanho definido à mão, então a fonte automática cresce de novo
+  (até 24 px).
+- **Card vazio:** a fonte se ajusta ao texto de exemplo ("Escreva uma ideia..."), mas o exemplo nunca
+  faz o card crescer.
+- **Fonte manual:** botão na barra flutuante (mostra "Auto" ou o número; "–" com seleção mista),
+  com "Automático" e 10–48 px. É um passo no desfazer.
+- **Desfazer:** o crescimento durante a digitação acontece dentro da sessão de edição (4.7), então
+  sai junto com o texto num único `Ctrl+Z`. As fotos guardam os dois tamanhos e a fonte; ao
+  restaurar, o recálculo chega ao mesmo resultado.
+- **Por que no controller e não no modelo:** medir texto depende das métricas de fonte do JavaFX
+  (camada de tela). O modelo só guarda o resultado; os testes do cálculo usam um medidor falso
+  (`CardTextFit.TextMeasurer`).
+- **Não evita sobreposição:** um card que cresce pode cobrir o de baixo; o usuário reorganiza.
+
+Detalhes da medição (por que o texto cabe de verdade) em 4.6.
+
+## 3.15 Atalhos de teclado
 
 O `KeyboardController` registra um **handler na janela** (`Stage`). Como handlers rodam na fase de
 "borbulhamento" (ver 4.3), ele só recebe teclas que **ninguém consumiu antes** — em especial, o
@@ -805,6 +858,22 @@ base do triângulo (não na ponta) para não "vazar" à frente dele.
 
 Por isso `CardShape` dá tamanhos padrão maiores para elipse (230×150) e losango (260×170).
 
+### Medir o texto como o `TextArea` desenha (`CardTextFit`)
+
+A medição usa um `Text` fora da tela com a mesma fonte, e só funciona se imitar o `TextArea` em
+todos os detalhes. Cada um destes foi encontrado nos testes de interface, com o texto "cabendo" na
+conta e a barra de rolagem aparecendo mesmo assim:
+
+| Detalhe | Consequência se ignorar |
+|---|---|
+| O `TextArea` desenha **um único `Text`** com o texto inteiro (limites `LOGICAL_VERTICAL_CENTER`) | Somar parágrafo a parágrafo dá uma altura menor que a real |
+| O `.card` tem **1 px de borda** entre o card e o texto | Faltam 2 px em cada eixo |
+| A **barra de rolagem** (6 px) estreita a linha quando aparece | Se ela aparece por um instante (ex.: no primeiro layout), o texto passa a precisar dela e ela não some mais. Por isso a quebra é medida já **sem** esses 6 px: o texto cabe com ou sem ela |
+| Família da fonte | Medir e desenhar com a mesma: `CardTextFit.fontFamily()` resolve a primeira instalada da lista do `app.css`, e o `CardView` aplica essa família junto com o tamanho |
+
+Mais uma folga de 3 px para arredondamentos. Os testes de interface conferem que nenhum de 70 textos
+de tamanhos crescentes (em cada formato e no painel) mostra rolagem.
+
 ## 4.7 Desfazer: por que fotos, e como `restore` funciona
 
 ### Fotos × comandos
@@ -918,7 +987,8 @@ você estava editando.
 - [ ] `Card`: campo como propriedade + getter/setter/`xxxProperty()`
 - [ ] `Card.copy()`: copiar o valor (se fizer sentido na duplicação)
 - [ ] `BoardSnapshot.CardState`: novo componente + `of()` + `applyTo()` → **senão desfazer ignora a propriedade**
-  (exemplo completo: veja como `panelMode`, `detailText` e `listItems` foram adicionados)
+  (exemplo completo: veja como `panelMode`, `detailText` e `listItems` foram adicionados, ou
+  `baseWidth`/`baseHeight`/`fontSize`, com valor padrão para arquivos antigos)
 - [ ] `BoardFileFormat.CardData`: novo componente → **senão não salva**
 - [ ] `BoardStorage.toData` / `fromData`: mapear, com valor padrão para arquivos antigos
 - [ ] `CardView`: refletir visualmente (pseudo-classe ou variável CSS), se houver efeito visual
@@ -974,7 +1044,7 @@ derivada da largura, e o canto oposto à alça fica parado.
 ## 5.6 Mapa das próximas funcionalidades (Trello)
 
 Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
-**[1] está feito** (3.13):
+**[1] e [2] estão feitos** (3.13 e 3.14):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -982,8 +1052,7 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
-| **[2] Fonte automática/manual + crescimento** | Propriedade de tamanho de fonte (automático ou valor manual) e de "tamanho definido à mão" (checklist 5.1); medir o texto com as métricas de fonte do JavaFX; ajustar altura no modelo; trocar o mínimo fixo do `CardResizeController` pelo mínimo que o texto precisa | Automático aumenta e diminui a fonte dentro de limites (mín. ~9px). Cresce para baixo, só na altura (elipse/losango: proporção). Ao apagar texto, volta a encolher, nunca abaixo do tamanho definido à mão. Crescimento durante a digitação entra na sessão de edição do desfazer. Objetivo: acabar com a rolagem dentro dos cards |
-| **[3] Exportar para PDF** | Apache PDFBox; percorrer a árvore como o `BoardStorage`; board como imagem (snapshot 2x–3x) + links internos (`PDAnnotationLink`) + texto invisível para busca | Uma página por board; card de board aninhado e caminho no topo viram links; painel flutuante → página de "Detalhes" (vetorial) com link de volta; marcadores do PDF espelhando a árvore |
+| **[3] Exportar para PDF** | Apache PDFBox; percorrer a árvore como o `BoardStorage`; board como imagem (snapshot 2x–3x) + links internos (`PDAnnotationLink`) + texto invisível para busca. Boards filhos que nunca foram abertos na sessão precisam de `CardView` (ou do `CardTextFit`) para ter a fonte calculada antes do snapshot | Uma página por board; card de board aninhado e caminho no topo viram links; painel flutuante → página de "Detalhes" (vetorial) com link de volta; marcadores do PDF espelhando a árvore |
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
 | **Lock de item** | Propriedade `locked` (checklist 5.1); `CardDragController` ignora cards travados; pseudo-classe `:locked` | Excluir/duplicar travados? decidir |
@@ -1035,10 +1104,14 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
    antes de uma conexão consumir o evento.
 10. **Z-order não é salvo**: trazer para frente só vale na tela; ao reabrir, vale a ordem da lista.
 11. **Setas A→B e B→A** ficam sobrepostas (parecem uma seta de duas pontas).
+12. **Largura/altura × tamanho definido à mão:** para mudar o tamanho "de verdade", use
+    `Card.resize`; `setWidth`/`setHeight` sozinhos são desfeitos pelo recálculo do texto (3.14).
+13. **Mudar o visual do texto** (borda do `.card`, barra de rolagem, fonte, espaçamento de linha no
+    `app.css`) exige ajustar as constantes do `CardTextFit` (4.6), senão volta a aparecer rolagem.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 57 testes, sem abrir janela
+### Automatizados (`mvn test`) — 68 testes, sem abrir janela
 
 | Classe | Cobre |
 |---|---|
@@ -1047,11 +1120,12 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | `CardGeometryTest` | ponto de contato da seta em cada formato |
 | `AlignmentGuidesTest` | grudar borda/centro, candidato mais próximo, limite, guias atravessando várias caixas, redimensionar (só bordas puxadas) |
 | `BoxResizerTest` | cada tipo de alça, lado oposto parado, tamanho mínimo, proporção, grude só nas bordas puxadas, Alt (limite 0) |
-| `BoardSnapshotTest` | foto/restauração: mudança de propriedades, card excluído com setas, card novo |
+| `BoardSnapshotTest` | foto/restauração: mudança de propriedades, fonte e tamanho definido à mão, card excluído com setas, card novo |
+| `CardTextFitTest` | fonte máxima/menor/mínima, palavra nunca quebrada no meio, retângulo cresce só na altura, elipse mantém proporção, volta ao tamanho à mão, fonte manual, card vazio, espaço do botão (com medidor falso, sem JavaFX) |
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
 | `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
-| `BoardStorageTest` | salvar/abrir (painéis e boards aninhados em 3 níveis), arquivo antigo, JSON inválido |
+| `BoardStorageTest` | salvar/abrir (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), arquivo antigo, JSON inválido |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o
 benefício direto da separação em camadas.
@@ -1065,6 +1139,8 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
 - O Windows descarta a primeira entrada enquanto ativa a janela de teste; é preciso "aquecer".
 - Coordenadas fora da área visível da tela não geram evento algum.
 - Clicar num popup logo após abri-lo falha: esperar a janela do popup existir.
+- Depois de mudar o modelo, forçar `applyCss()` + `layout()` na cena antes de inspecionar tamanhos
+  (senão a checagem vê o layout anterior).
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
