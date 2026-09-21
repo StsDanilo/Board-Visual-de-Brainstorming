@@ -27,6 +27,9 @@ public enum Tool {
     PANEL("Painel flutuante", KeyCode.P, CardShape.RECTANGLE, PanelMode.TEXT, Icons.PANEL,
             "Clique no canvas para criar um painel flutuante  ·  O botão no card abre o painel  ·  "
                     + "Texto ou lista: escolha na barra do card selecionado"),
+    NESTED_BOARD("Board aninhado", KeyCode.B, CardShape.RECTANGLE, PanelMode.NONE, true, Icons.NESTED_BOARD,
+            "Clique no canvas para criar um board aninhado  ·  O botão no card entra no board  ·  "
+                    + "Alt+← ou o caminho no topo voltam"),
     CONNECTION("Conexão", KeyCode.C, null, PanelMode.NONE, Icons.CONNECTION,
             "Arraste de um card até outro para conectá-los");
 
@@ -34,11 +37,18 @@ public enum Tool {
     private final KeyCode shortcut;
     private final CardShape shape;
     private final PanelMode panelMode;
+    private final boolean createsChildBoard;
     private final String iconPath;
     private final String hint;
     private final PseudoClass pseudoClass;
 
     Tool(String label, KeyCode shortcut, CardShape shape, PanelMode panelMode, String iconPath, String hint) {
+        this(label, shortcut, shape, panelMode, false, iconPath, hint);
+    }
+
+    Tool(String label, KeyCode shortcut, CardShape shape, PanelMode panelMode, boolean createsChildBoard,
+         String iconPath, String hint) {
+        this.createsChildBoard = createsChildBoard;
         this.label = label;
         this.shortcut = shortcut;
         this.shape = shape;
@@ -67,9 +77,14 @@ public enum Tool {
         return panelMode;
     }
 
+    /** Se o card criado contém um board filho (board aninhado). */
+    public boolean createsChildBoard() {
+        return createsChildBoard;
+    }
+
     /** Ferramentas que criam cards comuns de um formato (as opções do seletor de formato). */
     boolean isPlainShapeTool() {
-        return shape != null && panelMode == PanelMode.NONE;
+        return shape != null && panelMode == PanelMode.NONE && !createsChildBoard;
     }
 
     /** Texto de ajuda mostrado na barra de status enquanto a ferramenta está ativa. */

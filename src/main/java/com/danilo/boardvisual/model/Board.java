@@ -106,6 +106,19 @@ public class Board {
         return true;
     }
 
+    /**
+     * Cópia independente do board inteiro (cards, setas e boards filhos, em
+     * qualquer profundidade). O board copiado ganha id novo; os objetos
+     * internos são todos novos, mas reaproveitam os ids da foto (ids só
+     * precisam ser únicos dentro do próprio board). Usada ao duplicar um card
+     * que contém um board.
+     */
+    public Board deepCopy() {
+        Board copy = new Board(getName());
+        copy.restore(snapshot());
+        return copy;
+    }
+
     // ------------------------------------------------------ desfazer/refazer
 
     public BoardSnapshot snapshot() {
@@ -118,6 +131,11 @@ public class Board {
      * Faz o board voltar a ficar igual à foto, alterando o mínimo possível:
      * cards que continuam existindo são atualizados no lugar (mesmo objeto),
      * então a view só cria ou remove nós para o que realmente entrou ou saiu.
+     *
+     * Boards filhos de cards que continuam existindo não são tocados: o
+     * desfazer de um board age só nele, não no que foi feito dentro dos
+     * filhos. Cards recriados (ex.: desfazer uma exclusão) voltam com o board
+     * filho completo da foto.
      */
     public void restore(BoardSnapshot snapshot) {
         Set<String> connectionIds = snapshot.connections().stream()

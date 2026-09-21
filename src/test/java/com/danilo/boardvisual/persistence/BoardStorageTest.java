@@ -104,6 +104,36 @@ class BoardStorageTest {
     }
 
     @Test
+    void savesAndLoadsNestedBoards(@TempDir Path dir) throws IOException {
+        Board root = new Board("Principal");
+        Card level2 = new Card(0, 0);
+        level2.setText("Nível 2");
+        level2.setChildBoard(new Board(""));
+        root.addCard(level2);
+        Card level3 = new Card(50, 50);
+        level3.setText("Nível 3");
+        level3.setChildBoard(new Board(""));
+        level2.getChildBoard().addCard(level3);
+        Card a = new Card(0, 0);
+        Card b = new Card(300, 0);
+        level3.getChildBoard().addCard(a);
+        level3.getChildBoard().addCard(b);
+        level3.getChildBoard().connect(a, b);
+
+        Path file = dir.resolve("aninhado.json");
+        storage.save(root, file);
+        Board loaded = storage.load(file);
+
+        Card loaded2 = loaded.getCards().get(0);
+        Card loaded3 = loaded2.getChildBoard().getCards().get(0);
+        assertEquals("Nível 3", loaded3.getText());
+        assertEquals(level3.getChildBoard().getId(), loaded3.getChildBoard().getId());
+        assertEquals(2, loaded3.getChildBoard().getCards().size());
+        assertEquals(1, loaded3.getChildBoard().getConnections().size());
+        assertEquals(root.snapshot(), loaded.snapshot());
+    }
+
+    @Test
     void rejectsInvalidJson(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("quebrado.json");
         Files.writeString(file, "{ isso não é json", StandardCharsets.UTF_8);

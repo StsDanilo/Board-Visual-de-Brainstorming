@@ -20,12 +20,14 @@ final class BoardFileFormat {
     }
 
     /**
-     * panelMode, detailText e listItems foram adicionados depois da versão 1;
-     * arquivos antigos simplesmente não os têm (viram card comum ao abrir).
+     * panelMode, detailText, listItems e childBoard foram adicionados depois da
+     * versão 1; arquivos antigos simplesmente não os têm (viram card comum).
+     * childBoard é um board completo, aninhado dentro do card (recursivo).
      */
     record CardData(String id, double x, double y, double width, double height,
                     String text, String color, String shape,
-                    String panelMode, String detailText, List<String> listItems) {
+                    String panelMode, String detailText, List<String> listItems,
+                    BoardData childBoard) {
     }
 
     record ConnectionData(String id, String sourceId, String targetId) {

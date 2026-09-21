@@ -24,8 +24,8 @@ import java.util.Set;
  * - Zoom: roda do mouse / pinça, em torno do cursor.
  * - Selecionar: clicar no fundo limpa a seleção; arrastar o fundo desenha a
  *   caixa de seleção (com Shift, soma à seleção atual).
- * - Retângulo / Elipse / Losango / Painel: clicar no fundo cria o card ali
- *   (com a cor atual da barra) e volta para Selecionar.
+ * - Retângulo / Elipse / Losango / Painel / Board aninhado: clicar no fundo
+ *   cria o card ali (com a cor atual da barra) e volta para Selecionar.
  */
 public class CanvasController {
 
@@ -164,6 +164,9 @@ public class CanvasController {
         Point2D p = view.sceneToWorld(sceneX, sceneY);
         Card card = Card.create(tool.getShape(), p.getX(), p.getY());
         card.setPanelMode(tool.getPanelMode());
+        if (tool.createsChildBoard()) {
+            card.setChildBoard(new Board(""));
+        }
         card.setColor(newCardColor.getValue());
         history.perform(() -> board.addCard(card));
         view.select(card);

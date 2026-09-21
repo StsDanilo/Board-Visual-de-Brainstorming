@@ -18,15 +18,16 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
 /**
- * Layout da janela: menu no topo, canvas no centro com a barra de ferramentas
- * flutuando à esquerda (e a barra da seleção sobre o card selecionado), e
- * barra de status embaixo.
+ * Layout da janela: menu no topo, canvas no centro com o caminho do board no
+ * canto superior esquerdo, a barra de ferramentas flutuando à esquerda (e a
+ * barra da seleção sobre o card selecionado), e barra de status embaixo.
  */
 public class MainWindow extends BorderPane {
 
     private final BoardView boardView = new BoardView();
     private final ToolBarView toolBar = new ToolBarView();
     private final SelectionToolbarView selectionToolbar = new SelectionToolbarView();
+    private final BreadcrumbView breadcrumb = new BreadcrumbView();
 
     private final MenuItem newItem = new MenuItem("Novo board");
     private final MenuItem openItem = new MenuItem("Abrir...");
@@ -59,9 +60,12 @@ public class MainWindow extends BorderPane {
         setTop(new MenuBar(fileMenu, editMenu, viewMenu));
 
         boardView.setSelectionOverlay(selectionToolbar);
-        StackPane canvasArea = new StackPane(boardView, toolBar);
+        StackPane canvasArea = new StackPane(boardView, toolBar, breadcrumb);
         StackPane.setAlignment(toolBar, Pos.CENTER_LEFT);
-        StackPane.setMargin(toolBar, new Insets(12));
+        // Margem de cima maior: deixa espaço para o caminho no canto superior esquerdo.
+        StackPane.setMargin(toolBar, new Insets(64, 12, 12, 12));
+        StackPane.setAlignment(breadcrumb, Pos.TOP_LEFT);
+        StackPane.setMargin(breadcrumb, new Insets(12));
         setCenter(canvasArea);
         setBottom(createStatusBar());
     }
@@ -88,6 +92,7 @@ public class MainWindow extends BorderPane {
     public BoardView getBoardView() { return boardView; }
     public ToolBarView getToolBar() { return toolBar; }
     public SelectionToolbarView getSelectionToolbar() { return selectionToolbar; }
+    public BreadcrumbView getBreadcrumb() { return breadcrumb; }
     public MenuItem getNewItem() { return newItem; }
     public MenuItem getOpenItem() { return openItem; }
     public MenuItem getSaveItem() { return saveItem; }

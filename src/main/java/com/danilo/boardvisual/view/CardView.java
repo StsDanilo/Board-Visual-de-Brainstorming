@@ -32,6 +32,7 @@ import javafx.scene.shape.Circle;
  *  │   └─ content             área do texto, recuada para caber no formato
  *  │       └─ textArea
  *  ├─ panelButton             abre o painel flutuante (só em cards com painel)
+ *  ├─ boardButton             entra no board filho (só em cards com board aninhado)
  *  └─ connectorHandle         alça para criar conexões
  * </pre>
  */
@@ -40,6 +41,7 @@ public class CardView extends Region {
     private static final PseudoClass SELECTED = PseudoClass.getPseudoClass("selected");
     private static final PseudoClass CONNECTION_TARGET = PseudoClass.getPseudoClass("connection-target");
     private static final PseudoClass PANEL_OPEN = PseudoClass.getPseudoClass("panel-open");
+    private static final PseudoClass HAS_BOARD = PseudoClass.getPseudoClass("has-board");
     private static final String SHAPE_CLASS_PREFIX = "shape-";
 
     private final Card card;
@@ -48,6 +50,7 @@ public class CardView extends Region {
     private final TextArea textArea = new TextArea();
     private final Circle connectorHandle = new Circle(6);
     private final Button panelButton = new Button();
+    private final Button boardButton = new Button();
 
     public CardView(Card card) {
         this.card = card;
@@ -67,8 +70,10 @@ public class CardView extends Region {
         // não no CSS (e .card-content não deve definir -fx-padding no app.css).
         content.getStyleClass().add("card-content");
         content.paddingProperty().bind(Bindings.createObjectBinding(
-                () -> CardGeometry.contentInsets(card.getShape(), card.getWidth(), card.getHeight(), card.isPanel()),
-                card.shapeProperty(), card.widthProperty(), card.heightProperty(), card.panelModeProperty()));
+                () -> CardGeometry.contentInsets(card.getShape(), card.getWidth(), card.getHeight(),
+                        card.isPanel() || card.hasChildBoard()),
+                card.shapeProperty(), card.widthProperty(), card.heightProperty(),
+                card.panelModeProperty(), card.childBoardProperty()));
         content.getChildren().add(textArea);
         // A área ocupa o card todo (o recuo fica por dentro); só o texto deve
         // ser clicável aqui, o resto cai no body, que respeita a silhueta.
@@ -97,7 +102,16 @@ public class CardView extends Region {
         card.panelModeProperty().addListener((obs, old, mode) -> applyPanelMode(mode));
         card.shapeProperty().addListener(obs -> requestLayout());
 
-        getChildren().addAll(body, panelButton, connectorHandle);
+        // Botão do board aninhado: mesmo lugar do botão do painel (um card não é os dois).
+        boardButton.getStyleClass().addAll("tool-button", "panel-button", "board-button");
+        boardButton.setFocusTraversable(false);
+        boardButton.setTooltip(new Tooltip("Entrar no board"));
+        boardButton.setGraphic(Icons.create(Icons.ENTER));
+        boardButton.visibleProperty().bind(card.childBoardProperty().isNotNull());
+        pseudoClassStateChanged(HAS_BOARD, card.hasChildBoard());
+        card.childBoardProperty().addListener((obs, old, child) -> pseudoClassStateChanged(HAS_BOARD, child != null));
+
+        getChildren().addAll(body, panelButton, boardButton, connectorHandle);
 
         layoutXProperty().bind(card.xProperty());
         layoutYProperty().bind(card.yProperty());
@@ -123,6 +137,10 @@ public class CardView extends Region {
 
     public Button getPanelButton() {
         return panelButton;
+    }
+
+    public Button getBoardButton() {
+        return boardButton;
     }
 
     /** Destaca o botão enquanto o painel deste card está aberto. */
@@ -164,6 +182,8 @@ public class CardView extends Region {
         panelButton.autosize();
         Point2D center = CardGeometry.panelButtonCenter(card.getShape(), card.getWidth(), card.getHeight());
         panelButton.relocate(center.getX() - panelButton.getWidth() / 2, center.getY() - panelButton.getHeight() / 2);
+        boardButton.autosize();
+        boardButton.relocate(center.getX() - boardButton.getWidth() / 2, center.getY() - boardButton.getHeight() / 2);
     }
 
     private void applyPanelMode(PanelMode mode) {

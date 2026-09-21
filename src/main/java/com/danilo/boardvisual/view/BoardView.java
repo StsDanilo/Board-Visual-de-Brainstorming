@@ -509,6 +509,21 @@ public class BoardView extends Pane {
         pan.setY(viewY - worldY * newZoom);
     }
 
+    /** Posição e zoom da visão, para cada board aninhado lembrar onde você estava. */
+    public record ViewState(double panX, double panY, double zoom) {
+        public static final ViewState DEFAULT = new ViewState(0, 0, 1);
+    }
+
+    public ViewState getViewState() {
+        return new ViewState(pan.getX(), pan.getY(), zoom.get());
+    }
+
+    public void setViewState(ViewState state) {
+        zoom.set(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.zoom())));
+        pan.setX(state.panX());
+        pan.setY(state.panY());
+    }
+
     public void resetView() {
         zoom.set(1);
         pan.setX(0);

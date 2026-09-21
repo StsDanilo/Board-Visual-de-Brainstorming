@@ -2,7 +2,7 @@
 
 > Documento de estudo e referência do projeto, mantido junto com o código: toda mudança relevante
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
-> Estado descrito: até o painel flutuante (texto e lista).
+> Estado descrito: até os boards aninhados.
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -25,7 +25,9 @@ mas você pode parar em qualquer um:
 Um aplicativo desktop para organizar ideias no espaço, no estilo Miro/Milanote. Existe um canvas
 infinito; nele você cria **cards** (retângulo, elipse ou losango) com texto, arrasta livremente,
 liga os cards com **setas**, pinta com cores, seleciona vários de uma vez, desfaz erros e salva
-tudo num arquivo **JSON** no computador. Não há servidor nem banco de dados.
+tudo num arquivo **JSON** no computador. Cards podem abrir um **painel flutuante** (texto ou lista)
+ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade).
+Não há servidor nem banco de dados.
 
 ## Tecnologias
 
@@ -100,6 +102,9 @@ sem tocar no modelo.
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
 
+Um `Card` pode ter um `childBoard` (outro `Board`), o que forma uma **árvore**: o board principal
+contém cards, que contêm boards, que contêm cards... O arquivo salva essa árvore inteira.
+
 ### `view/` — a aparência
 
 | Arquivo | Responsabilidade |
@@ -113,6 +118,7 @@ sem tocar no modelo.
 | `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. |
 | `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato, modo do painel (Texto/Lista), duplicar, excluir. |
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
+| `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar. |
 | `PopupButton` | Base de "botão que abre um painelzinho". |
 | `ColorPickerButton` / `ShapePickerButton` | Os dois botões com popup (cor e formato). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
@@ -130,6 +136,7 @@ sem tocar no modelo.
 | `SelectionActionsController` | Cor, formato, duplicar e excluir aplicados à seleção. |
 | `TextEditController` | Registra a edição de texto no histórico (sessões de edição). |
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
+| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível; guarda o board principal. |
 | `KeyboardController` | Atalhos de teclado. |
 | `EditHistory` | Pilha de desfazer/refazer. |
 
@@ -163,9 +170,11 @@ Main.main()
          │   ├─ new ConnectionController(...)├─ ainda sem cards: registram-se no "inicializador"
          │   ├─ new TextEditController(...)  ┘  que o BoardView chama para cada CardView criado
          │   ├─ new SelectionActionsController(...)
+         │   ├─ new PanelController(...)
+         │   ├─ new NavigationController(...)
          │   ├─ new KeyboardController(...)  ← instala handlers de tecla na janela
          │   ├─ wireMenu()
-         │   └─ newBoard()                   ← BoardView.setBoard(new Board("Sem título"))
+         │   └─ newBoard()                   ← navigation.openRoot(new Board("Sem título"))
          ├─ new Scene(window) + app.css
          ├─ stage.show()
          └─ boardView.requestFocus()         ← atalhos funcionam sem clicar antes
@@ -368,6 +377,10 @@ Exemplo real de arquivo:
 
 Abrir um board limpa o histórico de desfazer e volta a visão para 100%.
 
+Com boards aninhados, o card leva um campo `childBoard` com um board completo dentro (mesma
+estrutura, recursiva). **Salvar sempre grava o board principal**, mesmo que você esteja dentro de um
+filho — o `MainController` pede o principal ao `NavigationController`, nunca o board da tela.
+
 ## 3.10 Painel flutuante
 
 Um painel flutuante é um **card comum com dados a mais** (`Card.panelMode`, `detailText`,
@@ -396,7 +409,42 @@ Botão no card (CardView.panelButton)
   (ver 4.2): o `Pane` reajusta o tamanho quando o conteúdo cresce, e os listeners de largura/altura
   reposicionam. Com `setManaged(false)` eles não cresciam — foi um bug encontrado nos testes.
 
-## 3.11 Atalhos de teclado
+## 3.11 Boards aninhados
+
+Um card com `childBoard` diferente de `null` **contém um board**. O botão do card (seta →) entra
+nele. O nome do board filho **é o texto do card** — não há um nome separado para manter em sincronia.
+
+```
+Ferramenta Board aninhado (B) + clique  → Card.create(...) + card.setChildBoard(new Board(""))
+Botão do card (CardView.boardButton)
+  → NavigationController.enter(card)
+      guarda pan/zoom do nível atual
+      empilha o nível (board filho + card que o contém)
+      BoardView.setBoard(filho)   ← a mesma view passa a mostrar outro board
+      EditHistory.boardChanged()  ← desfazer passa a usar as pilhas do filho
+      BreadcrumbView.setPath(...) ← caminho no topo
+```
+
+**Caminho (breadcrumb):** cada nível anterior é um `Hyperlink` que leva direto até ele
+(`navigateTo(índice)` desempilha até lá); o nível atual aparece em negrito. Os nomes são bindings:
+renomear o card atualiza o caminho na hora. A partir do primeiro filho aparece o botão ← (e o
+atalho `Alt+←`).
+
+**Cada nível lembra a própria visão** (`BoardView.ViewState`: pan e zoom). Entrar num filho começa
+em 100%; voltar restaura onde você estava.
+
+**Desfazer por board:** o `EditHistory` guarda pilhas separadas por board (`WeakHashMap<Board, …>`).
+`Ctrl+Z` age só no board da tela. Para isso funcionar, `Board.restore` **não mexe no conteúdo de
+boards filhos de cards que continuam existindo** — senão desfazer uma cor no pai desfaria também o
+que você fez dentro do filho depois. Já um card **recriado** (desfazer uma exclusão) volta com a
+árvore inteira, porque a foto (`BoardSnapshot`) inclui os filhos recursivamente.
+
+**Duplicar** um card-board copia a árvore inteira (`Board.deepCopy`), independente da original.
+
+**Visual:** o card-board tem uma "folha" deslocada atrás dele (CSS com camadas de fundo e insets
+negativos, via pseudo-classe `:has-board`), para parecer uma pilha.
+
+## 3.12 Atalhos de teclado
 
 O `KeyboardController` registra um **handler na janela** (`Stage`). Como handlers rodam na fase de
 "borbulhamento" (ver 4.3), ele só recebe teclas que **ninguém consumiu antes** — em especial, o
@@ -413,7 +461,7 @@ Divisão de responsabilidades:
 |---|---|---|
 | Ctrl+N/O/S/Shift+S, Ctrl+0 | aceleradores de menu | aparecem no menu |
 | Ctrl+Z, Ctrl+Y, Ctrl+A | aceleradores de menu | idem; e só disparam se o texto não usar a tecla |
-| V R E L C, Delete, Ctrl+D, Ctrl+Shift+Z, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional |
+| V R E L P B C, Delete, Ctrl+D, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional |
 
 ---
 
@@ -684,6 +732,10 @@ irrelevante e a robustez compensa.
 
 ### `Board.restore(foto)` — atualizar no lugar
 
+> Com boards aninhados há uma regra extra: o board filho de um card que **continua existindo** não é
+> restaurado (mesmo id = deixa como está). Só cards **recriados** recebem o board filho da foto.
+> Motivo: cada board tem o próprio histórico (3.11).
+
 ```
 1. Remover conexões cujo id não está na foto
 2. Remover cards cujo id não está na foto        (removeCard também tira setas)
@@ -818,9 +870,8 @@ a funcionar sem mais nada.
 
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
-| **Múltiplos boards** | `MainController` + `BoardView.setBoard` já troca o board inteiro; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
+| **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
 | **Smart guides** | `CardDragController` no drag: comparar bordas/centros com outros cards, ajustar `dx/dy` (snap) e desenhar linhas no `overlayLayer` | Guias devem ficar em coordenadas de mundo |
-| **Boards aninhados** | Card com `childBoard`; pilha de navegação no `MainController`; `setBoard` ao entrar/sair | Persistência precisa aninhar ou referenciar arquivos; histórico por board |
 | **Lock de item** | Propriedade `locked` (checklist 5.1); `CardDragController` ignora cards travados; pseudo-classe `:locked` | Excluir/duplicar travados? decidir |
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
 | **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem |
@@ -839,6 +890,9 @@ a funcionar sem mais nada.
 | Formato de arquivo separado do modelo | Serializar o modelo direto | Modelo evolui sem quebrar arquivos |
 | Desfazer por fotos | Padrão Command | Menos código, menos bugs, suficiente para o tamanho dos boards |
 | Seleção no `BoardView` | Seleção no modelo | Seleção é estado de interface, não é salva |
+| Board filho dentro do card, no mesmo arquivo | Um arquivo por board | Um arquivo só é mais simples de salvar, abrir e compartilhar |
+| Nome do board filho = texto do card | Nome próprio no `Board` | Nada para manter em sincronia; renomear o card renomeia o caminho |
+| Desfazer por board | Um histórico global | `Ctrl+Z` desfaz o que está na tela, não algo de outro nível |
 | Barra flutuante fora do `world` | Dentro do `world` | Não sofrer zoom |
 | Caixa de seleção pega o que **toca** | Só o que está **dentro** | Mais fácil de usar; é uma linha para trocar |
 | Arrastar fundo = caixa; pan com Espaço/meio/direito | Arrastar fundo = pan | Padrão Figma/Excalidraw (decidido com você) |
@@ -870,7 +924,7 @@ a funcionar sem mais nada.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 34 testes, sem abrir janela
+### Automatizados (`mvn test`) — 41 testes, sem abrir janela
 
 | Classe | Cobre |
 |---|---|
@@ -879,8 +933,9 @@ a funcionar sem mais nada.
 | `CardGeometryTest` | ponto de contato da seta em cada formato |
 | `BoardSnapshotTest` | foto/restauração: mudança de propriedades, card excluído com setas, card novo |
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
-| `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição atravessadas por ações |
-| `BoardStorageTest` | salvar/abrir (inclusive painéis), arquivo antigo com campos faltando, JSON inválido |
+| `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
+| `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
+| `BoardStorageTest` | salvar/abrir (painéis e boards aninhados em 3 níveis), arquivo antigo, JSON inválido |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o
 benefício direto da separação em camadas.

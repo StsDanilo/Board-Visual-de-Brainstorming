@@ -65,7 +65,8 @@ public class BoardStorage {
         List<CardData> cards = board.getCards().stream()
                 .map(c -> new CardData(c.getId(), c.getX(), c.getY(), c.getWidth(), c.getHeight(),
                         c.getText(), c.getColor(), c.getShape().name(),
-                        c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts()))
+                        c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts(),
+                        c.hasChildBoard() ? toData(c.getChildBoard()) : null))
                 .toList();
         List<ConnectionData> connections = board.getConnections().stream()
                 .map(c -> new ConnectionData(c.getId(), c.getSource().getId(), c.getTarget().getId()))
@@ -92,6 +93,9 @@ public class BoardStorage {
                 card.setDetailText(cd.detailText());
                 if (cd.listItems() != null) {
                     card.setListItemTexts(cd.listItems().stream().map(t -> t == null ? "" : t).toList());
+                }
+                if (cd.childBoard() != null) {
+                    card.setChildBoard(fromData(cd.childBoard()));
                 }
                 board.addCard(card);
             }

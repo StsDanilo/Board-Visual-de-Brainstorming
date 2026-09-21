@@ -23,6 +23,10 @@ import java.util.UUID;
  * Um card pode ser um "painel flutuante" ({@link #getPanelMode()} diferente de
  * NONE): além do texto que aparece no board, guarda um conteúdo maior (texto
  * detalhado ou lista) exibido num painel ao clicar no botão do card.
+ *
+ * Ou pode conter um board filho ({@link #getChildBoard()}): o botão do card
+ * entra nesse board, que pode ter outros cards com boards filhos, sem limite.
+ * O nome desse board é o texto do card.
  */
 public class Card {
 
@@ -45,6 +49,8 @@ public class Card {
     private final StringProperty detailText = new SimpleStringProperty(this, "detailText", "");
     private final ObservableList<ListItem> listItems = FXCollections.observableArrayList();
     private final ObservableList<ListItem> readOnlyListItems = FXCollections.unmodifiableObservableList(listItems);
+
+    private final ObjectProperty<Board> childBoard = new SimpleObjectProperty<>(this, "childBoard");
 
     public Card(double x, double y) {
         this(UUID.randomUUID().toString(), x, y);
@@ -169,6 +175,17 @@ public class Card {
         }
     }
 
+    // ------------------------------------------------------ board aninhado
+
+    /** Board filho aberto pelo botão do card, ou {@code null} se o card não contém um board. */
+    public ObjectProperty<Board> childBoardProperty() { return childBoard; }
+    public Board getChildBoard() { return childBoard.get(); }
+    public void setChildBoard(Board value) { childBoard.set(value); }
+
+    public boolean hasChildBoard() {
+        return getChildBoard() != null;
+    }
+
     // ---------------------------------------------------------------- formato
 
     /**
@@ -205,6 +222,9 @@ public class Card {
         copy.setPanelMode(getPanelMode());
         copy.setDetailText(getDetailText());
         copy.setListItemTexts(getListItemTexts());
+        if (hasChildBoard()) {
+            copy.setChildBoard(getChildBoard().deepCopy());
+        }
         return copy;
     }
 

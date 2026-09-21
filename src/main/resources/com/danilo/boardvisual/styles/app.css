@@ -519,3 +519,53 @@
     -fx-font-style: italic;
     -fx-padding: 6;
 }
+
+/* ------------------------------------------------------- boards aninhados */
+
+/* Card que contém um board: uma "folha" atrás, deslocada, como uma pilha. */
+.card-view:has-board .card {
+    -fx-background-color: -bv-border-strong, -bv-surface, -card-color;
+    -fx-background-insets: 6 -6 -6 6, 7 -5 -5 7, 0;
+    -fx-background-radius: 8, 7, 8;
+}
+
+/* Caminho no canto superior esquerdo: Board principal › board 2 › board 3 */
+.breadcrumb {
+    -fx-padding: 2 8 2 8;
+    -fx-spacing: 2;
+}
+
+.breadcrumb-back {
+    -fx-min-width: 30;
+    -fx-min-height: 30;
+    -fx-padding: 5;
+}
+
+.breadcrumb-segments {
+    -fx-spacing: 0;
+}
+
+.breadcrumb-link,
+.breadcrumb-link:visited {
+    -fx-text-fill: -bv-text-muted;
+    -fx-border-color: transparent;
+    -fx-padding: 5 4 5 4;
+    -fx-underline: false;
+    -fx-cursor: hand;
+}
+
+.breadcrumb-link:hover {
+    -fx-text-fill: -bv-accent;
+    -fx-underline: true;
+}
+
+.breadcrumb-separator {
+    -fx-text-fill: -bv-text-muted;
+    -fx-padding: 0 2 0 2;
+}
+
+.breadcrumb-current {
+    -fx-text-fill: -bv-text;
+    -fx-font-weight: bold;
+    -fx-padding: 5 4 5 4;
+}

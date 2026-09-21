@@ -17,6 +17,7 @@ import javafx.stage.Stage;
  * - Ctrl+D: duplica a seleção.
  * - Ctrl+Shift+Z: refaz (alternativa ao Ctrl+Y do menu).
  * - Espaço (segurado): arrastar move a visão.
+ * - Alt+←: volta ao board anterior (boards aninhados).
  * - Esc: sai da edição de texto; senão fecha o painel flutuante aberto;
  *   senão volta para Selecionar; senão limpa a seleção.
  *
@@ -33,10 +34,11 @@ public class KeyboardController {
     private final CanvasController canvas;
     private final MainController main;
     private final PanelController panels;
+    private final NavigationController navigation;
 
     public KeyboardController(Stage stage, BoardView view, ObjectProperty<Tool> activeTool,
                               SelectionActionsController selectionActions, CanvasController canvas,
-                              PanelController panels, MainController main) {
+                              PanelController panels, NavigationController navigation, MainController main) {
         this.stage = stage;
         this.view = view;
         this.activeTool = activeTool;
@@ -44,6 +46,7 @@ public class KeyboardController {
         this.canvas = canvas;
         this.main = main;
         this.panels = panels;
+        this.navigation = navigation;
         // Handler (não filtro) na janela: recebe só o que o componente com foco não consumiu.
         stage.addEventHandler(KeyEvent.KEY_PRESSED, this::onKeyPressed);
         stage.addEventHandler(KeyEvent.KEY_RELEASED, e -> {
@@ -69,6 +72,11 @@ public class KeyboardController {
             return;
         }
         boolean shortcutDown = e.isShortcutDown();
+        if (e.isAltDown() && !shortcutDown && e.getCode() == KeyCode.LEFT) {
+            navigation.back();
+            e.consume();
+            return;
+        }
         boolean altOrMeta = e.isAltDown() || (e.isMetaDown() && !shortcutDown);
         if (altOrMeta) {
             return;

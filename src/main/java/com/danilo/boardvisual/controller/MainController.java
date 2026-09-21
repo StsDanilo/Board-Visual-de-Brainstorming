@@ -34,6 +34,7 @@ public class MainController {
     private final SelectionActionsController selectionActionsController;
     private final KeyboardController keyboardController;
     private final EditHistory history;
+    private final NavigationController navigation;
 
     private Path currentFile;
 
@@ -56,13 +57,15 @@ public class MainController {
                 boardView, window.getToolBar(), window.getSelectionToolbar(), history);
         PanelController panelController = new PanelController(
                 boardView, window.getSelectionToolbar(), history, textEditController);
-        keyboardController = new KeyboardController(
-                stage, boardView, activeTool, selectionActionsController, canvasController, panelController, this);
+        navigation = new NavigationController(boardView, window.getBreadcrumb(), history);
+        keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
+                canvasController, panelController, navigation, this);
         boardView.setCardViewInitializer(cardView -> {
             cardDragController.attach(cardView);
             connectionController.attach(cardView);
             textEditController.attach(cardView);
             panelController.attach(cardView);
+            navigation.attach(cardView);
         });
 
         wireMenu();
@@ -121,7 +124,7 @@ public class MainController {
         FileChooser chooser = createFileChooser("Salvar board");
         chooser.setInitialFileName(currentFile != null
                 ? currentFile.getFileName().toString()
-                : boardView.getBoard().getName() + ".json");
+                : navigation.getRoot().getName() + ".json");
         File file = chooser.showSaveDialog(stage);
         if (file == null) {
             return;
@@ -134,7 +137,8 @@ public class MainController {
     }
 
     private void saveTo(Path path) {
-        Board board = boardView.getBoard();
+        // Sempre o board principal: os boards aninhados são salvos dentro dele.
+        Board board = navigation.getRoot();
         if (currentFile == null || !currentFile.equals(path)) {
             board.setName(stripExtension(path.getFileName().toString()));
         }
@@ -148,9 +152,8 @@ public class MainController {
     }
 
     private void showBoard(Board board, Path file) {
-        boardView.setBoard(board);
-        boardView.resetView();
         history.clear();
+        navigation.openRoot(board);
         activeTool.set(Tool.SELECT);
         currentFile = file;
         updateTitle();
@@ -159,7 +162,7 @@ public class MainController {
     private void updateTitle() {
         String boardName = currentFile != null
                 ? currentFile.getFileName().toString()
-                : boardView.getBoard().getName();
+                : navigation.getRoot().getName();
         stage.setTitle(boardName + " — " + APP_NAME);
     }
 

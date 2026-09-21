@@ -107,6 +107,29 @@ class EditHistoryTest {
     }
 
     @Test
+    void eachBoardHasItsOwnHistory() {
+        Board[] current = {board};
+        EditHistory nested = new EditHistory(() -> current[0]);
+        Board child = new Board("filho");
+
+        nested.perform(() -> board.addCard(new Card(0, 0)));   // no pai
+        current[0] = child;
+        nested.boardChanged();
+        assertFalse(nested.canUndoProperty().get(), "o filho começa sem histórico");
+
+        nested.perform(() -> child.addCard(new Card(0, 0)));   // no filho
+        nested.undo();
+        assertTrue(child.getCards().isEmpty());
+        assertEquals(1, board.getCards().size(), "desfazer no filho não mexe no pai");
+
+        current[0] = board;
+        nested.boardChanged();
+        assertTrue(nested.canUndoProperty().get(), "o histórico do pai continua lá");
+        nested.undo();
+        assertTrue(board.getCards().isEmpty());
+    }
+
+    @Test
     void newActionClearsRedo() {
         Card card = new Card(0, 0);
         history.perform(() -> board.addCard(card));

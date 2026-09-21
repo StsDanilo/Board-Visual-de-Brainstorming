@@ -28,6 +28,8 @@ mvn test
 - Canvas com pan e zoom
 - Painel flutuante: card com um botão que abre um painel ao lado, em modo texto (detalhamento)
   ou lista (itens editáveis); o modo é trocado pela barra do card selecionado
+- Boards aninhados: card que contém outro board (sem limite de níveis), com caminho clicável
+  no topo (`Board principal › board 2 › board 3`) e botão de voltar
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Conexão e cor dos novos cards
@@ -41,6 +43,8 @@ mvn test
 | `V` | Selecionar |
 | `R` / `E` / `L` | Criar retângulo / elipse / losango |
 | `P` | Criar painel flutuante |
+| `B` | Criar board aninhado |
+| `Alt+←` | Voltar ao board anterior |
 | `C` | Conexão |
 | `Delete` / `Backspace` | Excluir seleção |
 | `Ctrl+D` | Duplicar seleção |
