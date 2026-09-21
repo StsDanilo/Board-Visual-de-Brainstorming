@@ -31,10 +31,10 @@ public class ShapePickerButton extends PopupButton {
         HBox optionsBox = new HBox();
         optionsBox.getStyleClass().add("shape-options");
         for (Tool tool : Tool.values()) {
-            CardShape shape = tool.getShape();
-            if (shape == null) {
+            if (!tool.isPlainShapeTool()) {
                 continue;
             }
+            CardShape shape = tool.getShape();
             Button option = new Button();
             option.getStyleClass().addAll("tool-button", "shape-option");
             option.setGraphic(Icons.create(Icons.shape(shape)));

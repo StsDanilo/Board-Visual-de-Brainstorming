@@ -355,3 +355,167 @@
 .shape-option:selected .tool-icon {
     -fx-stroke: -bv-accent;
 }
+
+/* ------------------------------------------------------ painel flutuante */
+
+/* Botão no card que abre o painel. */
+.panel-button {
+    -fx-min-width: 26;
+    -fx-min-height: 26;
+    -fx-pref-width: 26;
+    -fx-pref-height: 26;
+    -fx-max-width: 26;
+    -fx-max-height: 26;
+    -fx-padding: 4;
+    -fx-background-color: -bv-border, -bv-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 13, 12;
+}
+
+.panel-button:hover {
+    -fx-background-color: -bv-accent, -bv-surface;
+}
+
+.card-view:panel-open .panel-button {
+    -fx-background-color: -bv-accent, -bv-accent;
+}
+
+.card-view:panel-open .panel-button .tool-icon {
+    -fx-stroke: -bv-surface;
+}
+
+/* Botões Texto | Lista na barra do card selecionado. */
+.panel-mode-group {
+    -fx-spacing: 2;
+    -fx-alignment: center;
+}
+
+.panel-mode-button:selected {
+    -fx-background-color: rgba(79, 124, 255, 0.14);
+}
+
+.panel-mode-button:selected .tool-icon {
+    -fx-stroke: -bv-accent;
+}
+
+/* O painel aberto. */
+.card-panel {
+    -fx-pref-width: 300;
+    -fx-padding: 8 10 10 10;
+    -fx-spacing: 8;
+}
+
+.card-panel-header {
+    -fx-spacing: 6;
+    -fx-padding: 0 0 6 0;
+    -fx-border-color: -bv-border;
+    -fx-border-width: 0 0 1 0;
+}
+
+.card-panel-icon .tool-icon {
+    -fx-stroke: -bv-text-muted;
+}
+
+.card-panel-title {
+    -fx-text-fill: -bv-text;
+    -fx-font-weight: bold;
+}
+
+.card-panel-close,
+.card-panel-add {
+    -fx-min-width: 28;
+    -fx-min-height: 28;
+    -fx-padding: 4;
+}
+
+/* Modo texto */
+.card-panel .card-panel-detail {
+    -fx-pref-height: 220;
+    -fx-background-color: -bv-border, -bv-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 6, 5;
+    -fx-text-fill: -bv-text;
+    -fx-prompt-text-fill: -bv-text-muted;
+    -fx-highlight-fill: -bv-accent-soft;
+    -fx-highlight-text-fill: -bv-text;
+}
+
+.card-panel .card-panel-detail:focused {
+    -fx-background-color: -bv-accent, -bv-surface;
+}
+
+.card-panel .card-panel-detail .content {
+    -fx-background-color: transparent;
+    -fx-padding: 6;
+}
+
+.card-panel .card-panel-detail .scroll-pane,
+.card-panel .card-panel-detail .viewport {
+    -fx-background-color: transparent;
+}
+
+/* Modo lista */
+.card-panel-scroll,
+.card-panel-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.card-panel-scroll {
+    -fx-max-height: 260;
+}
+
+.card-panel-row {
+    -fx-spacing: 2;
+}
+
+.card-panel-bullet {
+    -fx-text-fill: -bv-text-muted;
+    -fx-padding: 0 2 0 6;
+}
+
+.card-panel-item,
+.card-panel-new-item {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-padding: 4;
+    -fx-text-fill: -bv-text;
+    -fx-prompt-text-fill: -bv-text-muted;
+    -fx-highlight-fill: -bv-accent-soft;
+    -fx-highlight-text-fill: -bv-text;
+}
+
+.card-panel-item:focused,
+.card-panel-new-item:focused {
+    -fx-background-color: -bv-hover;
+}
+
+.card-panel-remove {
+    -fx-min-width: 24;
+    -fx-min-height: 24;
+    -fx-padding: 3;
+    -fx-opacity: 0;
+}
+
+.card-panel-row:hover .card-panel-remove {
+    -fx-opacity: 1;
+}
+
+.card-panel-remove:hover .tool-icon {
+    -fx-stroke: -bv-danger;
+}
+
+.card-panel-add-row {
+    -fx-spacing: 2;
+    -fx-padding: 4 0 0 0;
+    -fx-border-color: -bv-border;
+    -fx-border-width: 1 0 0 0;
+}
+
+.card-panel-empty {
+    -fx-text-fill: -bv-text-muted;
+    -fx-font-style: italic;
+    -fx-padding: 6;
+}

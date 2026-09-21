@@ -43,18 +43,41 @@ final class CardGeometry {
         return new Point2D(cx + dx * t, cy + dy * t);
     }
 
+    /** Tamanho (diâmetro) do botão que abre o painel flutuante. */
+    static final double PANEL_BUTTON_SIZE = 24;
+
     /**
      * Espaçamento interno para o texto caber dentro do formato: no retângulo é
      * uma margem fixa; na elipse e no losango, o maior retângulo inscrito.
+     * Em painéis flutuantes, a parte de baixo reserva espaço para o botão.
      */
-    static Insets contentInsets(CardShape shape, double width, double height) {
-        return switch (shape) {
+    static Insets contentInsets(CardShape shape, double width, double height, boolean panel) {
+        Insets base = switch (shape) {
             case RECTANGLE -> new Insets(12, 10, 10, 10);
             // Retângulo inscrito na elipse: lados a·√2 e b·√2.
             case ELLIPSE -> symmetric(width * (1 - Math.sqrt(0.5)) / 2 + 4, height * (1 - Math.sqrt(0.5)) / 2 + 2);
             // Retângulo inscrito no losango: metade da largura e da altura.
             case DIAMOND -> symmetric(width / 4 + 2, height / 4);
         };
+        if (!panel) {
+            return base;
+        }
+        double buttonTop = panelButtonCenter(shape, width, height).getY() - PANEL_BUTTON_SIZE / 2;
+        double bottom = Math.max(base.getBottom(), height - buttonTop + 4);
+        return new Insets(base.getTop(), base.getRight(), bottom, base.getLeft());
+    }
+
+    /**
+     * Centro do botão do painel: embaixo, no meio, sempre dentro da silhueta
+     * (no losango, a ponta de baixo é estreita, então ele sobe um pouco mais).
+     */
+    static Point2D panelButtonCenter(CardShape shape, double width, double height) {
+        double fromBottom = switch (shape) {
+            case RECTANGLE -> 18;
+            case ELLIPSE -> 20;
+            case DIAMOND -> 26;
+        };
+        return new Point2D(width / 2, height - fromBottom);
     }
 
     private static Insets symmetric(double horizontal, double vertical) {

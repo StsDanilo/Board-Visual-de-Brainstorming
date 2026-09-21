@@ -4,6 +4,7 @@ import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.model.Connection;
+import com.danilo.boardvisual.model.PanelMode;
 import com.danilo.boardvisual.persistence.BoardFileFormat.BoardData;
 import com.danilo.boardvisual.persistence.BoardFileFormat.CardData;
 import com.danilo.boardvisual.persistence.BoardFileFormat.ConnectionData;
@@ -63,7 +64,8 @@ public class BoardStorage {
     private static BoardData toData(Board board) {
         List<CardData> cards = board.getCards().stream()
                 .map(c -> new CardData(c.getId(), c.getX(), c.getY(), c.getWidth(), c.getHeight(),
-                        c.getText(), c.getColor(), c.getShape().name()))
+                        c.getText(), c.getColor(), c.getShape().name(),
+                        c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts()))
                 .toList();
         List<ConnectionData> connections = board.getConnections().stream()
                 .map(c -> new ConnectionData(c.getId(), c.getSource().getId(), c.getTarget().getId()))
@@ -86,6 +88,11 @@ public class BoardStorage {
                 card.setHeight(cd.height() > 0 ? cd.height() : shape.getDefaultHeight());
                 card.setText(cd.text());
                 card.setColor(cd.color());
+                card.setPanelMode(PanelMode.fromName(cd.panelMode()));
+                card.setDetailText(cd.detailText());
+                if (cd.listItems() != null) {
+                    card.setListItemTexts(cd.listItems().stream().map(t -> t == null ? "" : t).toList());
+                }
                 board.addCard(card);
             }
         }

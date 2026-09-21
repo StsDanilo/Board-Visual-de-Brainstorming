@@ -4,6 +4,7 @@ import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.model.Connection;
+import com.danilo.boardvisual.model.PanelMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -11,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -72,7 +74,33 @@ class BoardStorageTest {
         assertEquals(Card.DEFAULT_WIDTH, card.getWidth());
         assertEquals(Card.DEFAULT_COLOR, card.getColor());
         assertEquals("", card.getText());
+        assertEquals(PanelMode.NONE, card.getPanelMode());
         assertEquals(0, loaded.getConnections().size());
+    }
+
+    @Test
+    void savesAndLoadsPanelContent(@TempDir Path dir) throws IOException {
+        Board board = new Board("Painéis");
+        Card text = new Card(0, 0);
+        text.setPanelMode(PanelMode.TEXT);
+        text.setDetailText("Detalhe longo\ncom várias linhas");
+        Card list = new Card(300, 0);
+        list.setPanelMode(PanelMode.LIST);
+        list.addListItem("primeiro");
+        list.addListItem("segundo");
+        board.addCard(text);
+        board.addCard(list);
+
+        Path file = dir.resolve("paineis.json");
+        storage.save(board, file);
+        Board loaded = storage.load(file);
+
+        Card loadedText = loaded.findCard(text.getId()).orElseThrow();
+        assertEquals(PanelMode.TEXT, loadedText.getPanelMode());
+        assertEquals("Detalhe longo\ncom várias linhas", loadedText.getDetailText());
+        Card loadedList = loaded.findCard(list.getId()).orElseThrow();
+        assertEquals(PanelMode.LIST, loadedList.getPanelMode());
+        assertEquals(List.of("primeiro", "segundo"), loadedList.getListItemTexts());
     }
 
     @Test

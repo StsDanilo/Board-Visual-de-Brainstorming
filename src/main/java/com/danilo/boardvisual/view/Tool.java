@@ -1,6 +1,7 @@
 package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.model.CardShape;
+import com.danilo.boardvisual.model.PanelMode;
 import javafx.css.PseudoClass;
 import javafx.scene.input.KeyCode;
 
@@ -14,29 +15,34 @@ import javafx.scene.input.KeyCode;
  */
 public enum Tool {
 
-    SELECT("Selecionar", KeyCode.V, null, Icons.SELECT,
+    SELECT("Selecionar", KeyCode.V, null, PanelMode.NONE, Icons.SELECT,
             "Clique para selecionar (Shift soma)  ·  Arraste o fundo para selecionar vários  ·  "
                     + "Espaço+arrastar ou botão direito: mover a visão  ·  Roda do mouse: zoom"),
-    RECTANGLE("Retângulo", KeyCode.R, CardShape.RECTANGLE, Icons.shape(CardShape.RECTANGLE),
+    RECTANGLE("Retângulo", KeyCode.R, CardShape.RECTANGLE, PanelMode.NONE, Icons.shape(CardShape.RECTANGLE),
             "Clique no canvas para criar um card retangular"),
-    ELLIPSE("Elipse", KeyCode.E, CardShape.ELLIPSE, Icons.shape(CardShape.ELLIPSE),
+    ELLIPSE("Elipse", KeyCode.E, CardShape.ELLIPSE, PanelMode.NONE, Icons.shape(CardShape.ELLIPSE),
             "Clique no canvas para criar um card em elipse"),
-    DIAMOND("Losango", KeyCode.L, CardShape.DIAMOND, Icons.shape(CardShape.DIAMOND),
+    DIAMOND("Losango", KeyCode.L, CardShape.DIAMOND, PanelMode.NONE, Icons.shape(CardShape.DIAMOND),
             "Clique no canvas para criar um card em losango"),
-    CONNECTION("Conexão", KeyCode.C, null, Icons.CONNECTION,
+    PANEL("Painel flutuante", KeyCode.P, CardShape.RECTANGLE, PanelMode.TEXT, Icons.PANEL,
+            "Clique no canvas para criar um painel flutuante  ·  O botão no card abre o painel  ·  "
+                    + "Texto ou lista: escolha na barra do card selecionado"),
+    CONNECTION("Conexão", KeyCode.C, null, PanelMode.NONE, Icons.CONNECTION,
             "Arraste de um card até outro para conectá-los");
 
     private final String label;
     private final KeyCode shortcut;
     private final CardShape shape;
+    private final PanelMode panelMode;
     private final String iconPath;
     private final String hint;
     private final PseudoClass pseudoClass;
 
-    Tool(String label, KeyCode shortcut, CardShape shape, String iconPath, String hint) {
+    Tool(String label, KeyCode shortcut, CardShape shape, PanelMode panelMode, String iconPath, String hint) {
         this.label = label;
         this.shortcut = shortcut;
         this.shape = shape;
+        this.panelMode = panelMode;
         this.iconPath = iconPath;
         this.hint = hint;
         this.pseudoClass = PseudoClass.getPseudoClass("tool-" + name().toLowerCase());
@@ -54,6 +60,16 @@ public enum Tool {
     /** Formato do card criado por esta ferramenta, ou {@code null} se ela não cria cards. */
     public CardShape getShape() {
         return shape;
+    }
+
+    /** Modo do painel do card criado ({@link PanelMode#NONE} para card comum). */
+    public PanelMode getPanelMode() {
+        return panelMode;
+    }
+
+    /** Ferramentas que criam cards comuns de um formato (as opções do seletor de formato). */
+    boolean isPlainShapeTool() {
+        return shape != null && panelMode == PanelMode.NONE;
     }
 
     /** Texto de ajuda mostrado na barra de status enquanto a ferramenta está ativa. */

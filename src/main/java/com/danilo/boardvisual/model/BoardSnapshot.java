@@ -15,11 +15,17 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
     }
 
     public record CardState(String id, double x, double y, double width, double height,
-                            String text, String color, CardShape shape) {
+                            String text, String color, CardShape shape,
+                            PanelMode panelMode, String detailText, List<String> listItems) {
+
+        public CardState {
+            listItems = List.copyOf(listItems);
+        }
 
         static CardState of(Card card) {
             return new CardState(card.getId(), card.getX(), card.getY(), card.getWidth(), card.getHeight(),
-                    card.getText(), card.getColor(), card.getShape());
+                    card.getText(), card.getColor(), card.getShape(),
+                    card.getPanelMode(), card.getDetailText(), card.getListItemTexts());
         }
 
         void applyTo(Card card) {
@@ -30,6 +36,9 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
             card.setText(text);
             card.setColor(color);
             card.setShape(shape);
+            card.setPanelMode(panelMode);
+            card.setDetailText(detailText);
+            card.setListItemTexts(listItems);
         }
     }
 

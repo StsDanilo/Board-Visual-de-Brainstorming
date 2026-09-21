@@ -54,12 +54,15 @@ public class MainController {
         TextEditController textEditController = new TextEditController(history);
         selectionActionsController = new SelectionActionsController(
                 boardView, window.getToolBar(), window.getSelectionToolbar(), history);
+        PanelController panelController = new PanelController(
+                boardView, window.getSelectionToolbar(), history, textEditController);
         keyboardController = new KeyboardController(
-                stage, boardView, activeTool, selectionActionsController, canvasController, this);
+                stage, boardView, activeTool, selectionActionsController, canvasController, panelController, this);
         boardView.setCardViewInitializer(cardView -> {
             cardDragController.attach(cardView);
             connectionController.attach(cardView);
             textEditController.attach(cardView);
+            panelController.attach(cardView);
         });
 
         wireMenu();

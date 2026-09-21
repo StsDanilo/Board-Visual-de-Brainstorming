@@ -6,6 +6,8 @@ import com.danilo.boardvisual.model.Connection;
 import javafx.beans.InvalidationListener;
 import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.beans.property.ReadOnlyDoubleWrapper;
+import javafx.beans.property.ReadOnlyObjectProperty;
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableSet;
@@ -44,7 +46,8 @@ import java.util.function.Consumer;
  *      ├─ cardLayer        (cards)
  *      └─ overlayLayer     (prévia da seta sendo criada)
  *  ├─ marquee          (caixa de seleção, em pixels de tela)
- *  └─ selectionOverlay (barra flutuante da seleção, em pixels de tela: não sofre zoom)
+ *  ├─ selectionOverlay (barra flutuante da seleção, em pixels de tela: não sofre zoom)
+ *  └─ panelOverlay     (painel flutuante aberto, ao lado do card, em pixels de tela)
  * </pre>
  * Cards e setas usam coordenadas de "mundo"; pan/zoom só mexem nas
  * transformações do {@code world}, nunca no modelo.
@@ -100,6 +103,10 @@ public class BoardView extends Pane {
     private final Set<Card> overlayTrackedCards = new HashSet<>();
     private final InvalidationListener overlayUpdater = obs -> updateSelectionOverlay();
 
+    private Region panelOverlay;
+    private final ReadOnlyObjectWrapper<Card> panelAnchor = new ReadOnlyObjectWrapper<>(this, "panelAnchor");
+    private final InvalidationListener panelUpdater = obs -> updatePanelOverlay();
+
     public BoardView() {
         getStyleClass().add("board-view");
 
@@ -145,6 +152,11 @@ public class BoardView extends Pane {
         pan.yProperty().addListener(overlayUpdater);
         widthProperty().addListener(overlayUpdater);
         heightProperty().addListener(overlayUpdater);
+        zoom.addListener(panelUpdater);
+        pan.xProperty().addListener(panelUpdater);
+        pan.yProperty().addListener(panelUpdater);
+        widthProperty().addListener(panelUpdater);
+        heightProperty().addListener(panelUpdater);
         setActiveTool(Tool.SELECT);
     }
 
@@ -156,6 +168,7 @@ public class BoardView extends Pane {
 
     /** Troca o board exibido, recriando todos os nós visuais. */
     public void setBoard(Board newBoard) {
+        hidePanel();
         if (board != null) {
             board.getCards().removeListener(cardsListener);
             board.getConnections().removeListener(connectionsListener);
@@ -212,6 +225,9 @@ public class BoardView extends Pane {
 
     private void removeCardView(Card card) {
         selection.remove(card);
+        if (card == panelAnchor.get()) {
+            hidePanel();
+        }
         CardView cardView = cardViews.remove(card);
         if (cardView != null) {
             cardLayer.getChildren().remove(cardView);
@@ -276,11 +292,14 @@ public class BoardView extends Pane {
         if (selectionOverlay != null) {
             getChildren().remove(selectionOverlay);
             selectionOverlay.widthProperty().removeListener(overlayUpdater);
+            selectionOverlay.heightProperty().removeListener(overlayUpdater);
         }
         selectionOverlay = overlay;
         if (overlay != null) {
-            overlay.setManaged(false);
+            // Fica "managed": quando o conteúdo muda (ex.: botões que aparecem),
+            // o Pane reajusta o tamanho no próximo layout e os listeners reposicionam.
             overlay.widthProperty().addListener(overlayUpdater);
+            overlay.heightProperty().addListener(overlayUpdater);
             getChildren().add(overlay);
         }
         updateSelectionOverlay();
@@ -338,6 +357,67 @@ public class BoardView extends Pane {
             maxY = Math.max(maxY, bottomRight.getY());
         }
         return Optional.of(new BoundingBox(minX, minY, maxX - minX, maxY - minY));
+    }
+
+    // ------------------------------------------------------ painel flutuante
+
+    /**
+     * Mostra um painel ancorado ao card: à direita dele (ou à esquerda, se não
+     * couber), alinhado ao topo. Acompanha o card ao mover, pan e zoom. Só um
+     * painel fica aberto por vez; abrir outro fecha o anterior.
+     */
+    public void showPanel(Region panel, Card anchor) {
+        hidePanel();
+        panelOverlay = panel;
+        panelAnchor.set(anchor);
+        // "Managed" pelo mesmo motivo da barra: cresce sozinho ao adicionar itens.
+        panel.widthProperty().addListener(panelUpdater);
+        panel.heightProperty().addListener(panelUpdater);
+        CardGeometry.forEach(anchor, p -> p.addListener(panelUpdater));
+        getChildren().add(panel);
+        getCardView(anchor).ifPresent(v -> v.setPanelOpen(true));
+        updatePanelOverlay();
+    }
+
+    /** Fecha o painel aberto (também acontece sozinho se o card sair do board). */
+    public void hidePanel() {
+        Card anchor = panelAnchor.get();
+        if (panelOverlay == null || anchor == null) {
+            return;
+        }
+        panelOverlay.widthProperty().removeListener(panelUpdater);
+        panelOverlay.heightProperty().removeListener(panelUpdater);
+        CardGeometry.forEach(anchor, p -> p.removeListener(panelUpdater));
+        getChildren().remove(panelOverlay);
+        getCardView(anchor).ifPresent(v -> v.setPanelOpen(false));
+        panelOverlay = null;
+        panelAnchor.set(null);
+    }
+
+    /** Card cujo painel está aberto, ou {@code null}. */
+    public ReadOnlyObjectProperty<Card> panelAnchorProperty() {
+        return panelAnchor.getReadOnlyProperty();
+    }
+
+    private void updatePanelOverlay() {
+        Card anchor = panelAnchor.get();
+        if (panelOverlay == null || anchor == null) {
+            return;
+        }
+        panelOverlay.applyCss();
+        panelOverlay.autosize();
+        double w = panelOverlay.getWidth();
+        double h = panelOverlay.getHeight();
+        Point2D topLeft = world.localToParent(anchor.getX(), anchor.getY());
+        Point2D bottomRight = world.localToParent(anchor.getX() + anchor.getWidth(), anchor.getY() + anchor.getHeight());
+
+        double x = bottomRight.getX() + OVERLAY_GAP;
+        if (x + w > getWidth() - OVERLAY_GAP) {
+            x = topLeft.getX() - OVERLAY_GAP - w; // sem espaço à direita: abre à esquerda
+        }
+        x = Math.max(OVERLAY_GAP, Math.min(x, getWidth() - w - OVERLAY_GAP));
+        double y = Math.max(OVERLAY_GAP, Math.min(topLeft.getY(), getHeight() - h - OVERLAY_GAP));
+        panelOverlay.relocate(Math.round(x), Math.round(y));
     }
 
     // ------------------------------------------------------ caixa de seleção

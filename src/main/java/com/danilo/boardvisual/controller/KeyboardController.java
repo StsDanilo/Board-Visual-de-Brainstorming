@@ -17,7 +17,8 @@ import javafx.stage.Stage;
  * - Ctrl+D: duplica a seleção.
  * - Ctrl+Shift+Z: refaz (alternativa ao Ctrl+Y do menu).
  * - Espaço (segurado): arrastar move a visão.
- * - Esc: sai da edição de texto; senão volta para Selecionar; senão limpa a seleção.
+ * - Esc: sai da edição de texto; senão fecha o painel flutuante aberto;
+ *   senão volta para Selecionar; senão limpa a seleção.
  *
  * Enquanto o texto de um card está sendo editado, só o Esc funciona: as
  * outras teclas pertencem ao texto (digitar "v" não pode trocar de ferramenta).
@@ -31,16 +32,18 @@ public class KeyboardController {
     private final SelectionActionsController selectionActions;
     private final CanvasController canvas;
     private final MainController main;
+    private final PanelController panels;
 
     public KeyboardController(Stage stage, BoardView view, ObjectProperty<Tool> activeTool,
                               SelectionActionsController selectionActions, CanvasController canvas,
-                              MainController main) {
+                              PanelController panels, MainController main) {
         this.stage = stage;
         this.view = view;
         this.activeTool = activeTool;
         this.selectionActions = selectionActions;
         this.canvas = canvas;
         this.main = main;
+        this.panels = panels;
         // Handler (não filtro) na janela: recebe só o que o componente com foco não consumiu.
         stage.addEventHandler(KeyEvent.KEY_PRESSED, this::onKeyPressed);
         stage.addEventHandler(KeyEvent.KEY_RELEASED, e -> {
@@ -103,6 +106,8 @@ public class KeyboardController {
     private void handleEscape() {
         if (isEditingText()) {
             view.requestFocus();
+        } else if (panels.closeIfOpen()) {
+            return;
         } else if (activeTool.get() != Tool.SELECT) {
             activeTool.set(Tool.SELECT);
         } else {

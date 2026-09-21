@@ -1,7 +1,7 @@
 package com.danilo.boardvisual.controller;
 
-import com.danilo.boardvisual.model.BoardSnapshot;
 import com.danilo.boardvisual.view.CardView;
+import javafx.beans.value.ObservableBooleanValue;
 
 /**
  * Registra a edição de texto de um card no histórico.
@@ -19,13 +19,16 @@ public class TextEditController {
     }
 
     public void attach(CardView cardView) {
-        BoardSnapshot[] before = new BoardSnapshot[1];
-        cardView.textFocusedProperty().addListener((obs, wasFocused, focused) -> {
-            if (focused) {
-                before[0] = history.capture();
+        track(cardView.textFocusedProperty());
+    }
+
+    /** Trata como uma sessão de edição o período em que {@code editing} for verdadeiro. */
+    public void track(ObservableBooleanValue editing) {
+        editing.addListener((obs, was, now) -> {
+            if (now) {
+                history.beginEdit();
             } else {
-                history.record(before[0]);
-                before[0] = null;
+                history.endEdit();
             }
         });
     }

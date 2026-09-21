@@ -2,12 +2,16 @@ package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardShape;
+import com.danilo.boardvisual.model.PanelMode;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.css.PseudoClass;
+import javafx.geometry.Point2D;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -27,6 +31,7 @@ import javafx.scene.shape.Circle;
  *  ├─ body (.card)            fundo e borda; o CSS dá a silhueta de cada formato
  *  │   └─ content             área do texto, recuada para caber no formato
  *  │       └─ textArea
+ *  ├─ panelButton             abre o painel flutuante (só em cards com painel)
  *  └─ connectorHandle         alça para criar conexões
  * </pre>
  */
@@ -34,6 +39,7 @@ public class CardView extends Region {
 
     private static final PseudoClass SELECTED = PseudoClass.getPseudoClass("selected");
     private static final PseudoClass CONNECTION_TARGET = PseudoClass.getPseudoClass("connection-target");
+    private static final PseudoClass PANEL_OPEN = PseudoClass.getPseudoClass("panel-open");
     private static final String SHAPE_CLASS_PREFIX = "shape-";
 
     private final Card card;
@@ -41,6 +47,7 @@ public class CardView extends Region {
     private final VBox content = new VBox();
     private final TextArea textArea = new TextArea();
     private final Circle connectorHandle = new Circle(6);
+    private final Button panelButton = new Button();
 
     public CardView(Card card) {
         this.card = card;
@@ -60,8 +67,8 @@ public class CardView extends Region {
         // não no CSS (e .card-content não deve definir -fx-padding no app.css).
         content.getStyleClass().add("card-content");
         content.paddingProperty().bind(Bindings.createObjectBinding(
-                () -> CardGeometry.contentInsets(card.getShape(), card.getWidth(), card.getHeight()),
-                card.shapeProperty(), card.widthProperty(), card.heightProperty()));
+                () -> CardGeometry.contentInsets(card.getShape(), card.getWidth(), card.getHeight(), card.isPanel()),
+                card.shapeProperty(), card.widthProperty(), card.heightProperty(), card.panelModeProperty()));
         content.getChildren().add(textArea);
         // A área ocupa o card todo (o recuo fica por dentro); só o texto deve
         // ser clicável aqui, o resto cai no body, que respeita a silhueta.
@@ -81,7 +88,16 @@ public class CardView extends Region {
         connectorHandle.centerXProperty().bind(card.widthProperty());
         connectorHandle.centerYProperty().bind(card.heightProperty().divide(2));
 
-        getChildren().addAll(body, connectorHandle);
+        // Botão do painel flutuante: só aparece se o card for um painel; o ícone indica o modo.
+        panelButton.getStyleClass().addAll("tool-button", "panel-button");
+        panelButton.setFocusTraversable(false);
+        panelButton.setTooltip(new Tooltip("Abrir painel"));
+        panelButton.visibleProperty().bind(card.panelModeProperty().isNotEqualTo(PanelMode.NONE));
+        applyPanelMode(card.getPanelMode());
+        card.panelModeProperty().addListener((obs, old, mode) -> applyPanelMode(mode));
+        card.shapeProperty().addListener(obs -> requestLayout());
+
+        getChildren().addAll(body, panelButton, connectorHandle);
 
         layoutXProperty().bind(card.xProperty());
         layoutYProperty().bind(card.yProperty());
@@ -103,6 +119,15 @@ public class CardView extends Region {
 
     public Circle getConnectorHandle() {
         return connectorHandle;
+    }
+
+    public Button getPanelButton() {
+        return panelButton;
+    }
+
+    /** Destaca o botão enquanto o painel deste card está aberto. */
+    public void setPanelOpen(boolean open) {
+        pseudoClassStateChanged(PANEL_OPEN, open);
     }
 
     /** Indica se o nó faz parte do campo de texto (onde o mouse deve editar, não arrastar). */
@@ -136,6 +161,14 @@ public class CardView extends Region {
     @Override
     protected void layoutChildren() {
         body.autosize();
+        panelButton.autosize();
+        Point2D center = CardGeometry.panelButtonCenter(card.getShape(), card.getWidth(), card.getHeight());
+        panelButton.relocate(center.getX() - panelButton.getWidth() / 2, center.getY() - panelButton.getHeight() / 2);
+    }
+
+    private void applyPanelMode(PanelMode mode) {
+        String icon = Icons.panelMode(mode);
+        panelButton.setGraphic(icon == null ? null : Icons.create(icon));
     }
 
     /**

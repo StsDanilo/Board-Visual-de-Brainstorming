@@ -26,6 +26,8 @@ mvn test
 - Arrastar cards livremente; setas acompanham automaticamente
 - Conexões entre cards (ferramenta Conexão ou alça na borda do card)
 - Canvas com pan e zoom
+- Painel flutuante: card com um botão que abre um painel ao lado, em modo texto (detalhamento)
+  ou lista (itens editáveis); o modo é trocado pela barra do card selecionado
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Conexão e cor dos novos cards
@@ -38,13 +40,14 @@ mvn test
 |---|---|
 | `V` | Selecionar |
 | `R` / `E` / `L` | Criar retângulo / elipse / losango |
+| `P` | Criar painel flutuante |
 | `C` | Conexão |
 | `Delete` / `Backspace` | Excluir seleção |
 | `Ctrl+D` | Duplicar seleção |
 | `Ctrl+A` | Selecionar tudo |
 | `Ctrl+Z` | Desfazer |
 | `Ctrl+Y` / `Ctrl+Shift+Z` | Refazer |
-| `Esc` | Sair da edição de texto → voltar para Selecionar → limpar seleção |
+| `Esc` | Sair da edição de texto → fechar painel flutuante → voltar para Selecionar → limpar seleção |
 | `Espaço` + arrastar | Mover a visão (também: botão do meio ou direito) |
 | `Shift` + clique | Somar/retirar card da seleção |
 | `Ctrl+N` / `Ctrl+O` | Novo board / abrir |
