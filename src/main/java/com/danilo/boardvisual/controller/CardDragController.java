@@ -36,8 +36,8 @@ import java.util.Set;
  */
 public class CardDragController {
 
-    /** Distância, em pixels de tela, a partir da qual o card gruda. */
-    private static final double SNAP_DISTANCE_PX = 6;
+    /** Distância, em pixels de tela, a partir da qual o card gruda (também usada ao redimensionar). */
+    static final double SNAP_DISTANCE_PX = 6;
 
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;

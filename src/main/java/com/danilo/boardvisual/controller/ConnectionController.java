@@ -49,7 +49,10 @@ public class ConnectionController {
                 begin(cardView, card.getCenterX(), card.getCenterY());
                 e.consume();
             } else if (activeTool.get() == Tool.SELECT && onHandle) {
-                begin(cardView, card.getX() + card.getWidth(), card.getCenterY());
+                Point2D handle = cardView.getConnectorHandle().localToScene(
+                        cardView.getConnectorHandle().getCenterX(), cardView.getConnectorHandle().getCenterY());
+                Point2D start = view.sceneToWorld(handle.getX(), handle.getY());
+                begin(cardView, start.getX(), start.getY());
                 e.consume();
             }
         });

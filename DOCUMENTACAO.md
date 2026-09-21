@@ -2,7 +2,7 @@
 
 > Documento de estudo e referência do projeto, mantido junto com o código: toda mudança relevante
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
-> Estado descrito: até o alinhamento simplificado (linhas guia).
+> Estado descrito: até o redimensionamento de cards.
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -120,6 +120,7 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 | `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato, modo do painel (Texto/Lista), duplicar, excluir. |
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar. |
+| `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
 | `PopupButton` | Base de "botão que abre um painelzinho". |
 | `ColorPickerButton` / `ShapePickerButton` | Os dois botões com popup (cor e formato). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
@@ -132,7 +133,8 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 |---|---|
 | `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar); desfazer/refazer do menu. |
 | `CanvasController` | Mouse no fundo: pan, zoom, caixa de seleção, criar card. |
-| `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo). |
+| `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo), com alinhamento. |
+| `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas. |
 | `ConnectionController` | Criar setas arrastando de um card a outro. |
 | `SelectionActionsController` | Cor, formato, duplicar e excluir aplicados à seleção. |
 | `TextEditController` | Registra a edição de texto no histórico (sessões de edição). |
@@ -141,10 +143,10 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 | `KeyboardController` | Atalhos de teclado. |
 | `EditHistory` | Pilha de desfazer/refazer. |
 
-### `alignment/` — o cálculo do alinhamento
+### `alignment/` — geometria de caixas (alinhamento e redimensionamento)
 
 Pacote de **Java puro** (nem JavaFX, nem modelo): só retângulos e números. Por isso é fácil de testar
-e de reaproveitar — hoje serve ao arrastar; no futuro, ao redimensionar (ver 5.5).
+e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (ver 5.5).
 
 | Arquivo | Responsabilidade |
 |---|---|
@@ -154,6 +156,8 @@ e de reaproveitar — hoje serve ao arrastar; no futuro, ao redimensionar (ver 5
 | `Guide` | Linha guia a desenhar (eixo, posição, início e fim). |
 | `SnapResult` | Ajuste em X e Y para grudar + lista de guias. |
 | `AlignmentGuides` | O algoritmo: `snap(caixa, linhasX, linhasY, outras, limite)` e o atalho `snapMove`. |
+| `ResizeHandle` | As 8 alças (N, NE, E, SE, S, SW, W, NW), cada uma dizendo qual linha de cada eixo ela puxa. |
+| `BoxResizer` | Nova caixa ao arrastar uma alça: aplica alinhamento nas linhas puxadas, tamanho mínimo e proporção. |
 
 ### `persistence/` — o arquivo
 
@@ -489,7 +493,47 @@ MOUSE_RELEASED
 - **Desenho:** as guias ficam numa camada do `BoardView` fora do `world` (em pixels de tela), então a
   linha tem sempre 1px, e é posicionada em meio pixel para ficar nítida.
 
-## 3.13 Atalhos de teclado
+## 3.13 Redimensionar cards
+
+Com **exatamente um** card selecionado e a ferramenta Selecionar, aparecem alças em volta dele
+(`ResizeHandlesView`, desenhada pelo `BoardView` em pixels de tela, como as guias).
+
+| Formato | Alças | Comportamento |
+|---|---|---|
+| Retângulo | 8 (cantos e bordas) | Largura e altura livres; `Shift` num canto mantém a proporção |
+| Elipse, losango | 4 (cantos) | Sempre mantêm a proporção (a área útil para texto depende das duas dimensões) |
+
+```
+MOUSE_PRESSED na alça (CardResizeController)
+  caixa inicial + referências (outros cards) + foto para o desfazer
+MOUSE_DRAGGED
+  BoxResizer.resize(caixaInicial, alça, dx, dy, mínimo, manterProporção, referências, 6 / zoom)
+    1. puxa só as linhas da alça (borda direita → largura; borda esquerda → x e largura)
+    2. alinhamento só nessas linhas (AlignmentGuides.snap com os Edges da alça)
+    3. aplica o tamanho mínimo com o lado oposto parado
+  aplica x/y/largura/altura no card; mostra as guias
+MOUSE_RELEASED
+  esconde as guias; history.record(foto)  → um passo no desfazer
+```
+
+- **O lado oposto à alça fica parado** (puxar a borda esquerda não mexe na direita).
+- **Tamanho mínimo:** 80 × 50, por enquanto. Com a fonte automática (card [2]), o mínimo passa a
+  depender do texto.
+- **Alt** desliga o alinhamento, como ao mover.
+- Setas, painel flutuante e barra flutuante acompanham sozinhos: todos dependem de largura e altura
+  do modelo por binding ou listener.
+- **Alça de conexão** (bolinha azul) foi afastada 14 px para fora da borda direita, para não disputar
+  lugar com a alça de redimensionar dessa borda.
+- **Alças × barra flutuante:** com alças visíveis, a barra fica 24 px acima do card (em vez de 10).
+  Antes, num card pequeno, a barra ficava a 6 px das alças de cima e "comia" o clique (bug encontrado
+  no uso). Além disso, a área clicável de cada alça é de 17 px — o CSS desenha só o quadrado de 9 px no
+  centro (`-fx-background-insets`), o resto é margem transparente que também aceita clique.
+- **Card pequeno na tela** (ou zoom baixo): as alças do meio das bordas somem quando não há espaço
+  para elas entre os cantos (menos de 3 alças de largura/altura); os cantos sempre ficam.
+- **Decisão:** o card [1] previa uma propriedade separada de "tamanho definido à mão". Sem crescimento
+  automático, ela seria idêntica à largura/altura, então fica para o card [2], quando passa a ter uso.
+
+## 3.14 Atalhos de teclado
 
 O `KeyboardController` registra um **handler na janela** (`Stage`). Como handlers rodam na fase de
 "borbulhamento" (ver 4.3), ele só recebe teclas que **ninguém consumiu antes** — em especial, o
@@ -911,10 +955,11 @@ a funcionar sem mais nada.
 2. Ação em `SelectionActionsController`, operando sobre `selectedCards()` dentro de `history.perform`.
 3. Atalho em `KeyboardController`, se houver.
 
-## 5.5 Reaproveitar o alinhamento no redimensionamento
+## 5.5 Alinhamento: mover × redimensionar
 
-O cálculo já foi feito para isso (e há teste cobrindo). A diferença entre mover e redimensionar é
-**quais linhas participam** e **onde o ajuste é aplicado**:
+O mesmo `AlignmentGuides` atende os dois gestos (o redimensionamento está em `BoxResizer`, 3.13).
+A diferença é **quais linhas participam** e **onde o ajuste é aplicado** — útil se um dia outro
+gesto precisar de alinhamento (ex.: criar card arrastando, mover setas):
 
 | Gesto | Linhas que participam | Onde aplicar `dx`/`dy` |
 |---|---|---|
@@ -923,20 +968,23 @@ O cálculo já foi feito para isso (e há teste cobrindo). A diferença entre mo
 | Arrastar canto inferior direito | X: `{END}`; Y: `{END}` | largura e altura |
 | Arrastar borda esquerda | X: `{START}` | posição **e** largura (`x += dx`, `width -= dx`) |
 
-Exemplo para o canto inferior direito:
-
-```java
-Box free = new Box(x, y, widthLivre, heightLivre);   // tamanho que o mouse está pedindo
-SnapResult r = AlignmentGuides.snap(free, EnumSet.of(Edge.END), EnumSet.of(Edge.END), outras, 6 / zoom);
-card.setWidth(widthLivre + r.dx());
-card.setHeight(heightLivre + r.dy());
-view.showGuides(r.guides());
-```
+Com proporção fixa (elipse, losango, ou `Shift`), só o eixo X participa do alinhamento; a altura é
+derivada da largura, e o canto oposto à alça fica parado.
 
 ## 5.6 Mapa das próximas funcionalidades (Trello)
 
+Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
+**[1] está feito** (3.13):
+
+```
+[1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
+```
+
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
+| **[2] Fonte automática/manual + crescimento** | Propriedade de tamanho de fonte (automático ou valor manual) e de "tamanho definido à mão" (checklist 5.1); medir o texto com as métricas de fonte do JavaFX; ajustar altura no modelo; trocar o mínimo fixo do `CardResizeController` pelo mínimo que o texto precisa | Automático aumenta e diminui a fonte dentro de limites (mín. ~9px). Cresce para baixo, só na altura (elipse/losango: proporção). Ao apagar texto, volta a encolher, nunca abaixo do tamanho definido à mão. Crescimento durante a digitação entra na sessão de edição do desfazer. Objetivo: acabar com a rolagem dentro dos cards |
+| **[3] Exportar para PDF** | Apache PDFBox; percorrer a árvore como o `BoardStorage`; board como imagem (snapshot 2x–3x) + links internos (`PDAnnotationLink`) + texto invisível para busca | Uma página por board; card de board aninhado e caminho no topo viram links; painel flutuante → página de "Detalhes" (vetorial) com link de volta; marcadores do PDF espelhando a árvore |
+| **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
 | **Lock de item** | Propriedade `locked` (checklist 5.1); `CardDragController` ignora cards travados; pseudo-classe `:locked` | Excluir/duplicar travados? decidir |
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
@@ -990,7 +1038,7 @@ view.showGuides(r.guides());
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 48 testes, sem abrir janela
+### Automatizados (`mvn test`) — 57 testes, sem abrir janela
 
 | Classe | Cobre |
 |---|---|
@@ -998,6 +1046,7 @@ view.showGuides(r.guides());
 | `CardShapeTest` | criação por formato, troca de formato mantendo o centro/tamanho |
 | `CardGeometryTest` | ponto de contato da seta em cada formato |
 | `AlignmentGuidesTest` | grudar borda/centro, candidato mais próximo, limite, guias atravessando várias caixas, redimensionar (só bordas puxadas) |
+| `BoxResizerTest` | cada tipo de alça, lado oposto parado, tamanho mínimo, proporção, grude só nas bordas puxadas, Alt (limite 0) |
 | `BoardSnapshotTest` | foto/restauração: mudança de propriedades, card excluído com setas, card novo |
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |

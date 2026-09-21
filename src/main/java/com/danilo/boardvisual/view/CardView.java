@@ -43,6 +43,8 @@ public class CardView extends Region {
     private static final PseudoClass PANEL_OPEN = PseudoClass.getPseudoClass("panel-open");
     private static final PseudoClass HAS_BOARD = PseudoClass.getPseudoClass("has-board");
     private static final String SHAPE_CLASS_PREFIX = "shape-";
+    /** Distância da alça de conexão para fora da borda direita. */
+    private static final double CONNECTOR_OFFSET = 14;
 
     private final Card card;
     private final StackPane body = new StackPane();
@@ -88,9 +90,10 @@ public class CardView extends Region {
         // Cliques fora da silhueta (ex.: cantos da elipse) não pertencem ao card.
         body.setPickOnBounds(false);
 
-        // Alça na borda direita: arrastar a partir dela cria uma conexão.
+        // Alça à direita do card: arrastar a partir dela cria uma conexão. Fica um
+        // pouco para fora para não disputar lugar com a alça de redimensionar da borda.
         connectorHandle.getStyleClass().add("connector-handle");
-        connectorHandle.centerXProperty().bind(card.widthProperty());
+        connectorHandle.centerXProperty().bind(card.widthProperty().add(CONNECTOR_OFFSET));
         connectorHandle.centerYProperty().bind(card.heightProperty().divide(2));
 
         // Botão do painel flutuante: só aparece se o card for um painel; o ícone indica o modo.

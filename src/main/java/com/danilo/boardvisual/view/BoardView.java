@@ -50,6 +50,7 @@ import java.util.function.Consumer;
  *      └─ overlayLayer     (prévia da seta sendo criada)
  *  ├─ marquee          (caixa de seleção, em pixels de tela)
  *  ├─ guideLayer       (linhas guia do alinhamento, em pixels de tela)
+ *  ├─ resizeHandles    (alças de redimensionamento do card selecionado, em pixels de tela)
  *  ├─ selectionOverlay (barra flutuante da seleção, em pixels de tela: não sofre zoom)
  *  └─ panelOverlay     (painel flutuante aberto, ao lado do card, em pixels de tela)
  * </pre>
@@ -67,6 +68,11 @@ public class BoardView extends Pane {
     private static final PseudoClass TOOL_CREATE = PseudoClass.getPseudoClass("tool-create");
     /** Distância entre a barra flutuante e o card, e margem até as bordas do canvas. */
     private static final double OVERLAY_GAP = 10;
+    /**
+     * Folga extra da barra flutuante quando há alças de redimensionar: sem ela,
+     * num card pequeno a barra fica sobre as alças de cima e "come" o clique.
+     */
+    private static final double RESIZE_HANDLE_CLEARANCE = 14;
 
     private final Group world = new Group();
     private final Group connectionLayer = new Group();
@@ -80,6 +86,10 @@ public class BoardView extends Pane {
     private final Line connectionPreview = new Line();
     private final Rectangle marquee = new Rectangle();
     private final Group guideLayer = new Group();
+    private final ResizeHandlesView resizeHandles = new ResizeHandlesView();
+    private Card resizeTarget;
+    private boolean resizeCornersOnly;
+    private final InvalidationListener resizeUpdater = obs -> updateResizeHandles();
 
     private final Map<Card, CardView> cardViews = new HashMap<>();
     private final Map<Connection, ConnectionView> connectionViews = new HashMap<>();
@@ -141,7 +151,10 @@ public class BoardView extends Pane {
         guideLayer.setManaged(false);
         guideLayer.setMouseTransparent(true);
 
-        getChildren().addAll(world, marquee, guideLayer);
+        resizeHandles.setManaged(false);
+        resizeHandles.setVisible(false);
+
+        getChildren().addAll(world, marquee, guideLayer, resizeHandles);
 
         setMinSize(0, 0);
         setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
@@ -163,6 +176,9 @@ public class BoardView extends Pane {
         zoom.addListener(panelUpdater);
         pan.xProperty().addListener(panelUpdater);
         pan.yProperty().addListener(panelUpdater);
+        zoom.addListener(resizeUpdater);
+        pan.xProperty().addListener(resizeUpdater);
+        pan.yProperty().addListener(resizeUpdater);
         widthProperty().addListener(panelUpdater);
         heightProperty().addListener(panelUpdater);
         setActiveTool(Tool.SELECT);
@@ -235,6 +251,9 @@ public class BoardView extends Pane {
         selection.remove(card);
         if (card == panelAnchor.get()) {
             hidePanel();
+        }
+        if (card == resizeTarget) {
+            setResizeTarget(null, false);
         }
         CardView cardView = cardViews.remove(card);
         if (cardView != null) {
@@ -337,10 +356,11 @@ public class BoardView extends Pane {
         double w = selectionOverlay.getWidth();
         double h = selectionOverlay.getHeight();
 
+        double gap = resizeTarget != null ? OVERLAY_GAP + RESIZE_HANDLE_CLEARANCE : OVERLAY_GAP;
         double x = bounds.getCenterX() - w / 2;
-        double y = bounds.getMinY() - OVERLAY_GAP - h;
+        double y = bounds.getMinY() - gap - h;
         if (y < OVERLAY_GAP) {
-            y = bounds.getMaxY() + OVERLAY_GAP; // sem espaço acima: abre abaixo do card
+            y = bounds.getMaxY() + gap; // sem espaço acima: abre abaixo do card
         }
         x = Math.max(OVERLAY_GAP, Math.min(x, getWidth() - w - OVERLAY_GAP));
         y = Math.max(OVERLAY_GAP, Math.min(y, getHeight() - h - OVERLAY_GAP));
@@ -428,6 +448,44 @@ public class BoardView extends Pane {
         panelOverlay.relocate(Math.round(x), Math.round(y));
     }
 
+    // ------------------------------------------------------ redimensionamento
+
+    public ResizeHandlesView getResizeHandles() {
+        return resizeHandles;
+    }
+
+    /**
+     * Mostra as alças em volta do card ({@code null} esconde). Elas acompanham
+     * o card ao mover, redimensionar, pan e zoom.
+     *
+     * @param cornersOnly só as alças dos cantos (formatos que mantêm a proporção)
+     */
+    public void setResizeTarget(Card card, boolean cornersOnly) {
+        if (resizeTarget != null) {
+            CardGeometry.forEach(resizeTarget, p -> p.removeListener(resizeUpdater));
+        }
+        resizeTarget = card != null && cardViews.containsKey(card) ? card : null;
+        resizeCornersOnly = cornersOnly;
+        if (resizeTarget != null) {
+            CardGeometry.forEach(resizeTarget, p -> p.addListener(resizeUpdater));
+        }
+        updateResizeHandles();
+        updateSelectionOverlay(); // a folga da barra depende de haver alças
+    }
+
+    private void updateResizeHandles() {
+        // Some durante a caixa de seleção, como a barra flutuante.
+        boolean show = resizeTarget != null && !marquee.isVisible();
+        resizeHandles.setVisible(show);
+        if (show) {
+            Point2D topLeft = world.localToParent(resizeTarget.getX(), resizeTarget.getY());
+            Point2D bottomRight = world.localToParent(resizeTarget.getX() + resizeTarget.getWidth(),
+                    resizeTarget.getY() + resizeTarget.getHeight());
+            resizeHandles.layoutAround(new BoundingBox(topLeft.getX(), topLeft.getY(),
+                    bottomRight.getX() - topLeft.getX(), bottomRight.getY() - topLeft.getY()), resizeCornersOnly);
+        }
+    }
+
     // ------------------------------------------------------ linhas guia
 
     /**
@@ -475,6 +533,7 @@ public class BoardView extends Pane {
         if (!marquee.isVisible()) {
             marquee.setVisible(true);
             updateSelectionOverlay();
+            updateResizeHandles();
         }
     }
 
@@ -482,6 +541,7 @@ public class BoardView extends Pane {
         if (marquee.isVisible()) {
             marquee.setVisible(false);
             updateSelectionOverlay();
+            updateResizeHandles();
         }
     }
 

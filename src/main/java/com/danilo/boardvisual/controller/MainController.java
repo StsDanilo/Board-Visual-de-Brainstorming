@@ -51,6 +51,7 @@ public class MainController {
         canvasController = new CanvasController(
                 boardView, activeTool, window.getToolBar().currentColorProperty(), history);
         CardDragController cardDragController = new CardDragController(boardView, activeTool, history);
+        new CardResizeController(boardView, activeTool, history);
         ConnectionController connectionController = new ConnectionController(boardView, activeTool, history);
         TextEditController textEditController = new TextEditController(history);
         selectionActionsController = new SelectionActionsController(

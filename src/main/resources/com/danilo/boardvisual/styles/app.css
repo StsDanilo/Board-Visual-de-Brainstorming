@@ -59,6 +59,25 @@
     -fx-stroke-dash-array: 4 3;
 }
 
+/*
+ * Alças de redimensionamento do card selecionado. A alça tem 17 px de área
+ * clicável; os insets desenham só o quadrado de 9 px no centro.
+ */
+.resize-handle {
+    -fx-background-color: -bv-accent, -bv-surface;
+    -fx-background-insets: 4, 5.5;
+    -fx-background-radius: 2, 1;
+}
+
+.resize-handle:hover {
+    -fx-background-color: -bv-accent, -bv-accent;
+}
+
+.resize-north-west, .resize-south-east { -fx-cursor: se-resize; }
+.resize-north-east, .resize-south-west { -fx-cursor: sw-resize; }
+.resize-north, .resize-south { -fx-cursor: n-resize; }
+.resize-east, .resize-west { -fx-cursor: e-resize; }
+
 /* Caixa de seleção desenhada ao arrastar o fundo. */
 .selection-marquee {
     -fx-fill: rgba(79, 124, 255, 0.08);
