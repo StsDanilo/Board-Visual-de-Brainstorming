@@ -24,6 +24,8 @@ mvn test
 
 - Cards com texto editável direto no card, em três formatos: retângulo, elipse e losango
 - Arrastar cards livremente; setas acompanham automaticamente
+- Alinhamento simplificado: ao arrastar, bordas e centros grudam nos de outros cards, com linhas guia
+  (segure `Alt` para posicionar livremente)
 - Conexões entre cards (ferramenta Conexão ou alça na borda do card)
 - Canvas com pan e zoom
 - Painel flutuante: card com um botão que abre um painel ao lado, em modo texto (detalhamento)
@@ -54,6 +56,7 @@ mvn test
 | `Esc` | Sair da edição de texto → fechar painel flutuante → voltar para Selecionar → limpar seleção |
 | `Espaço` + arrastar | Mover a visão (também: botão do meio ou direito) |
 | `Shift` + clique | Somar/retirar card da seleção |
+| `Alt` + arrastar card | Mover sem alinhamento automático |
 | `Ctrl+N` / `Ctrl+O` | Novo board / abrir |
 | `Ctrl+S` / `Ctrl+Shift+S` | Salvar / salvar como |
 | `Ctrl+0` | Redefinir visualização |
@@ -67,6 +70,7 @@ digitado vira um único passo no desfazer do board.
 ```
 src/main/java/com/danilo/boardvisual
 ├─ model/        Card, Connection, Board — dados puros, sem nada visual
+├─ alignment/    Cálculo do alinhamento (linhas guia) — Java puro, reaproveitável
 ├─ view/         Nós JavaFX: canvas, cards, setas, barras
 ├─ controller/   Interações de mouse e ações sobre o board
 └─ persistence/  Leitura e escrita do JSON

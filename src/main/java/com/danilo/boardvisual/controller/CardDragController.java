@@ -1,5 +1,8 @@
 package com.danilo.boardvisual.controller;
 
+import com.danilo.boardvisual.alignment.AlignmentGuides;
+import com.danilo.boardvisual.alignment.Box;
+import com.danilo.boardvisual.alignment.SnapResult;
 import com.danilo.boardvisual.model.BoardSnapshot;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.view.BoardView;
@@ -10,8 +13,10 @@ import javafx.geometry.Point2D;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -24,8 +29,15 @@ import java.util.Set;
  * Só altera x/y dos cards no modelo; views e setas acompanham por binding.
  * Trabalha em coordenadas de mundo, então funciona em qualquer nível de zoom.
  * Cada arrasto vira um único passo no histórico de desfazer.
+ *
+ * Alinhamento: ao arrastar, bordas e centros dos cards movidos (como um bloco,
+ * se forem vários) grudam nos dos outros cards quando ficam perto, com linhas
+ * guia. Segurar Alt desliga, para posicionar livremente.
  */
 public class CardDragController {
+
+    /** Distância, em pixels de tela, a partir da qual o card gruda. */
+    private static final double SNAP_DISTANCE_PX = 6;
 
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;
@@ -79,6 +91,16 @@ public class CardDragController {
             state.start = view.sceneToWorld(e.getSceneX(), e.getSceneY());
             state.startPositions.clear();
             view.getSelection().forEach(c -> state.startPositions.put(c, new Point2D(c.getX(), c.getY())));
+            // Referências do alinhamento: os cards que não estão sendo movidos (não mudam durante o arrasto).
+            state.startBox = null;
+            state.others.clear();
+            for (Card c : view.getBoard().getCards()) {
+                if (state.startPositions.containsKey(c)) {
+                    state.startBox = state.startBox == null ? boxOf(c) : state.startBox.union(boxOf(c));
+                } else {
+                    state.others.add(boxOf(c));
+                }
+            }
             state.before = history.capture();
             e.consume();
         });
@@ -89,14 +111,26 @@ public class CardDragController {
             Point2D p = view.sceneToWorld(e.getSceneX(), e.getSceneY());
             double dx = p.getX() - state.start.getX();
             double dy = p.getY() - state.start.getY();
+            if (e.isAltDown() || state.startBox == null) {
+                view.hideGuides();
+            } else {
+                double threshold = SNAP_DISTANCE_PX / view.zoomProperty().get();
+                SnapResult snap = AlignmentGuides.snapMove(state.startBox.translate(dx, dy), state.others, threshold);
+                dx += snap.dx();
+                dy += snap.dy();
+                view.showGuides(snap.guides());
+            }
+            double finalDx = dx;
+            double finalDy = dy;
             state.startPositions.forEach((c, origin) -> {
-                c.setX(origin.getX() + dx);
-                c.setY(origin.getY() + dy);
+                c.setX(origin.getX() + finalDx);
+                c.setY(origin.getY() + finalDy);
             });
             e.consume();
         });
         cardView.getBody().addEventHandler(MouseEvent.MOUSE_RELEASED, e -> {
             if (state.start != null) {
+                view.hideGuides();
                 history.record(state.before);
             }
             state.start = null;
@@ -111,5 +145,12 @@ public class CardDragController {
         final Map<Card, Point2D> startPositions = new LinkedHashMap<>();
         BoardSnapshot before;
         boolean selectOnlyOnRelease;
+        /** Caixa que envolve os cards movidos, na posição inicial. */
+        Box startBox;
+        final List<Box> others = new ArrayList<>();
+    }
+
+    private static Box boxOf(Card card) {
+        return new Box(card.getX(), card.getY(), card.getWidth(), card.getHeight());
     }
 }

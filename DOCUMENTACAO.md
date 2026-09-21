@@ -2,7 +2,7 @@
 
 > Documento de estudo e referência do projeto, mantido junto com o código: toda mudança relevante
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
-> Estado descrito: até os boards aninhados.
+> Estado descrito: até o alinhamento simplificado (linhas guia).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -76,9 +76,10 @@ A tela e as setas "escutam" esse número e se reposicionam sozinhas. Esse é o m
 | Camada | Pode usar | Não pode usar |
 |---|---|---|
 | `model` | nada do projeto (só `javafx.beans`/`javafx.collections`) | view, controller, persistence |
+| `alignment` | nada (Java puro, sem JavaFX) | todo o resto |
 | `persistence` | model | view, controller |
-| `view` | model | controller, persistence |
-| `controller` | model, view, persistence | — |
+| `view` | model, alignment | controller, persistence |
+| `controller` | model, view, persistence, alignment | — |
 
 Consequência prática: o **modelo é testável sem abrir janela**, e dá para trocar a aparência inteira
 sem tocar no modelo.
@@ -139,6 +140,20 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 | `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível; guarda o board principal. |
 | `KeyboardController` | Atalhos de teclado. |
 | `EditHistory` | Pilha de desfazer/refazer. |
+
+### `alignment/` — o cálculo do alinhamento
+
+Pacote de **Java puro** (nem JavaFX, nem modelo): só retângulos e números. Por isso é fácil de testar
+e de reaproveitar — hoje serve ao arrastar; no futuro, ao redimensionar (ver 5.5).
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `Box` | Retângulo (x, y, largura, altura); dá o valor de cada linha e faz `translate`/`union`. |
+| `Axis` | `X` (linhas verticais: esquerda/centro/direita) ou `Y` (horizontais: topo/meio/base). |
+| `Edge` | `START`, `CENTER`, `END` — uma das três linhas de uma caixa num eixo. |
+| `Guide` | Linha guia a desenhar (eixo, posição, início e fim). |
+| `SnapResult` | Ajuste em X e Y para grudar + lista de guias. |
+| `AlignmentGuides` | O algoritmo: `snap(caixa, linhasX, linhasY, outras, limite)` e o atalho `snapMove`. |
 
 ### `persistence/` — o arquivo
 
@@ -444,7 +459,37 @@ que você fez dentro do filho depois. Já um card **recriado** (desfazer uma exc
 **Visual:** o card-board tem uma "folha" deslocada atrás dele (CSS com camadas de fundo e insets
 negativos, via pseudo-classe `:has-board`), para parecer uma pilha.
 
-## 3.12 Atalhos de teclado
+## 3.12 Alinhamento simplificado (linhas guia)
+
+Ao arrastar, as 6 linhas da caixa que está se movendo (esquerda, centro, direita, topo, meio, base)
+são comparadas com as 6 linhas de cada outro card. Se alguma ficar a menos de **6 pixels de tela**, o
+movimento é ajustado para encostar exatamente, e aparece uma linha guia tracejada.
+
+```
+MOUSE_PRESSED (CardDragController)
+  caixa inicial = união dos cards selecionados   (vários cards alinham como um bloco)
+  referências   = caixas dos outros cards        (não mudam durante o arrasto: calcula uma vez)
+MOUSE_DRAGGED
+  deslocamento livre (dx, dy) do mouse
+  r = AlignmentGuides.snapMove(caixaInicial + (dx, dy), referências, 6 / zoom)
+  aplica (dx + r.dx, dy + r.dy) em todos os selecionados
+  BoardView.showGuides(r.guides())
+MOUSE_RELEASED
+  BoardView.hideGuides(); history.record(...)
+```
+
+- **Cada eixo é independente:** pode grudar só na horizontal, só na vertical ou nas duas.
+- **Escolha:** em cada eixo vence o candidato mais próximo. Depois do ajuste, as guias são geradas
+  para **todas** as linhas que coincidem, e cada guia vai de uma ponta à outra das caixas envolvidas
+  (se três cards estão alinhados, a guia atravessa os três).
+- **Limite em pixels de tela:** `6 / zoom` em unidades do board. O "ímã" tem a mesma força com
+  qualquer zoom (a 200%, 6 px de tela = 3 unidades do board).
+- **Formatos:** elipse e losango alinham pela caixa que os envolve, como nos editores gráficos.
+- **Alt:** segurado durante o arrasto, desliga o alinhamento.
+- **Desenho:** as guias ficam numa camada do `BoardView` fora do `world` (em pixels de tela), então a
+  linha tem sempre 1px, e é posicionada em meio pixel para ficar nítida.
+
+## 3.13 Atalhos de teclado
 
 O `KeyboardController` registra um **handler na janela** (`Stage`). Como handlers rodam na fase de
 "borbulhamento" (ver 4.3), ele só recebe teclas que **ninguém consumiu antes** — em especial, o
@@ -866,12 +911,33 @@ a funcionar sem mais nada.
 2. Ação em `SelectionActionsController`, operando sobre `selectedCards()` dentro de `history.perform`.
 3. Atalho em `KeyboardController`, se houver.
 
-## 5.5 Mapa das próximas funcionalidades (Trello)
+## 5.5 Reaproveitar o alinhamento no redimensionamento
+
+O cálculo já foi feito para isso (e há teste cobrindo). A diferença entre mover e redimensionar é
+**quais linhas participam** e **onde o ajuste é aplicado**:
+
+| Gesto | Linhas que participam | Onde aplicar `dx`/`dy` |
+|---|---|---|
+| Mover | `Edge.ALL` nos dois eixos | posição (`x += dx`, `y += dy`) |
+| Arrastar borda direita | X: `{END}`; Y: nenhuma | largura (`width += dx`) |
+| Arrastar canto inferior direito | X: `{END}`; Y: `{END}` | largura e altura |
+| Arrastar borda esquerda | X: `{START}` | posição **e** largura (`x += dx`, `width -= dx`) |
+
+Exemplo para o canto inferior direito:
+
+```java
+Box free = new Box(x, y, widthLivre, heightLivre);   // tamanho que o mouse está pedindo
+SnapResult r = AlignmentGuides.snap(free, EnumSet.of(Edge.END), EnumSet.of(Edge.END), outras, 6 / zoom);
+card.setWidth(widthLivre + r.dx());
+card.setHeight(heightLivre + r.dy());
+view.showGuides(r.guides());
+```
+
+## 5.6 Mapa das próximas funcionalidades (Trello)
 
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
-| **Smart guides** | `CardDragController` no drag: comparar bordas/centros com outros cards, ajustar `dx/dy` (snap) e desenhar linhas no `overlayLayer` | Guias devem ficar em coordenadas de mundo |
 | **Lock de item** | Propriedade `locked` (checklist 5.1); `CardDragController` ignora cards travados; pseudo-classe `:locked` | Excluir/duplicar travados? decidir |
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
 | **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem |
@@ -924,13 +990,14 @@ a funcionar sem mais nada.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 41 testes, sem abrir janela
+### Automatizados (`mvn test`) — 48 testes, sem abrir janela
 
 | Classe | Cobre |
 |---|---|
 | `BoardTest` | regras de conexão, remoção em cascata, cópia de card |
 | `CardShapeTest` | criação por formato, troca de formato mantendo o centro/tamanho |
 | `CardGeometryTest` | ponto de contato da seta em cada formato |
+| `AlignmentGuidesTest` | grudar borda/centro, candidato mais próximo, limite, guias atravessando várias caixas, redimensionar (só bordas puxadas) |
 | `BoardSnapshotTest` | foto/restauração: mudança de propriedades, card excluído com setas, card novo |
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |

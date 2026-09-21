@@ -1,5 +1,7 @@
 package com.danilo.boardvisual.view;
 
+import com.danilo.boardvisual.alignment.Axis;
+import com.danilo.boardvisual.alignment.Guide;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.Connection;
@@ -25,6 +27,7 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.transform.Scale;
 import javafx.scene.transform.Translate;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -46,6 +49,7 @@ import java.util.function.Consumer;
  *      ├─ cardLayer        (cards)
  *      └─ overlayLayer     (prévia da seta sendo criada)
  *  ├─ marquee          (caixa de seleção, em pixels de tela)
+ *  ├─ guideLayer       (linhas guia do alinhamento, em pixels de tela)
  *  ├─ selectionOverlay (barra flutuante da seleção, em pixels de tela: não sofre zoom)
  *  └─ panelOverlay     (painel flutuante aberto, ao lado do card, em pixels de tela)
  * </pre>
@@ -75,6 +79,7 @@ public class BoardView extends Pane {
 
     private final Line connectionPreview = new Line();
     private final Rectangle marquee = new Rectangle();
+    private final Group guideLayer = new Group();
 
     private final Map<Card, CardView> cardViews = new HashMap<>();
     private final Map<Connection, ConnectionView> connectionViews = new HashMap<>();
@@ -133,7 +138,10 @@ public class BoardView extends Pane {
         marquee.setMouseTransparent(true);
         marquee.setVisible(false);
 
-        getChildren().addAll(world, marquee);
+        guideLayer.setManaged(false);
+        guideLayer.setMouseTransparent(true);
+
+        getChildren().addAll(world, marquee, guideLayer);
 
         setMinSize(0, 0);
         setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
@@ -418,6 +426,40 @@ public class BoardView extends Pane {
         x = Math.max(OVERLAY_GAP, Math.min(x, getWidth() - w - OVERLAY_GAP));
         double y = Math.max(OVERLAY_GAP, Math.min(topLeft.getY(), getHeight() - h - OVERLAY_GAP));
         panelOverlay.relocate(Math.round(x), Math.round(y));
+    }
+
+    // ------------------------------------------------------ linhas guia
+
+    /**
+     * Mostra as linhas guia do alinhamento. Elas vêm em coordenadas do board e
+     * são desenhadas em pixels de tela, para ter a mesma espessura em qualquer zoom.
+     */
+    public void showGuides(List<Guide> guides) {
+        List<Node> lines = new ArrayList<>();
+        for (Guide guide : guides) {
+            Point2D a;
+            Point2D b;
+            if (guide.axis() == Axis.X) {
+                a = world.localToParent(guide.position(), guide.start());
+                b = world.localToParent(guide.position(), guide.end());
+            } else {
+                a = world.localToParent(guide.start(), guide.position());
+                b = world.localToParent(guide.end(), guide.position());
+            }
+            // Meio pixel: linha de 1px nítida em vez de borrada entre dois pixels.
+            Line line = new Line(snapHalf(a.getX()), snapHalf(a.getY()), snapHalf(b.getX()), snapHalf(b.getY()));
+            line.getStyleClass().add("alignment-guide");
+            lines.add(line);
+        }
+        guideLayer.getChildren().setAll(lines);
+    }
+
+    public void hideGuides() {
+        guideLayer.getChildren().clear();
+    }
+
+    private static double snapHalf(double value) {
+        return Math.round(value) + 0.5;
     }
 
     // ------------------------------------------------------ caixa de seleção

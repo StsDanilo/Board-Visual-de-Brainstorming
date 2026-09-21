@@ -52,6 +52,13 @@
     -fx-cursor: closed-hand;
 }
 
+/* Linha guia do alinhamento ao arrastar um card. */
+.alignment-guide {
+    -fx-stroke: #e5487d;
+    -fx-stroke-width: 1;
+    -fx-stroke-dash-array: 4 3;
+}
+
 /* Caixa de seleção desenhada ao arrastar o fundo. */
 .selection-marquee {
     -fx-fill: rgba(79, 124, 255, 0.08);
