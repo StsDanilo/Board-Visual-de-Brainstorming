@@ -15,6 +15,7 @@
         <javafx.version>21.0.6</javafx.version>
         <gson.version>2.11.0</gson.version>
         <junit.version>5.11.4</junit.version>
+        <pdfbox.version>3.0.3</pdfbox.version>
     </properties>
 
     <dependencies>
@@ -27,6 +28,12 @@
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>${gson.version}</version>
+        </dependency>
+        <!-- Exportar para PDF (links internos, marcadores) -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
         </dependency>
 
         <dependency>

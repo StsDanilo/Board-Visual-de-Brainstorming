@@ -33,6 +33,7 @@ public class MainWindow extends BorderPane {
     private final MenuItem openItem = new MenuItem("Abrir...");
     private final MenuItem saveItem = new MenuItem("Salvar");
     private final MenuItem saveAsItem = new MenuItem("Salvar como...");
+    private final MenuItem exportPdfItem = new MenuItem("Exportar PDF...");
     private final MenuItem exitItem = new MenuItem("Sair");
     private final MenuItem resetViewItem = new MenuItem("Redefinir visualização");
     private final MenuItem undoItem = new MenuItem("Desfazer");
@@ -46,6 +47,7 @@ public class MainWindow extends BorderPane {
         openItem.setAccelerator(new KeyCodeCombination(KeyCode.O, KeyCombination.SHORTCUT_DOWN));
         saveItem.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN));
         saveAsItem.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN));
+        exportPdfItem.setAccelerator(new KeyCodeCombination(KeyCode.E, KeyCombination.SHORTCUT_DOWN));
         resetViewItem.setAccelerator(new KeyCodeCombination(KeyCode.DIGIT0, KeyCombination.SHORTCUT_DOWN));
         // Atalhos de menu só disparam se o componente com foco não usar a tecla:
         // editando texto, Ctrl+Z e Ctrl+A continuam agindo no próprio texto.
@@ -54,7 +56,8 @@ public class MainWindow extends BorderPane {
         selectAllItem.setAccelerator(new KeyCodeCombination(KeyCode.A, KeyCombination.SHORTCUT_DOWN));
 
         Menu fileMenu = new Menu("Arquivo", null,
-                newItem, openItem, new SeparatorMenuItem(), saveItem, saveAsItem, new SeparatorMenuItem(), exitItem);
+                newItem, openItem, new SeparatorMenuItem(), saveItem, saveAsItem, new SeparatorMenuItem(), exportPdfItem,
+                new SeparatorMenuItem(), exitItem);
         Menu editMenu = new Menu("Editar", null, undoItem, redoItem, new SeparatorMenuItem(), selectAllItem);
         Menu viewMenu = new Menu("Exibir", null, resetViewItem);
         setTop(new MenuBar(fileMenu, editMenu, viewMenu));
@@ -97,6 +100,7 @@ public class MainWindow extends BorderPane {
     public MenuItem getOpenItem() { return openItem; }
     public MenuItem getSaveItem() { return saveItem; }
     public MenuItem getSaveAsItem() { return saveAsItem; }
+    public MenuItem getExportPdfItem() { return exportPdfItem; }
     public MenuItem getExitItem() { return exitItem; }
     public MenuItem getResetViewItem() { return resetViewItem; }
     public MenuItem getUndoItem() { return undoItem; }

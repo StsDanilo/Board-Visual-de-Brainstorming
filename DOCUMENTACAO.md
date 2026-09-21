@@ -2,7 +2,7 @@
 
 > Documento de estudo e referência do projeto, mantido junto com o código: toda mudança relevante
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
-> Estado descrito: até a fonte automática e o crescimento automático dos cards.
+> Estado descrito: até a exportação para PDF (card [3]).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -27,6 +27,7 @@ infinito; nele você cria **cards** (retângulo, elipse ou losango) com texto, a
 liga os cards com **setas**, pinta com cores, seleciona vários de uma vez, desfaz erros e salva
 tudo num arquivo **JSON** no computador. Cards podem abrir um **painel flutuante** (texto ou lista)
 ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade).
+Tudo pode ser exportado para um **PDF navegável**, com links entre os boards.
 Não há servidor nem banco de dados.
 
 ## Tecnologias
@@ -34,6 +35,7 @@ Não há servidor nem banco de dados.
 - **Java 17** (compila tanto no JDK 17 quanto no 25)
 - **JavaFX 21** para a interface
 - **Gson** para ler e escrever JSON
+- **Apache PDFBox 3** para gerar o PDF
 - **JUnit 5** para testes
 - **Maven** para build (`mvn javafx:run` roda, `mvn test` testa)
 
@@ -78,8 +80,9 @@ A tela e as setas "escutam" esse número e se reposicionam sozinhas. Esse é o m
 | `model` | nada do projeto (só `javafx.beans`/`javafx.collections`) | view, controller, persistence |
 | `alignment` | nada (Java puro, sem JavaFX) | todo o resto |
 | `persistence` | model | view, controller |
+| `export` | model, alignment | view, controller (a imagem do board chega por uma interface) |
 | `view` | model, alignment | controller, persistence |
-| `controller` | model, view, persistence, alignment | — |
+| `controller` | model, view, persistence, export, alignment | — |
 
 Consequência prática: o **modelo é testável sem abrir janela**, e dá para trocar a aparência inteira
 sem tocar no modelo.
@@ -102,6 +105,7 @@ sem tocar no modelo.
 | `BoardSnapshot` | "Foto" imutável do board, usada pelo desfazer/refazer. |
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
+| `BoardNames` | Nome exibido de cada board (arquivo no principal, 1ª linha do card nos filhos), usado no caminho da tela e no PDF. |
 
 Um `Card` pode ter um `childBoard` (outro `Board`), o que forma uma **árvore**: o board principal
 contém cards, que contêm boards, que contêm cards... O arquivo salva essa árvore inteira.
@@ -122,6 +126,7 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar. |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
+| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15). |
 | `PopupButton` | Base de "botão que abre um painelzinho". |
 | `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
@@ -132,7 +137,7 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar); desfazer/refazer do menu. |
+| `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar, exportar PDF); desfazer/refazer do menu. |
 | `CanvasController` | Mouse no fundo: pan, zoom, caixa de seleção, criar card. |
 | `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo), com alinhamento. |
 | `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas. |
@@ -167,6 +172,13 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 |---|---|
 | `BoardFileFormat` | Records que espelham exatamente o JSON salvo. |
 | `BoardStorage` | Converte `Board` ⇄ JSON e grava/lê o arquivo com segurança. |
+
+### `export/` — o PDF
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `PdfExporter` | Monta o PDF: páginas na ordem da árvore, caminho no topo, links, páginas de detalhes, marcadores. |
+| `PdfText` | Fonte padrão do PDF (Helvetica), medida e quebra de linha, troca de caracteres sem suporte. |
 
 ### Outros
 
@@ -586,7 +598,53 @@ texto / fonte / tamanho à mão / formato / botão do card mudou   (CardTextFitC
 
 Detalhes da medição (por que o texto cabe de verdade) em 4.6.
 
-## 3.15 Atalhos de teclado
+## 3.15 Exportar para PDF
+
+`Arquivo › Exportar PDF...` (`Ctrl+E`) exporta o **board principal e todos os aninhados**, qualquer
+que seja o board aberto na tela.
+
+```
+MainController.exportPdf()
+  escolhe o arquivo (nome sugerido: o do .json ou o do board)
+  new PdfExporter(new BoardRenderer(css da janela)::render).export(raiz, arquivo)
+    árvore: BoardNode por board (nome por BoardNames), PanelDetails por painel com conteúdo
+    1ª passada, na ordem das páginas (board → detalhes dele → filhos, recursivo):
+      tamanho da página; pede a imagem ao BoardRenderer; cria as páginas (vazias)
+    2ª passada: desenha cada página e cria os links (os destinos já existem)
+    marcadores com a mesma árvore; grava em .tmp e move (como o JSON)
+```
+
+**Página de um board**
+
+| Parte | Como |
+|---|---|
+| Tamanho | O do conteúdo (cards + margem de 32), 1 unidade do board = 1 pt; boards maiores que 14.000 pt são reduzidos (limite do formato PDF) |
+| Caminho no topo | `Principal › board 2 › board 3` em texto de verdade; cada nível anterior é link para a página dele |
+| Board | **Imagem** feita pelo `BoardRenderer`, com 2 pixels por ponto (nítida no zoom e na impressão) |
+| Cards clicáveis | Card de board aninhado → página do filho; painel com conteúdo → primeira página de detalhes |
+| Texto invisível | O texto de cada card, invisível, sobre o card: buscar (`Ctrl+F`) e copiar funcionam |
+
+**Página de detalhes** (painel flutuante): A4, título (texto do card), link `‹ Voltar ao board`, e o
+conteúdo em texto de verdade — parágrafos no modo texto, marcadores `•` no modo lista (itens vazios
+somem). Conteúdo longo continua nas páginas seguintes ("(continuação)"). Painel sem conteúdo não gera
+página nem link.
+
+**`BoardRenderer`** monta `CardView`s e `ConnectionView`s numa `Scene` própria, fora da janela, com o
+mesmo CSS, e tira um snapshot. Não usa o `BoardView` (sem seleção, barras, pan/zoom) e **não altera o
+modelo**: a fonte de cada card é calculada com o `CardTextFit` e aplicada só na cópia visual. A classe
+`board-export` no CSS esconde o texto de exemplo de cards vazios e a alça de conexão.
+
+**Por que a imagem vem por uma interface** (`PdfExporter.BoardImageRenderer`): o `export` não
+conhece JavaFX, então os testes geram PDFs reais com uma imagem em branco e conferem a estrutura
+(páginas, links, marcadores, texto) lendo o arquivo de volta com o próprio PDFBox.
+
+Decisões tomadas na implementação (o card deixou "a decidir"):
+- **Tamanho da página = tamanho do conteúdo**, não A4: o board não fica cortado nem minúsculo; o
+  leitor de PDF ajusta à tela. As páginas de detalhes, que são texto corrido, usam A4.
+- **Board grande = uma página só**, reduzida se passar de 14.000 pt. Dividir em várias páginas
+  quebraria os cards e os links.
+
+## 3.16 Atalhos de teclado
 
 O `KeyboardController` registra um **handler na janela** (`Stage`). Como handlers rodam na fase de
 "borbulhamento" (ver 4.3), ele só recebe teclas que **ninguém consumiu antes** — em especial, o
@@ -601,7 +659,7 @@ Divisão de responsabilidades:
 
 | Atalho | Tratado por | Por quê |
 |---|---|---|
-| Ctrl+N/O/S/Shift+S, Ctrl+0 | aceleradores de menu | aparecem no menu |
+| Ctrl+N/O/S/Shift+S, Ctrl+E, Ctrl+0 | aceleradores de menu | aparecem no menu |
 | Ctrl+Z, Ctrl+Y, Ctrl+A | aceleradores de menu | idem; e só disparam se o texto não usar a tecla |
 | V R E L P B C, Delete, Ctrl+D, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional |
 
@@ -952,10 +1010,16 @@ Se o programa cair no meio da gravação, o arquivo anterior continua intacto.
 module com.danilo.boardvisual {
     requires javafx.controls;
     requires com.google.gson;
+    requires org.apache.pdfbox;                                   // exportar PDF
+    requires java.desktop;                                        // BufferedImage, entregue ao PDFBox
     exports com.danilo.boardvisual;                               // JavaFX instancia BoardVisualApp
     opens com.danilo.boardvisual.persistence to com.google.gson;  // Gson lê os records por reflexão
 }
 ```
+
+O PDFBox não tem `module-info`; é um **módulo automático** (o nome `org.apache.pdfbox` vem do
+manifesto do jar). A imagem do board passa do JavaFX para o PDFBox como `BufferedImage`, convertida
+pixel a pixel no `BoardRenderer` para não precisar do módulo `javafx.swing`.
 
 - Sem `exports`, o JavaFX não consegue criar a `Application`.
 - Sem `opens`, o Gson falha em tempo de execução ao ler/escrever os records.
@@ -1044,7 +1108,7 @@ derivada da largura, e o canto oposto à alça fica parado.
 ## 5.6 Mapa das próximas funcionalidades (Trello)
 
 Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
-**[1] e [2] estão feitos** (3.13 e 3.14):
+**[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -1052,8 +1116,7 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
-| **[3] Exportar para PDF** | Apache PDFBox; percorrer a árvore como o `BoardStorage`; board como imagem (snapshot 2x–3x) + links internos (`PDAnnotationLink`) + texto invisível para busca. Boards filhos que nunca foram abertos na sessão precisam de `CardView` (ou do `CardTextFit`) para ter a fonte calculada antes do snapshot | Uma página por board; card de board aninhado e caminho no topo viram links; painel flutuante → página de "Detalhes" (vetorial) com link de volta; marcadores do PDF espelhando a árvore |
-| **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime |
+| **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
 | **Lock de item** | Propriedade `locked` (checklist 5.1); `CardDragController` ignora cards travados; pseudo-classe `:locked` | Excluir/duplicar travados? decidir |
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
@@ -1084,6 +1147,8 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | Paleta fixa de cores | Seletor livre | Consistência de categorias |
 | `TextArea` com alinhamento via CSS interno | `TextField` / `Label`+edição | `TextField` é uma linha só; ver 4.5 |
 | Compilar com `release 17` | Java 25 | Maven do terminal usa JDK 17; o IntelliJ usa 25 |
+| PDF: board como imagem + texto invisível | Desenhar cards e setas em vetorial no PDF | Reaproveita o desenho exato da tela (formatos, sombras, fontes) com pouco código; vetorial fica como evolução |
+| PDF: fonte padrão Helvetica | Embutir a fonte da tela | Nada a embutir nem a distribuir; cobre o português. Emoji e símbolos raros viram "?" |
 
 ## B. Armadilhas conhecidas
 
@@ -1108,10 +1173,14 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
     `Card.resize`; `setWidth`/`setHeight` sozinhos são desfeitos pelo recálculo do texto (3.14).
 13. **Mudar o visual do texto** (borda do `.card`, barra de rolagem, fonte, espaçamento de linha no
     `app.css`) exige ajustar as constantes do `CardTextFit` (4.6), senão volta a aparecer rolagem.
+14. **PDF, primeira exportação:** o PDFBox monta um cache das fontes do sistema na primeira vez
+    (alguns segundos, uma vez só por computador).
+15. **PDF com caracteres fora do português** (emoji, alfabetos não latinos) mostra "?" no texto
+    de verdade (caminho, detalhes, busca); a imagem do board mostra certo.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 68 testes, sem abrir janela
+### Automatizados (`mvn test`) — 76 testes, sem abrir janela
 
 | Classe | Cobre |
 |---|---|
@@ -1125,6 +1194,7 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
 | `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
+| `PdfExporterTest` | ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário |
 | `BoardStorageTest` | salvar/abrir (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), arquivo antigo, JSON inválido |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o

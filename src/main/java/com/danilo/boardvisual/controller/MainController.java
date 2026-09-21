@@ -1,7 +1,9 @@
 package com.danilo.boardvisual.controller;
 
+import com.danilo.boardvisual.export.PdfExporter;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.persistence.BoardStorage;
+import com.danilo.boardvisual.view.BoardRenderer;
 import com.danilo.boardvisual.view.BoardView;
 import com.danilo.boardvisual.view.MainWindow;
 import com.danilo.boardvisual.view.Tool;
@@ -80,6 +82,7 @@ public class MainController {
         window.getOpenItem().setOnAction(e -> open());
         window.getSaveItem().setOnAction(e -> save());
         window.getSaveAsItem().setOnAction(e -> saveAs());
+        window.getExportPdfItem().setOnAction(e -> exportPdf());
         window.getExitItem().setOnAction(e -> Platform.exit());
         window.getResetViewItem().setOnAction(e -> boardView.resetView());
         window.getUndoItem().setOnAction(e -> undo());
@@ -151,6 +154,34 @@ public class MainController {
             updateTitle();
         } catch (IOException e) {
             showError("Não foi possível salvar o arquivo.", e);
+        }
+    }
+
+    /** Exporta o board principal e todos os aninhados para um PDF navegável. */
+    public void exportPdf() {
+        boardView.requestFocus(); // conclui uma edição de texto em andamento
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Exportar PDF");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF (*.pdf)", "*.pdf"));
+        if (currentFile != null && currentFile.toAbsolutePath().getParent() != null) {
+            chooser.setInitialDirectory(currentFile.toAbsolutePath().getParent().toFile());
+        }
+        chooser.setInitialFileName((currentFile != null
+                ? stripExtension(currentFile.getFileName().toString())
+                : navigation.getRoot().getName()) + ".pdf");
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) {
+            return;
+        }
+        Path path = file.toPath();
+        if (!path.getFileName().toString().toLowerCase().endsWith(".pdf")) {
+            path = path.resolveSibling(path.getFileName() + ".pdf");
+        }
+        BoardRenderer renderer = new BoardRenderer(stage.getScene().getStylesheets());
+        try {
+            new PdfExporter(renderer::render).export(navigation.getRoot(), path);
+        } catch (IOException | RuntimeException e) {
+            showError("Não foi possível exportar o PDF.", e);
         }
     }
 

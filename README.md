@@ -40,6 +40,8 @@ mvn test
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Conexão e cor dos novos cards
 - Barra flutuante da seleção: cor, formato, tamanho do texto, duplicar e excluir
 - Salvar e abrir boards em arquivos JSON locais
+- Exportar para PDF navegável: uma página por board, cards de board aninhado e caminho do topo
+  viram links, painéis flutuantes ganham páginas de "Detalhes", marcadores com a árvore de boards
 
 ## Atalhos de teclado
 
@@ -63,6 +65,7 @@ mvn test
 | `Shift` + arrastar canto | Redimensionar mantendo a proporção (retângulo) |
 | `Ctrl+N` / `Ctrl+O` | Novo board / abrir |
 | `Ctrl+S` / `Ctrl+Shift+S` | Salvar / salvar como |
+| `Ctrl+E` | Exportar PDF |
 | `Ctrl+0` | Redefinir visualização |
 
 Enquanto o texto de um card está sendo editado, as teclas vão para o texto (inclusive `Ctrl+Z`,
@@ -77,7 +80,8 @@ src/main/java/com/danilo/boardvisual
 ├─ alignment/    Geometria de caixas: alinhamento e redimensionamento — Java puro
 ├─ view/         Nós JavaFX: canvas, cards, setas, barras
 ├─ controller/   Interações de mouse e ações sobre o board
-└─ persistence/  Leitura e escrita do JSON
+├─ persistence/  Leitura e escrita do JSON
+└─ export/       Exportação para PDF (Apache PDFBox)
 src/main/resources/.../styles/app.css   Estilo visual (paleta e espaçamentos)
 ```
 

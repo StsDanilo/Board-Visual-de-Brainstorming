@@ -192,6 +192,15 @@
     -fx-padding: 0;
 }
 
+/* Exportação para PDF (BoardRenderer): só o conteúdo, sem o que é de tela. */
+.board-export .card .card-text {
+    -fx-prompt-text-fill: transparent;
+}
+
+.board-export .connector-handle {
+    visibility: hidden;
+}
+
 /* Alça de conexão: aparece ao passar o mouse sobre o card. */
 .connector-handle {
     -fx-fill: -bv-surface;

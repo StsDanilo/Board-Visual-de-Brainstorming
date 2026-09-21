@@ -1,6 +1,7 @@
 package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.model.Board;
+import com.danilo.boardvisual.model.BoardNames;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.view.BoardView;
 import com.danilo.boardvisual.view.BoardView.ViewState;
@@ -22,8 +23,6 @@ import java.util.List;
  * O board principal é o que é salvo em arquivo: os filhos vão dentro dele.
  */
 public class NavigationController {
-
-    private static final String UNTITLED = "Sem título";
 
     private final BoardView view;
     private final BreadcrumbView breadcrumb;
@@ -106,21 +105,11 @@ public class NavigationController {
         breadcrumb.setPath(path.stream().map(this::nameOf).toList());
     }
 
-    /** Nome exibido no caminho: o do arquivo no principal; o texto do card nos filhos. */
+    /** Nome exibido no caminho (regra em {@link BoardNames}). */
     private ObservableStringValue nameOf(Level level) {
         if (level.card == null) {
-            return Bindings.createStringBinding(() -> orUntitled(level.board.getName()), level.board.nameProperty());
+            return Bindings.createStringBinding(() -> BoardNames.ofRoot(level.board), level.board.nameProperty());
         }
-        return Bindings.createStringBinding(() -> orUntitled(firstLine(level.card.getText())), level.card.textProperty());
-    }
-
-    private static String firstLine(String text) {
-        String stripped = text == null ? "" : text.strip();
-        int lineBreak = stripped.indexOf('\n');
-        return lineBreak < 0 ? stripped : stripped.substring(0, lineBreak).strip();
-    }
-
-    private static String orUntitled(String name) {
-        return name == null || name.isBlank() ? UNTITLED : name;
+        return Bindings.createStringBinding(() -> BoardNames.ofChild(level.card), level.card.textProperty());
     }
 }
