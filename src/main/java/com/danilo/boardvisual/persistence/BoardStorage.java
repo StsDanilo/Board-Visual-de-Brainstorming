@@ -21,29 +21,98 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.stream.Stream;
 
-/** Salva e carrega boards em arquivos JSON locais. */
+/**
+ * Salva e carrega boards. Um save é uma <b>pasta</b>:
+ *
+ * <pre>
+ * MeuBoard/
+ *   board.json     o board principal, com a árvore inteira de boards aninhados
+ *   imagens/       um arquivo por imagem (só existe depois da primeira)
+ * </pre>
+ *
+ * Também abre os saves antigos (versão 1): um único .json solto.
+ */
 public class BoardStorage {
+
+    /** Nome do arquivo JSON dentro da pasta do save. */
+    public static final String BOARD_FILE = "board.json";
+
+    /**
+     * Resultado de {@link #load}. {@code folder} é a pasta do save, ou
+     * {@code null} quando o board veio de um .json antigo (que ainda não é um
+     * save em pasta: o primeiro "salvar" precisa de uma pasta nova).
+     */
+    public record LoadedBoard(Board board, Path folder) {
+        public boolean isLegacy() {
+            return folder == null;
+        }
+    }
+
+    /** O que existe no destino de um "salvar como". */
+    public enum Target {
+        /** Não existe ou é uma pasta vazia: pode gravar. */
+        FREE,
+        /** Já é um save (tem board.json): gravar substitui o board que está lá. */
+        EXISTING_SAVE,
+        /** Existe e tem outras coisas (ou é um arquivo): não é lugar para um save. */
+        OCCUPIED
+    }
 
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
-    public void save(Board board, Path file) throws IOException {
+    public void save(Board board, Path folder) throws IOException {
+        save(board, folder, null);
+    }
+
+    /**
+     * Grava o board na pasta do save, criando-a se preciso.
+     *
+     * @param imagesSource pasta de onde copiar as imagens para {@code folder/imagens}
+     *                     (o "salvar como" passa a {@code imagens} do save atual);
+     *                     {@code null} se não há o que copiar
+     */
+    public void save(Board board, Path folder, Path imagesSource) throws IOException {
         BoardData data = toData(board);
-        Path absolute = file.toAbsolutePath();
+        Path absolute = folder.toAbsolutePath();
+        if (Files.exists(absolute) && !Files.isDirectory(absolute)) {
+            throw new IOException("Já existe um arquivo com o nome \"" + absolute.getFileName()
+                    + "\"; escolha outro nome para a pasta do board.");
+        }
+        Files.createDirectories(absolute);
+
+        // As imagens vão antes do JSON: se algo falhar no meio, nunca existe um
+        // board.json apontando para uma imagem que não chegou.
+        BoardImages.copyInto(imagesSource, absolute);
+
         // Escreve num arquivo temporário e troca no fim: se algo falhar no
-        // meio, o arquivo anterior continua intacto.
-        Path temp = absolute.resolveSibling(absolute.getFileName() + ".tmp");
+        // meio, o board.json anterior continua intacto.
+        Path file = absolute.resolve(BOARD_FILE);
+        Path temp = absolute.resolve(BOARD_FILE + ".tmp");
         try (Writer writer = Files.newBufferedWriter(temp, StandardCharsets.UTF_8)) {
             gson.toJson(data, writer);
         }
         try {
-            Files.move(temp, absolute, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
-            Files.move(temp, absolute, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
-    public Board load(Path file) throws IOException {
+    /**
+     * Abre um board a partir de uma pasta de save, do {@code board.json} dentro
+     * dela ou de um .json antigo (versão 1). Quem diferencia os dois últimos é a
+     * {@code version} gravada no JSON, não o nome do arquivo.
+     */
+    public LoadedBoard load(Path source) throws IOException {
+        boolean isFolder = Files.isDirectory(source);
+        Path file = isFolder ? source.resolve(BOARD_FILE) : source;
+        if (isFolder && !Files.isRegularFile(file)) {
+            throw new IOException("A pasta não tem um " + BOARD_FILE
+                    + "; ela não parece um board salvo pelo BoardVisual.");
+        }
+
         BoardData data;
         try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             data = gson.fromJson(reader, BoardData.class);
@@ -56,7 +125,34 @@ public class BoardStorage {
         if (data.version() > BoardFileFormat.CURRENT_VERSION) {
             throw new IOException("O arquivo foi salvo por uma versão mais nova do BoardVisual.");
         }
-        return fromData(data);
+
+        Path folder = null;
+        if (data.version() >= BoardFileFormat.FIRST_FOLDER_VERSION) {
+            // O nome fixo evita tratar como "pasta do save" uma pasta qualquer
+            // (e depois limpar uma pasta imagens/ que não é nossa).
+            if (!file.getFileName().toString().equalsIgnoreCase(BOARD_FILE)) {
+                throw new IOException("Este arquivo é de um save em pasta e precisa se chamar " + BOARD_FILE
+                        + ". Abra o " + BOARD_FILE + " dentro da pasta do board.");
+            }
+            folder = file.toAbsolutePath().getParent();
+        }
+        return new LoadedBoard(fromData(data), folder);
+    }
+
+    /** Diz se {@code folder} serve de destino para um save (ver {@link Target}). */
+    public static Target inspectTarget(Path folder) throws IOException {
+        if (!Files.exists(folder)) {
+            return Target.FREE;
+        }
+        if (!Files.isDirectory(folder)) {
+            return Target.OCCUPIED;
+        }
+        if (Files.isRegularFile(folder.resolve(BOARD_FILE))) {
+            return Target.EXISTING_SAVE;
+        }
+        try (Stream<Path> contents = Files.list(folder)) {
+            return contents.findAny().isEmpty() ? Target.FREE : Target.OCCUPIED;
+        }
     }
 
     // ------------------------------------------------------------ mapeamento

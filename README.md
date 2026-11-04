@@ -39,7 +39,8 @@ mvn test
 - Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Conexão e cor dos novos cards
 - Barra flutuante da seleção: cor, formato, tamanho do texto, duplicar e excluir
-- Salvar e abrir boards em arquivos JSON locais
+- Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`, preparada para imagens);
+  saves antigos (um `.json` solto) continuam abrindo e viram pasta no primeiro "Salvar"
 - Exportar para PDF navegável: uma página por board, cards de board aninhado e caminho do topo
   viram links, painéis flutuantes ganham páginas de "Detalhes", marcadores com a árvore de boards
 
@@ -72,6 +73,22 @@ Enquanto o texto de um card está sendo editado, as teclas vão para o texto (in
 que desfaz dentro do próprio texto); só o `Esc` age como atalho. Ao sair da edição, tudo o que foi
 digitado vira um único passo no desfazer do board.
 
+## Salvar e abrir
+
+Cada board é salvo numa **pasta**:
+
+```
+MeuBoard/
+  board.json     o board, com todos os boards aninhados
+  imagens/       arquivos de imagem (a pasta só aparece quando houver a primeira)
+```
+
+- **Salvar como** (`Ctrl+Shift+S`): o nome digitado vira o nome da pasta.
+- **Abrir** (`Ctrl+O`): escolha o `board.json` dentro da pasta do board.
+- **Saves antigos** (um `.json` solto) abrem normalmente. O primeiro "Salvar" pede a pasta nova e não
+  mexe no arquivo antigo.
+- Para copiar ou mover um board, leve a **pasta inteira**.
+
 ## Estrutura
 
 ```
@@ -80,7 +97,7 @@ src/main/java/com/danilo/boardvisual
 ├─ alignment/    Geometria de caixas: alinhamento e redimensionamento — Java puro
 ├─ view/         Nós JavaFX: canvas, cards, setas, barras
 ├─ controller/   Interações de mouse e ações sobre o board
-├─ persistence/  Leitura e escrita do JSON
+├─ persistence/  Leitura e escrita do save (pasta com board.json e imagens/)
 └─ export/       Exportação para PDF (Apache PDFBox)
 src/main/resources/.../styles/app.css   Estilo visual (paleta e espaçamentos)
 ```

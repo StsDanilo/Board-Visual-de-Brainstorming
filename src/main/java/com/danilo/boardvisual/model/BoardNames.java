@@ -2,7 +2,7 @@ package com.danilo.boardvisual.model;
 
 /**
  * Nome exibido de cada board (no caminho do topo da tela e no PDF): o do
- * arquivo no board principal; a primeira linha do texto do card nos filhos.
+ * pasta do save no board principal; a primeira linha do texto do card nos filhos.
  */
 public final class BoardNames {
 

@@ -2,6 +2,7 @@ package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.export.PdfExporter;
 import com.danilo.boardvisual.model.Board;
+import com.danilo.boardvisual.persistence.BoardImages;
 import com.danilo.boardvisual.persistence.BoardStorage;
 import com.danilo.boardvisual.view.BoardRenderer;
 import com.danilo.boardvisual.view.BoardView;
@@ -10,11 +11,14 @@ import com.danilo.boardvisual.view.Tool;
 import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
 import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -38,7 +42,10 @@ public class MainController {
     private final EditHistory history;
     private final NavigationController navigation;
 
-    private Path currentFile;
+    /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
+    private Path currentFolder;
+    /** .json antigo aberto e ainda não salvo no formato novo (pasta); nulo nos demais casos. */
+    private Path legacyFile;
 
     public MainController(Stage stage, MainWindow window) {
         this.stage = stage;
@@ -103,57 +110,104 @@ public class MainController {
     }
 
     public void newBoard() {
-        showBoard(new Board(DEFAULT_BOARD_NAME), null);
+        showBoard(new Board(DEFAULT_BOARD_NAME), null, null);
     }
 
+    /**
+     * Abre um save. O seletor mostra arquivos: o usuário escolhe o board.json
+     * dentro da pasta do board, ou um .json antigo (decisão no DOCUMENTACAO.md, 3.9).
+     */
     public void open() {
-        File file = createFileChooser("Abrir board").showOpenDialog(stage);
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Abrir board (escolha o board.json da pasta do board)");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Board (*.json)", "*.json"));
+        startInCurrentLocation(chooser);
+        File file = chooser.showOpenDialog(stage);
         if (file == null) {
             return;
         }
         try {
-            showBoard(storage.load(file.toPath()), file.toPath());
+            BoardStorage.LoadedBoard loaded = storage.load(file.toPath());
+            Path folder = loaded.folder() == null ? null : loaded.folder().toAbsolutePath().normalize();
+            if (folder != null) {
+                // O nome do board principal é o da pasta: renomeá-la no Explorer vale ao reabrir.
+                loaded.board().setName(folderName(folder));
+            }
+            showBoard(loaded.board(), folder, loaded.isLegacy() ? file.toPath() : null);
         } catch (IOException e) {
-            showError("Não foi possível abrir o arquivo.", e);
+            showError("Não foi possível abrir o board.", e);
         }
     }
 
     public void save() {
-        if (currentFile == null) {
+        // Um board vindo de .json antigo também cai aqui: sem pasta, pede uma nova
+        // e nunca sobrescreve o arquivo antigo.
+        if (currentFolder == null) {
             saveAs();
         } else {
-            saveTo(currentFile);
+            saveTo(currentFolder);
         }
     }
 
+    /** Pede o nome da pasta do novo save (o seletor de arquivo serve só para escolher onde e como chamá-la). */
     public void saveAs() {
-        FileChooser chooser = createFileChooser("Salvar board");
-        chooser.setInitialFileName(currentFile != null
-                ? currentFile.getFileName().toString()
-                : navigation.getRoot().getName() + ".json");
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar board (será criada uma pasta com este nome)");
+        startInCurrentLocation(chooser);
+        // Com o mesmo nome da pasta atual o seletor "entraria" nela em vez de escolher um nome novo.
+        chooser.setInitialFileName(currentFolder != null ? displayName() + " - cópia" : displayName());
         File file = chooser.showSaveDialog(stage);
         if (file == null) {
             return;
         }
-        Path path = file.toPath();
-        if (!path.getFileName().toString().toLowerCase().endsWith(".json")) {
-            path = path.resolveSibling(path.getFileName() + ".json");
-        }
-        saveTo(path);
-    }
-
-    private void saveTo(Path path) {
-        // Sempre o board principal: os boards aninhados são salvos dentro dele.
-        Board board = navigation.getRoot();
-        if (currentFile == null || !currentFile.equals(path)) {
-            board.setName(stripExtension(path.getFileName().toString()));
+        Path folder = folderFrom(file.toPath());
+        if (folder.equals(currentFolder)) {
+            saveTo(folder);
+            return;
         }
         try {
-            storage.save(board, path);
-            currentFile = path;
+            switch (BoardStorage.inspectTarget(folder)) {
+                case OCCUPIED -> {
+                    showMessage(Alert.AlertType.WARNING,
+                            "A pasta \"" + folderName(folder) + "\" já existe e tem outros arquivos.",
+                            "Escolha um nome novo para a pasta do board.");
+                    return;
+                }
+                case EXISTING_SAVE -> {
+                    if (!confirmReplace(folder)) {
+                        return;
+                    }
+                }
+                case FREE -> {
+                }
+            }
+        } catch (IOException e) {
+            showError("Não foi possível salvar o board.", e);
+            return;
+        }
+        saveTo(folder);
+    }
+
+    private void saveTo(Path folder) {
+        // Sempre o board principal: os boards aninhados são salvos dentro dele.
+        Board board = navigation.getRoot();
+        String previousName = board.getName();
+        boolean sameFolder = folder.equals(currentFolder);
+        if (!sameFolder) {
+            board.setName(folderName(folder));
+        }
+        // "Salvar como" leva junto as imagens do save atual (copiadas antes do JSON).
+        Path imagesSource = currentFolder != null && !sameFolder ? BoardImages.dirOf(currentFolder) : null;
+        try {
+            storage.save(board, folder, imagesSource);
+            // A limpeza de imagens não usadas (BoardImages.removeUnused) entra aqui,
+            // depois do save, quando os cards tiverem imagem (ver 3.9 do DOCUMENTACAO.md).
+            currentFolder = folder;
+            legacyFile = null;
             updateTitle();
         } catch (IOException e) {
-            showError("Não foi possível salvar o arquivo.", e);
+            board.setName(previousName);
+            showError("Não foi possível salvar o board.", e);
         }
     }
 
@@ -163,12 +217,8 @@ public class MainController {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Exportar PDF");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF (*.pdf)", "*.pdf"));
-        if (currentFile != null && currentFile.toAbsolutePath().getParent() != null) {
-            chooser.setInitialDirectory(currentFile.toAbsolutePath().getParent().toFile());
-        }
-        chooser.setInitialFileName((currentFile != null
-                ? stripExtension(currentFile.getFileName().toString())
-                : navigation.getRoot().getName()) + ".pdf");
+        startInCurrentLocation(chooser);
+        chooser.setInitialFileName(displayName() + ".pdf");
         File file = chooser.showSaveDialog(stage);
         if (file == null) {
             return;
@@ -185,38 +235,75 @@ public class MainController {
         }
     }
 
-    private void showBoard(Board board, Path file) {
+    private void showBoard(Board board, Path folder, Path legacy) {
         history.clear();
         navigation.openRoot(board);
         activeTool.set(Tool.SELECT);
-        currentFile = file;
+        currentFolder = folder;
+        legacyFile = legacy;
         updateTitle();
     }
 
     private void updateTitle() {
-        String boardName = currentFile != null
-                ? currentFile.getFileName().toString()
-                : navigation.getRoot().getName();
-        stage.setTitle(boardName + " — " + APP_NAME);
+        String name = legacyFile != null ? legacyFile.getFileName().toString() : displayName();
+        stage.setTitle(name + " — " + APP_NAME);
     }
 
-    private FileChooser createFileChooser(String title) {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle(title);
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Board (*.json)", "*.json"));
-        if (currentFile != null && currentFile.toAbsolutePath().getParent() != null) {
-            chooser.setInitialDirectory(currentFile.toAbsolutePath().getParent().toFile());
+    /** Nome do board para o usuário: o da pasta do save, o do .json antigo (sem extensão) ou o do board. */
+    private String displayName() {
+        if (currentFolder != null) {
+            return folderName(currentFolder);
         }
-        return chooser;
+        if (legacyFile != null) {
+            return stripExtension(legacyFile.getFileName().toString());
+        }
+        return navigation.getRoot().getName();
+    }
+
+    /** Abre os seletores ao lado do save atual (a pasta que contém a pasta do board, ou o .json antigo). */
+    private void startInCurrentLocation(FileChooser chooser) {
+        Path base = currentFolder != null ? currentFolder : legacyFile != null ? legacyFile.toAbsolutePath() : null;
+        Path directory = base == null ? null : base.getParent();
+        if (directory != null && Files.isDirectory(directory)) {
+            chooser.setInitialDirectory(directory.toFile());
+        }
+    }
+
+    private boolean confirmReplace(Path folder) {
+        ButtonType replace = new ButtonType("Substituir", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
+                "O board que está lá será substituído por este.", replace, cancel);
+        alert.initOwner(stage);
+        alert.setTitle(APP_NAME);
+        alert.setHeaderText("Já existe um board salvo em \"" + folderName(folder) + "\".");
+        return alert.showAndWait().filter(button -> button == replace).isPresent();
     }
 
     private void showError(String header, Exception e) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
+        showMessage(Alert.AlertType.ERROR, header, e.getMessage());
+    }
+
+    private void showMessage(Alert.AlertType type, String header, String content) {
+        Alert alert = new Alert(type);
         alert.initOwner(stage);
         alert.setTitle(APP_NAME);
         alert.setHeaderText(header);
-        alert.setContentText(e.getMessage());
+        alert.setContentText(content);
         alert.showAndWait();
+    }
+
+    /** A pasta do save a partir do que o usuário digitou: um ".json" no fim não faz parte do nome. */
+    private static Path folderFrom(Path chosen) {
+        String name = chosen.getFileName().toString();
+        if (name.length() > ".json".length() && name.toLowerCase().endsWith(".json")) {
+            chosen = chosen.resolveSibling(name.substring(0, name.length() - ".json".length()));
+        }
+        return chosen.toAbsolutePath().normalize();
+    }
+
+    private static String folderName(Path folder) {
+        return folder.getFileName() == null ? folder.toString() : folder.getFileName().toString();
     }
 
     private static String stripExtension(String fileName) {

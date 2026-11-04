@@ -11,7 +11,15 @@ import java.util.List;
  */
 final class BoardFileFormat {
 
-    static final int CURRENT_VERSION = 1;
+    /** Versão gravada hoje: o save é uma pasta ({@code board.json} + {@code imagens/}). */
+    static final int CURRENT_VERSION = 2;
+
+    /**
+     * Primeira versão em que o save é uma pasta. As anteriores (1) eram um
+     * único .json solto; o conteúdo do JSON é o mesmo, muda só o contêiner.
+     * Campos novos entram com valor padrão, sem subir a versão de novo.
+     */
+    static final int FIRST_FOLDER_VERSION = 2;
 
     private BoardFileFormat() {
     }

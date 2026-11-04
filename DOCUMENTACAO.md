@@ -2,7 +2,7 @@
 
 > Documento de estudo e referência do projeto, mantido junto com o código: toda mudança relevante
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
-> Estado descrito: até a exportação para PDF (card [3]).
+> Estado descrito: até a exportação para PDF (card [3]) e o salvamento em pasta (`board.json` + `imagens/`).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -25,7 +25,7 @@ mas você pode parar em qualquer um:
 Um aplicativo desktop para organizar ideias no espaço, no estilo Miro/Milanote. Existe um canvas
 infinito; nele você cria **cards** (retângulo, elipse ou losango) com texto, arrasta livremente,
 liga os cards com **setas**, pinta com cores, seleciona vários de uma vez, desfaz erros e salva
-tudo num arquivo **JSON** no computador. Cards podem abrir um **painel flutuante** (texto ou lista)
+tudo numa **pasta** no computador (um `board.json` mais uma pasta `imagens/`). Cards podem abrir um **painel flutuante** (texto ou lista)
 ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade).
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards.
 Não há servidor nem banco de dados.
@@ -105,10 +105,10 @@ sem tocar no modelo.
 | `BoardSnapshot` | "Foto" imutável do board, usada pelo desfazer/refazer. |
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
-| `BoardNames` | Nome exibido de cada board (arquivo no principal, 1ª linha do card nos filhos), usado no caminho da tela e no PDF. |
+| `BoardNames` | Nome exibido de cada board (pasta do save no principal, 1ª linha do card nos filhos), usado no caminho da tela e no PDF. |
 
 Um `Card` pode ter um `childBoard` (outro `Board`), o que forma uma **árvore**: o board principal
-contém cards, que contêm boards, que contêm cards... O arquivo salva essa árvore inteira.
+contém cards, que contêm boards, que contêm cards... O `board.json` salva essa árvore inteira.
 
 ### `view/` — a aparência
 
@@ -137,7 +137,7 @@ contém cards, que contêm boards, que contêm cards... O arquivo salva essa ár
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar, exportar PDF); desfazer/refazer do menu. |
+| `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar, salvar como em pasta, exportar PDF); desfazer/refazer do menu. |
 | `CanvasController` | Mouse no fundo: pan, zoom, caixa de seleção, criar card. |
 | `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo), com alinhamento. |
 | `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas. |
@@ -166,12 +166,13 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 | `ResizeHandle` | As 8 alças (N, NE, E, SE, S, SW, W, NW), cada uma dizendo qual linha de cada eixo ela puxa. |
 | `BoxResizer` | Nova caixa ao arrastar uma alça: aplica alinhamento nas linhas puxadas, tamanho mínimo e proporção. |
 
-### `persistence/` — o arquivo
+### `persistence/` — o save em disco
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `BoardFileFormat` | Records que espelham exatamente o JSON salvo. |
-| `BoardStorage` | Converte `Board` ⇄ JSON e grava/lê o arquivo com segurança. |
+| `BoardFileFormat` | Records que espelham exatamente o `board.json`; as constantes de versão (2 = save em pasta). |
+| `BoardStorage` | Converte `Board` ⇄ JSON; grava o save em pasta com segurança (imagens antes do JSON); abre pasta, `board.json` ou `.json` antigo; diz se um destino de "salvar como" está livre. |
+| `BoardImages` | A pasta `imagens/` do save: copiar arquivos para ela e remover os que nenhum card usa. |
 
 ### `export/` — o PDF
 
@@ -386,16 +387,25 @@ grupo que contém tudo. Ver 4.2.
 
 ## 3.9 Salvar e abrir
 
+Um save é uma **pasta**, não mais um arquivo solto:
+
 ```
-Salvar:  Board → BoardData (records) → Gson → arquivo.tmp → move para arquivo.json
-Abrir:   arquivo.json → Gson → BoardData → valida/completa → Board novo → BoardView.setBoard
+MeuBoard/
+  board.json        o board principal, com a árvore inteira de boards aninhados
+  imagens/          um arquivo por imagem (<id>.png); a pasta só nasce com a primeira imagem
 ```
 
-Exemplo real de arquivo:
+```
+Salvar:  Board → BoardData (records) → Gson → board.json.tmp → move para board.json
+         (antes, se houver imagens a trazer, elas são copiadas para imagens/)
+Abrir:   pasta, board.json ou .json antigo → Gson → BoardData → valida/completa → Board novo → BoardView.setBoard
+```
+
+Exemplo real do `board.json`:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "id": "7f3c…",
   "name": "Ideias",
   "cards": [
@@ -413,6 +423,80 @@ Abrir um board limpa o histórico de desfazer e volta a visão para 100%.
 Com boards aninhados, o card leva um campo `childBoard` com um board completo dentro (mesma
 estrutura, recursiva). **Salvar sempre grava o board principal**, mesmo que você esteja dentro de um
 filho — o `MainController` pede o principal ao `NavigationController`, nunca o board da tela.
+Os boards aninhados **compartilham a mesma pasta `imagens/`**: um save = uma pasta = uma árvore.
+
+### Versão do arquivo
+
+`version` sobe para **2** (save em pasta). A leitura aceita 1 e 2; o conteúdo do JSON é o mesmo, muda
+só o contêiner. Campos novos entram com valor padrão para arquivos que não os têm, **sem novo bump**
+(a versão só sobe se o significado de um campo existente mudar).
+
+### O que o "Abrir" escolhe (decisão)
+
+O seletor de **Abrir** mostra arquivos: você escolhe o **`board.json` dentro da pasta do board** — ou,
+para um save antigo, o `.json` solto. Um único "Abrir..." cobre os dois formatos.
+
+| O que você escolhe | O que acontece |
+|---|---|
+| `board.json` de uma pasta (`version` 2) | abre o save em pasta; "Salvar" grava na mesma pasta |
+| `.json` solto (`version` 1) | abre normalmente; o primeiro "Salvar" vira "Salvar como" (pede a pasta nova) |
+| outra coisa | mensagem de erro; o board que estava na tela continua |
+
+Quem diferencia os dois é a **`version` gravada dentro do JSON**, não o nome do arquivo: um `.json`
+versão 1 que por acaso se chama `board.json` continua sendo um save antigo. Já um arquivo versão 2
+**precisa se chamar `board.json`** (senão recusa): é o nome fixo que garante que a pasta ao lado é a
+pasta de um save, e não uma pasta qualquer cuja `imagens/` poderia ser limpa por engano.
+
+Por que assim: é o que menos surpreende — o "Abrir..." continua igual para quem já tem saves antigos
+(que abrem do jeito de sempre) e não precisa de um segundo item de menu. A alternativa, abrir
+escolhendo a **pasta** (`DirectoryChooser`), deixaria os `.json` antigos fora do seletor. Se um dia
+preferir, `BoardStorage.load` já aceita uma pasta direto: basta um item de menu "Abrir pasta...".
+
+### Salvar e Salvar como
+
+- **Salvar** (`Ctrl+S`) grava na pasta do save atual. Board novo, ou aberto de um `.json` antigo, ainda
+  não tem pasta: cai no "Salvar como". O `.json` antigo **nunca é sobrescrito**.
+- **Salvar como** (`Ctrl+Shift+S`) usa o seletor de arquivo só para escolher onde e com que nome: o nome
+  digitado vira o nome da **pasta** (um `.json` digitado no fim é descartado). A sugestão é o nome do
+  board; num save já em pasta, `<nome> - cópia` (com o nome igual o Windows "entraria" na pasta em vez de
+  escolher um nome novo). Ele grava o board atual e **copia a `imagens/` do save de origem**.
+- O nome do board principal é o nome da pasta: muda no "Salvar como" e, ao abrir, vem da pasta
+  (renomear a pasta no Explorer vale na próxima abertura).
+- Se o destino já existe (`BoardStorage.inspectTarget`): vazio ou inexistente → grava; já é um save →
+  pede confirmação para substituir; tem outros arquivos → recusa. No Windows o seletor nunca devolve uma
+  pasta existente (digitar o nome dela só "entra" na pasta), então essas duas guardas valem para outros
+  sistemas.
+
+### Ordem de gravação (por que é segura)
+
+1. cria a pasta (e as de cima) se não existir;
+2. copia as imagens a trazer para `imagens/` (cada uma via arquivo temporário + move);
+3. grava `board.json.tmp` e **move** sobre `board.json`;
+4. só então, remove as imagens que ninguém usa (ver abaixo).
+
+Imagens antes do JSON: se algo falhar no meio, nunca existe um `board.json` apontando para uma imagem
+que não chegou; e o `board.json` anterior só é trocado no passo 3, de uma vez. A limpeza vem por
+último pelo mesmo motivo: se falhar antes, o JSON antigo ainda aponta para arquivos que existem.
+
+### Limpeza de imagens não usadas
+
+`BoardImages.removeUnused(pastaDoSave, nomesReferenciados)` apaga de `imagens/` os arquivos que não
+estão no conjunto e devolve os nomes apagados. Só mexe em arquivos da própria `imagens/` (subpastas e o
+resto do save ficam). **Ainda não é chamada pelo `MainController`**: hoje nenhum card referencia imagem,
+então não há conjunto a passar (chamar com conjunto vazio apagaria tudo). A funcionalidade de imagens
+liga isso em `MainController.saveTo`, logo depois de `storage.save(...)` (há um comentário no lugar).
+
+> **Cuidado com o desfazer.** Um card excluído e restaurado com `Ctrl+Z` *depois* de salvar voltaria sem
+> a imagem se ela tivesse sido apagada. O conjunto passado a `removeUnused` precisa incluir também os
+> nomes citados nas fotos do histórico (todas as pilhas de desfazer/refazer), não só os do board atual.
+
+### Como a funcionalidade de imagens se encaixa
+
+- A propriedade do card guarda **só o nome do arquivo** (ex.: `a1b2….png`), nunca os bytes (checklist 5.1).
+- Imagens de um board ainda sem pasta ficam numa pasta de trabalho temporária; no primeiro "Salvar"
+  elas são passadas como `imagesSource` (`BoardStorage.save(board, pasta, imagesSource)`) e copiadas
+  antes do JSON. O "Salvar como" já passa a `imagens/` do save atual.
+- Depois do save, chamar `BoardImages.removeUnused` com o conjunto descrito acima.
 
 ## 3.10 Painel flutuante
 
@@ -605,7 +689,7 @@ que seja o board aberto na tela.
 
 ```
 MainController.exportPdf()
-  escolhe o arquivo (nome sugerido: o do .json ou o do board)
+  escolhe o arquivo (nome sugerido: o da pasta do save ou o do board)
   new PdfExporter(new BoardRenderer(css da janela)::render).export(raiz, arquivo)
     árvore: BoardNode por board (nome por BoardNames), PanelDetails por painel com conteúdo
     1ª passada, na ordem das páginas (board → detalhes dele → filhos, recursivo):
@@ -997,12 +1081,21 @@ lugar de referências, que espelham exatamente o JSON.
 | Cor inválida | `CardView` usa a cor padrão na tela |
 | Seta para card inexistente | ignorada |
 | JSON inválido | `IOException` com mensagem amigável |
-| `version` maior que a suportada | recusa abrir (arquivo de versão futura) |
+| `version` maior que a suportada (> 2) | recusa abrir (arquivo de versão futura) |
+| `version` 1 (ou ausente) | save antigo: abre; o primeiro "Salvar" pede uma pasta nova (3.9) |
+| `version` 2 em arquivo que não se chama `board.json` | recusa, pedindo o `board.json` da pasta |
+| Pasta escolhida sem `board.json` ("pasta incompleta") | `IOException` com mensagem amigável |
+| `board.json` vazio | `IOException` ("O arquivo está vazio.") |
+| Pasta `imagens/` ausente | normal: ela só nasce com a primeira imagem |
 
 ### Gravação segura
 
-Grava em `arquivo.json.tmp` e depois **move** sobre o original (atômico quando o sistema permite).
-Se o programa cair no meio da gravação, o arquivo anterior continua intacto.
+Grava em `board.json.tmp` (dentro da pasta do save) e depois **move** sobre o `board.json` (atômico
+quando o sistema permite). Se o programa cair no meio da gravação, o `board.json` anterior continua
+intacto. Quando há imagens, elas são copiadas **antes** do JSON e a limpeza das não usadas vem
+**depois** dele (ordem completa em 3.9). Uma pasta nova que ficou sem `board.json` por uma falha no
+meio do primeiro salvamento não perde nada de ninguém; abri-la dá "pasta incompleta" e o "Salvar como"
+pode reaproveitar o nome.
 
 ## 4.9 Módulos Java (`module-info.java`)
 
@@ -1058,11 +1151,15 @@ você estava editando.
 - [ ] `CardView`: refletir visualmente (pseudo-classe ou variável CSS), se houver efeito visual
 - [ ] `app.css`: estilo
 - [ ] Controller: quem altera deve usar `history.perform`
+- [ ] **`CardAllPropertiesTest.fullCard()`**: preencher a propriedade nova com um valor diferente do padrão
 - [ ] Testes: `BoardStorageTest` (salvar/abrir) e `BoardSnapshotTest` (desfazer)
 
-> **Sugestão:** um teste que cria um card com **todas** as propriedades diferentes do padrão e
-> verifica que `copy`, snapshot/restore e salvar/abrir preservam tudo pegaria esquecimentos
-> automaticamente.
+> **Rede de segurança (`CardAllPropertiesTest`):** um card com **todas** as propriedades diferentes do
+> padrão passa por `copy`, foto/restauração e salvar/abrir, e o teste compara tudo. Os valores são lidos
+> por reflexão dos getters públicos do `Card` (`get*`, `is*`, `has*`), então uma propriedade nova entra
+> na comparação sozinha. O primeiro teste falha enquanto você não a preencher em `fullCard()`; os
+> demais falham apontando o lugar esquecido (`copy`, `CardState` ou `toData`/`fromData`).
+> Propriedades que o `Card` expõe só por outro caminho (sem getter com esses prefixos) não são vistas.
 
 ## 5.2 Adicionar um formato (ex.: hexágono)
 
@@ -1117,6 +1214,7 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
+| **Imagens nos cards** | Propriedade com o nome do arquivo (checklist 5.1); arquivos em `imagens/` do save (3.9: `imagesSource` no `BoardStorage.save` e `BoardImages.removeUnused` depois do save) | A infraestrutura de pasta já existe; falta a propriedade, a ferramenta/colar/arrastar e o conjunto de nomes usados (incluindo o histórico de desfazer) |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
 | **Lock de item** | Propriedade `locked` (checklist 5.1); `CardDragController` ignora cards travados; pseudo-classe `:locked` | Excluir/duplicar travados? decidir |
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
@@ -1136,7 +1234,12 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | Formato de arquivo separado do modelo | Serializar o modelo direto | Modelo evolui sem quebrar arquivos |
 | Desfazer por fotos | Padrão Command | Menos código, menos bugs, suficiente para o tamanho dos boards |
 | Seleção no `BoardView` | Seleção no modelo | Seleção é estado de interface, não é salva |
-| Board filho dentro do card, no mesmo arquivo | Um arquivo por board | Um arquivo só é mais simples de salvar, abrir e compartilhar |
+| Board filho dentro do card, no mesmo arquivo | Um arquivo por board | Um `board.json` só é mais simples de salvar e abrir; todos os boards compartilham a mesma `imagens/` |
+| Save = pasta (`board.json` + `imagens/`) | Um `.json` único; imagem em base64 dentro do JSON | Guarda a imagem de verdade (arquivo normal, sem inchar nem reescrever o JSON a cada salvamento); decidido com o Danilo |
+| "Abrir" escolhe o `board.json` (seletor de arquivo) | Escolher a pasta (`DirectoryChooser`) | Um só "Abrir..." para saves novos e antigos; os `.json` antigos continuam abrindo como sempre (3.9) |
+| `version` dentro do JSON decide pasta × `.json` antigo | Decidir pelo nome ou extensão do arquivo | O nome pode ser qualquer um num save antigo; `board.json` é só o nome fixo exigido dos saves novos |
+| Salvar um board vindo de `.json` antigo = "Salvar como" | Sobrescrever o `.json` ou converter em lugar | Nunca se perde o arquivo antigo; sem conversor separado, o primeiro salvamento converte |
+| Limpar `imagens/` só ao salvar, com o conjunto de nomes dado por quem chama | Apagar a imagem ao excluir o card | O desfazer pode trazer o card de volta; ver a atenção em 3.9 |
 | Nome do board filho = texto do card | Nome próprio no `Board` | Nada para manter em sincronia; renomear o card renomeia o caminho |
 | Desfazer por board | Um histórico global | `Ctrl+Z` desfaz o que está na tela, não algo de outro nível |
 | Barra flutuante fora do `world` | Dentro do `world` | Não sofrer zoom |
@@ -1177,10 +1280,23 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
     (alguns segundos, uma vez só por computador).
 15. **PDF com caracteres fora do português** (emoji, alfabetos não latinos) mostra "?" no texto
     de verdade (caminho, detalhes, busca); a imagem do board mostra certo.
+16. **Abrir escolhe o `board.json`, não a pasta.** Quem espera selecionar a pasta no seletor só consegue
+    entrar nela; o título do diálogo avisa. Um `board.json` copiado para fora da pasta do save e
+    renomeado deixa de abrir (versão 2 exige o nome `board.json`) (3.9).
+17. **Limpeza de imagens × desfazer:** o conjunto de nomes passado a `BoardImages.removeUnused` precisa
+    incluir as imagens das fotos do histórico; só o board atual faria o `Ctrl+Z` trazer um card sem a
+    imagem. Conjunto vazio apaga **tudo** de `imagens/`; por isso a limpeza só é ligada quando houver
+    cards com imagem (3.9).
+18. **Tudo que está solto na pasta do save é do usuário.** O programa só mexe em `board.json`,
+    `board.json.tmp` e nos arquivos diretamente dentro de `imagens/`; o "Salvar como" não copia outros
+    arquivos da pasta de origem.
+19. **`mvn test` com JDK 21 e caminho com acento** (ex.: `...\Projeto de programação\...`) falha com
+    `ClassNotFoundException` ao criar a classe de teste (o argfile do surefire sai com a codificação
+    errada). Use o JDK 17 no `JAVA_HOME`, como o resto da documentação já pressupõe (A).
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 76 testes, sem abrir janela
+### Automatizados (`mvn test`) — 111 testes, sem abrir janela
 
 | Classe | Cobre |
 |---|---|
@@ -1195,7 +1311,9 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
 | `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
 | `PdfExporterTest` | ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário |
-| `BoardStorageTest` | salvar/abrir (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), arquivo antigo, JSON inválido |
+| `BoardStorageTest` | salvar/abrir em pasta (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), abrir pela pasta ou pelo `board.json`, `.json` antigo (abre, salva no formato novo sem alterar o antigo, versão decide e não o nome), JSON inválido, pasta incompleta, `board.json` vazio, versão futura, `version` 2 com outro nome, "salvar como" copiando `imagens/`, imagens copiadas antes do JSON (falha na gravação não deixa JSON solto), falha mantém o `board.json` anterior, destino livre × save existente × ocupado |
+| `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada |
+| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão: preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o
 benefício direto da separação em camadas.
@@ -1211,6 +1329,11 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
 - Clicar num popup logo após abri-lo falha: esperar a janela do popup existir.
 - Depois de mudar o modelo, forçar `applyCss()` + `layout()` na cena antes de inspecionar tamanhos
   (senão a checagem vê o layout anterior).
+- Os seletores de arquivo do Windows são **nativos**: dá para dirigi-los de fora da cena (Robot, ou
+  `SendKeys` num script) digitando o caminho completo no campo "Nome" e `Enter`. Foi assim que o
+  salvamento em pasta foi validado: novo board → `Ctrl+S` → reabrir → "salvar como" com imagem falsa em
+  `imagens/` → abrir um `.json` antigo → salvar no formato novo (conferindo que o `.json` antigo ficou
+  byte a byte igual) → abrir um `board.json` quebrado (mensagem de erro, board da tela preservado).
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
@@ -1242,6 +1365,6 @@ para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
 ```bash
 mvn javafx:run          # rodar o app
 mvn test                # rodar os testes
-mvn clean test          # recompilar tudo do zero e testar
+mvn clean test          # recompilar tudo do zero e testar (com JDK 17: ver armadilha 19)
 git log --oneline       # histórico de commits
 ```
