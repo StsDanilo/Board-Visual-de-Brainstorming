@@ -61,8 +61,10 @@ public class SelectionActionsController {
         history.perform(() -> selectedCards().forEach(card -> card.setColor(color)));
     }
 
+    /** Card de imagem é sempre retângulo: numa seleção mista, o formato vale só para os outros. */
     private void applyShape(CardShape shape) {
-        history.perform(() -> selectedCards().forEach(card -> card.changeShape(shape)));
+        history.perform(() -> selectedCards().stream().filter(card -> !card.hasImage())
+                .forEach(card -> card.changeShape(shape)));
     }
 
     private void applyFontSize(double size) {
@@ -118,8 +120,11 @@ public class SelectionActionsController {
                 .collect(Collectors.toSet());
         selectionToolbar.getColorButton().setColor(colors.size() == 1 ? colors.iterator().next() : null);
 
-        Set<CardShape> shapes = view.getSelection().stream().map(Card::getShape).collect(Collectors.toSet());
+        Set<CardShape> shapes = view.getSelection().stream().filter(card -> !card.hasImage())
+                .map(Card::getShape).collect(Collectors.toSet());
         selectionToolbar.getShapeButton().setShape(shapes.size() == 1 ? shapes.iterator().next() : null);
+        // Só imagens selecionadas: não há formato a escolher.
+        selectionToolbar.getShapeButton().setVisible(!shapes.isEmpty() || view.getSelection().isEmpty());
 
         Set<Double> fontSizes = view.getSelection().stream().map(Card::getFontSize).collect(Collectors.toSet());
         selectionToolbar.getFontSizeButton().setFontSize(fontSizes.size() == 1 ? fontSizes.iterator().next() : Double.NaN);

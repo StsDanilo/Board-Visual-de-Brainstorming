@@ -35,12 +35,16 @@ final class BoardFileFormat {
      * baseWidth/baseHeight (tamanho definido à mão) e fontSize (null =
      * automático) também vieram depois; sem eles, o tamanho definido à mão é
      * o próprio tamanho salvo.
+     *
+     * imageFile (nome do arquivo em imagens/, null = sem imagem) veio com as
+     * imagens nos cards; arquivos anteriores não o têm (card sem imagem). O
+     * Gson não grava campos nulos, então cards sem imagem nem citam o campo.
      */
     record CardData(String id, double x, double y, double width, double height,
                     Double baseWidth, Double baseHeight, Double fontSize,
                     String text, String color, String shape,
                     String panelMode, String detailText, List<String> listItems,
-                    BoardData childBoard) {
+                    String imageFile, BoardData childBoard) {
     }
 
     record ConnectionData(String id, String sourceId, String targetId) {

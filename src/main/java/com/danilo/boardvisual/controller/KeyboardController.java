@@ -15,6 +15,7 @@ import javafx.stage.Stage;
  * - Letra de cada ferramenta (definida em {@link Tool}): ativa a ferramenta.
  * - Delete / Backspace: exclui a seleção.
  * - Ctrl+D: duplica a seleção.
+ * - Ctrl+V: cola a imagem da área de transferência do sistema como card.
  * - Ctrl+Shift+Z: refaz (alternativa ao Ctrl+Y do menu).
  * - Espaço (segurado): arrastar move a visão.
  * - Alt+←: volta ao board anterior (boards aninhados).
@@ -35,10 +36,12 @@ public class KeyboardController {
     private final MainController main;
     private final PanelController panels;
     private final NavigationController navigation;
+    private final ImageController images;
 
     public KeyboardController(Stage stage, BoardView view, ObjectProperty<Tool> activeTool,
                               SelectionActionsController selectionActions, CanvasController canvas,
-                              PanelController panels, NavigationController navigation, MainController main) {
+                              PanelController panels, NavigationController navigation, ImageController images,
+                              MainController main) {
         this.stage = stage;
         this.view = view;
         this.activeTool = activeTool;
@@ -47,6 +50,7 @@ public class KeyboardController {
         this.main = main;
         this.panels = panels;
         this.navigation = navigation;
+        this.images = images;
         // Handler (não filtro) na janela: recebe só o que o componente com foco não consumiu.
         stage.addEventHandler(KeyEvent.KEY_PRESSED, this::onKeyPressed);
         stage.addEventHandler(KeyEvent.KEY_RELEASED, e -> {
@@ -89,6 +93,11 @@ public class KeyboardController {
             } else if (e.getCode() == KeyCode.Z && e.isShiftDown()) {
                 main.redo();
                 e.consume();
+            } else if (e.getCode() == KeyCode.V && !e.isShiftDown()) {
+                // Só chega aqui fora da edição de texto: lá o Ctrl+V é do texto.
+                if (images.paste()) {
+                    e.consume();
+                }
             }
             return;
         }

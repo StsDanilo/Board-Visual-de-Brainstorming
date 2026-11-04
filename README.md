@@ -35,11 +35,15 @@ mvn test
   ou lista (itens editáveis); o modo é trocado pela barra do card selecionado
 - Boards aninhados: card que contém outro board (sem limite de níveis), com caminho clicável
   no topo (`Board principal › board 2 › board 3`) e botão de voltar
+- Imagens no board: colar (`Ctrl+V`), arrastar o arquivo para o canvas ou escolher pela ferramenta Imagem (`I`).
+  A imagem vira um card (mover, redimensionar sempre na proporção, conectar, duplicar, desfazer, salvar),
+  com legenda opcional embaixo (duplo clique na imagem). Aceita PNG, JPG, GIF (primeiro quadro) e BMP;
+  imagens maiores que 2000 px são reduzidas ao inserir. O arquivo fica na pasta `imagens/` do save
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
-- Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Conexão e cor dos novos cards
+- Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Imagem, Conexão e cor dos novos cards
 - Barra flutuante da seleção: cor, formato, tamanho do texto, duplicar e excluir
-- Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`, preparada para imagens);
+- Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`);
   saves antigos (um `.json` solto) continuam abrindo e viram pasta no primeiro "Salvar"
 - Exportar para PDF navegável: uma página por board, cards de board aninhado e caminho do topo
   viram links, painéis flutuantes ganham páginas de "Detalhes", marcadores com a árvore de boards
@@ -52,6 +56,9 @@ mvn test
 | `R` / `E` / `L` | Criar retângulo / elipse / losango |
 | `P` | Criar painel flutuante |
 | `B` | Criar board aninhado |
+| `I` | Inserir imagem (abre o seletor de arquivo) |
+| `Ctrl+V` | Colar imagem (fora da edição de texto) |
+| Duplo clique na imagem | Escrever a legenda |
 | `Alt+←` | Voltar ao board anterior |
 | `C` | Conexão |
 | `Delete` / `Backspace` | Excluir seleção |
@@ -70,7 +77,7 @@ mvn test
 | `Ctrl+0` | Redefinir visualização |
 
 Enquanto o texto de um card está sendo editado, as teclas vão para o texto (inclusive `Ctrl+Z`,
-que desfaz dentro do próprio texto); só o `Esc` age como atalho. Ao sair da edição, tudo o que foi
+que desfaz dentro do próprio texto, e `Ctrl+V`, que cola no texto); só o `Esc` age como atalho. Ao sair da edição, tudo o que foi
 digitado vira um único passo no desfazer do board.
 
 ## Salvar e abrir
@@ -80,8 +87,13 @@ Cada board é salvo numa **pasta**:
 ```
 MeuBoard/
   board.json     o board, com todos os boards aninhados
-  imagens/       arquivos de imagem (a pasta só aparece quando houver a primeira)
+  imagens/       arquivos de imagem dos cards (a pasta só aparece quando houver a primeira)
 ```
+
+- As imagens inseridas entram na pasta `imagens/` ao **salvar**. Ao salvar, imagens que nenhum card usa
+  (nem o desfazer pode trazer de volta) são apagadas dessa pasta.
+- Se uma imagem sumir da pasta, o card mostra "Imagem não encontrada" e guarda a referência: devolver o
+  arquivo faz a imagem voltar.
 
 - **Salvar como** (`Ctrl+Shift+S`): o nome digitado vira o nome da pasta.
 - **Abrir** (`Ctrl+O`): escolha o `board.json` dentro da pasta do board.

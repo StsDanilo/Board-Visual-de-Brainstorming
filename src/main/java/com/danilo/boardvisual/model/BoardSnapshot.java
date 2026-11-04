@@ -1,6 +1,7 @@
 package com.danilo.boardvisual.model;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Foto imutável do conteúdo de um board (cards e conexões), usada pelo
@@ -21,7 +22,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
                             double baseWidth, double baseHeight, double fontSize,
                             String text, String color, CardShape shape,
                             PanelMode panelMode, String detailText, List<String> listItems,
-                            String childBoardId, BoardSnapshot childBoard) {
+                            String imageFile, String childBoardId, BoardSnapshot childBoard) {
 
         public CardState {
             listItems = List.copyOf(listItems);
@@ -32,7 +33,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
             return new CardState(card.getId(), card.getX(), card.getY(), card.getWidth(), card.getHeight(),
                     card.getBaseWidth(), card.getBaseHeight(), card.getFontSize(),
                     card.getText(), card.getColor(), card.getShape(),
-                    card.getPanelMode(), card.getDetailText(), card.getListItemTexts(),
+                    card.getPanelMode(), card.getDetailText(), card.getListItemTexts(), card.getImageFile(),
                     child == null ? null : child.getId(), child == null ? null : child.snapshot());
         }
 
@@ -50,6 +51,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
             card.setPanelMode(panelMode);
             card.setDetailText(detailText);
             card.setListItemTexts(listItems);
+            card.setImageFile(imageFile);
             applyChildBoardTo(card);
         }
 
@@ -62,6 +64,22 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
                 Board restored = new Board(childBoardId, "");
                 restored.restore(childBoard);
                 card.setChildBoard(restored);
+            }
+        }
+    }
+
+    /**
+     * Acrescenta a {@code names} as imagens citadas nesta foto, inclusive nos
+     * boards filhos (usado para não apagar, ao salvar, imagens que o desfazer
+     * ainda pode trazer de volta).
+     */
+    public void collectImageFiles(Set<String> names) {
+        for (CardState card : cards) {
+            if (card.imageFile() != null) {
+                names.add(card.imageFile());
+            }
+            if (card.childBoard() != null) {
+                card.childBoard().collectImageFiles(names);
             }
         }
     }

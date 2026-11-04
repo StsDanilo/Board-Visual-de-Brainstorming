@@ -168,6 +168,21 @@ public class Board {
         }
     }
 
+    /**
+     * Acrescenta a {@code names} as imagens usadas pelos cards deste board e de
+     * todos os boards aninhados (a árvore inteira compartilha a pasta imagens/).
+     */
+    public void collectImageFiles(Set<String> names) {
+        for (Card card : cards) {
+            if (card.hasImage()) {
+                names.add(card.getImageFile());
+            }
+            if (card.hasChildBoard()) {
+                card.getChildBoard().collectImageFiles(names);
+            }
+        }
+    }
+
     /** Indica se já existe uma seta de {@code source} para {@code target}. */
     public boolean isConnected(Card source, Card target) {
         return connections.stream().anyMatch(c -> c.getSource() == source && c.getTarget() == target);

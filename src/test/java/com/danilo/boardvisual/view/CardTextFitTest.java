@@ -61,6 +61,64 @@ class CardTextFitTest {
         return card;
     }
 
+    // ------------------------------------------------------------ card de imagem
+
+    private static Card image(String caption) {
+        Card card = Card.createImage("foto.png", 160, 90, 320, 180);
+        card.setText(caption);
+        return card;
+    }
+
+    @Test
+    void imageWithoutCaptionNeverGrows() {
+        CardTextFit.Fit result = fit.fit(image(""));
+
+        assertEquals(320, result.width());
+        assertEquals(180, result.height());
+        assertEquals(CardTextFit.CAPTION_FONT_SIZE, result.fontSize());
+    }
+
+    @Test
+    void captionGrowsTheCardBelowTheImageWithoutDistortingIt() {
+        Card card = image("Praia no fim da tarde");
+
+        CardTextFit.Fit result = fit.fit(card);
+
+        assertEquals(320, result.width(), "a largura (e com ela a imagem) não muda");
+        assertTrue(result.height() > 180, "o card cresce para a legenda");
+        assertEquals(CardTextFit.CAPTION_FONT_SIZE, result.fontSize(), "fonte automática da legenda");
+        // A imagem continua com 320 × 180: a proporção vem do tamanho definido à mão.
+        assertEquals(180, card.imageHeight(result.width()));
+        // Uma linha de legenda (14 × 1,25) + espaço entre imagem e texto + margens.
+        assertEquals(Math.ceil(180 + 6 + 14 * 1.25 + 3 + 10 + 2), result.height());
+    }
+
+    @Test
+    void longerCaptionAndManualFontGrowMore() {
+        Card shortCaption = image("Praia");
+        Card longCaption = image(LONG_TEXT);
+        Card bigFont = image("Praia");
+        bigFont.setFontSize(40);
+
+        double shortHeight = fit.fit(shortCaption).height();
+
+        assertTrue(fit.fit(longCaption).height() > shortHeight);
+        assertEquals(40, fit.fit(bigFont).fontSize());
+        assertTrue(fit.fit(bigFont).height() > shortHeight);
+    }
+
+    @Test
+    void biggerImageKeepsTheCaptionBelowIt() {
+        Card card = image("Praia");
+        card.resize(640, 360); // redimensionado pela alça, mantendo a proporção
+
+        CardTextFit.Fit result = fit.fit(card);
+
+        assertEquals(640, result.width());
+        assertTrue(result.height() > 360);
+        assertEquals(360, card.imageHeight(result.width()));
+    }
+
     @Test
     void shortTextUsesMaximumAutomaticFont() {
         CardTextFit.Fit result = fit.fit(rectangle("Oi"));

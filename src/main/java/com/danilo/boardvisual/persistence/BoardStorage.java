@@ -63,7 +63,7 @@ public class BoardStorage {
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     public void save(Board board, Path folder) throws IOException {
-        save(board, folder, null);
+        save(board, folder, List.of());
     }
 
     /**
@@ -74,6 +74,15 @@ public class BoardStorage {
      *                     {@code null} se não há o que copiar
      */
     public void save(Board board, Path folder, Path imagesSource) throws IOException {
+        save(board, folder, imagesSource == null ? List.of() : List.of(imagesSource));
+    }
+
+    /**
+     * Como {@link #save(Board, Path, Path)}, trazendo imagens de várias pastas
+     * (ex.: a {@code imagens} do save atual e a pasta de trabalho com as
+     * imagens inseridas desde o último salvamento).
+     */
+    public void save(Board board, Path folder, List<Path> imageSources) throws IOException {
         BoardData data = toData(board);
         Path absolute = folder.toAbsolutePath();
         if (Files.exists(absolute) && !Files.isDirectory(absolute)) {
@@ -84,7 +93,9 @@ public class BoardStorage {
 
         // As imagens vão antes do JSON: se algo falhar no meio, nunca existe um
         // board.json apontando para uma imagem que não chegou.
-        BoardImages.copyInto(imagesSource, absolute);
+        for (Path source : imageSources) {
+            BoardImages.copyInto(source, absolute);
+        }
 
         // Escreve num arquivo temporário e troca no fim: se algo falhar no
         // meio, o board.json anterior continua intacto.
@@ -162,7 +173,7 @@ public class BoardStorage {
                 .map(c -> new CardData(c.getId(), c.getX(), c.getY(), c.getWidth(), c.getHeight(),
                         c.getBaseWidth(), c.getBaseHeight(), c.isAutoFontSize() ? null : c.getFontSize(),
                         c.getText(), c.getColor(), c.getShape().name(),
-                        c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts(),
+                        c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts(), c.getImageFile(),
                         c.hasChildBoard() ? toData(c.getChildBoard()) : null))
                 .toList();
         List<ConnectionData> connections = board.getConnections().stream()
@@ -194,6 +205,9 @@ public class BoardStorage {
                 if (cd.listItems() != null) {
                     card.setListItemTexts(cd.listItems().stream().map(t -> t == null ? "" : t).toList());
                 }
+                // Mantido mesmo se o arquivo não existir ou o nome for estranho: a tela
+                // mostra o aviso de imagem não encontrada, e o dado não se perde.
+                card.setImageFile(cd.imageFile());
                 if (cd.childBoard() != null) {
                     card.setChildBoard(fromData(cd.childBoard()));
                 }

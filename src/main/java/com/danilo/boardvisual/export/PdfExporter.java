@@ -172,13 +172,26 @@ public final class PdfExporter {
 
             for (Card card : node.board.getCards()) {
                 PDRectangle rect = node.rectOf(card);
-                writeInvisibleText(cs, card.getText(), rect);
+                writeInvisibleText(cs, card.getText(), textRect(card, rect, node.scale));
                 PDPage target = node.linkTarget(card);
                 if (target != null) {
                     link(page, rect, target);
                 }
             }
         }
+    }
+
+    /**
+     * Onde fica o texto do card na página: o card todo, ou, num card de imagem,
+     * só a parte abaixo da imagem (a legenda).
+     */
+    static PDRectangle textRect(Card card, PDRectangle cardRect, double scale) {
+        double imageHeight = card.imageHeight(card.getWidth()) * scale;
+        if (imageHeight <= 0) {
+            return cardRect;
+        }
+        float captionHeight = (float) Math.max(1, cardRect.getHeight() - imageHeight);
+        return new PDRectangle(cardRect.getLowerLeftX(), cardRect.getLowerLeftY(), cardRect.getWidth(), captionHeight);
     }
 
     /**

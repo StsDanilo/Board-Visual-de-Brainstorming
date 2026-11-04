@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -14,8 +15,10 @@ import java.util.stream.Stream;
  * A pasta {@code imagens/} de um save: um arquivo por imagem, compartilhada por
  * toda a árvore de boards daquele save.
  *
- * Aqui só há operações sobre os arquivos (copiar, limpar). Quem decide quais
- * nomes estão em uso é o chamador, porque o modelo ainda não tem imagens.
+ * Aqui só há operações sobre os arquivos (copiar, limpar, achar). Quem decide
+ * quais nomes estão em uso é o chamador: os cards de toda a árvore de boards e
+ * as fotos do histórico de desfazer (ver {@link #removeUnused}). Trazer uma
+ * imagem nova para a pasta é com o {@link ImageImporter}.
  */
 public final class BoardImages {
 
@@ -28,6 +31,37 @@ public final class BoardImages {
     /** Pasta de imagens do save (pode ainda não existir: ela nasce com a primeira imagem). */
     public static Path dirOf(Path saveFolder) {
         return saveFolder.resolve(FOLDER_NAME);
+    }
+
+    /**
+     * Se {@code name} serve como nome de arquivo dentro de uma pasta de imagens:
+     * sem pastas no meio nem {@code ..}. Um board.json editado à mão com
+     * {@code "../outro.png"} não pode fazer o programa ler fora da pasta.
+     */
+    public static boolean isPlainFileName(String name) {
+        return name != null && !name.isBlank()
+                && !name.contains("/") && !name.contains("\\") && !name.contains(":")
+                && !name.equals(".") && !name.equals("..");
+    }
+
+    /**
+     * Procura o arquivo {@code name} nas pastas informadas, na ordem; vazio se
+     * o nome não é um nome de arquivo simples ou se não está em nenhuma.
+     */
+    public static Optional<Path> find(String name, List<Path> dirs) {
+        if (!isPlainFileName(name)) {
+            return Optional.empty();
+        }
+        for (Path dir : dirs) {
+            if (dir == null) {
+                continue;
+            }
+            Path file = dir.resolve(name);
+            if (Files.isRegularFile(file)) {
+                return Optional.of(file);
+            }
+        }
+        return Optional.empty();
     }
 
     /**

@@ -113,6 +113,7 @@ public class BoardView extends Pane {
 
     private Board board;
     private Consumer<CardView> cardViewInitializer = cardView -> { };
+    private CardImageLoader imageLoader = CardImageLoader.NONE;
 
     private Region selectionOverlay;
     private final Set<Card> overlayTrackedCards = new HashSet<>();
@@ -221,6 +222,11 @@ public class BoardView extends Pane {
         cardViewInitializer = initializer == null ? cardView -> { } : initializer;
     }
 
+    /** De onde os cards de imagem tiram a imagem (definir antes de mostrar um board). */
+    public void setImageLoader(CardImageLoader loader) {
+        imageLoader = loader == null ? CardImageLoader.NONE : loader;
+    }
+
     public Optional<CardView> getCardView(Card card) {
         return Optional.ofNullable(cardViews.get(card));
     }
@@ -241,7 +247,7 @@ public class BoardView extends Pane {
     }
 
     private void addCardView(Card card) {
-        CardView cardView = new CardView(card);
+        CardView cardView = new CardView(card, imageLoader);
         cardViews.put(card, cardView);
         cardLayer.getChildren().add(cardView);
         cardViewInitializer.accept(cardView);
@@ -581,6 +587,11 @@ public class BoardView extends Pane {
 
     public ReadOnlyDoubleProperty zoomProperty() {
         return zoom.getReadOnlyProperty();
+    }
+
+    /** Centro da área visível do canvas, em coordenadas do mundo (onde entra uma imagem colada). */
+    public Point2D visibleCenter() {
+        return world.parentToLocal(getWidth() / 2, getHeight() / 2);
     }
 
     /** Converte coordenadas de cena (eventos de mouse) para coordenadas do mundo. */

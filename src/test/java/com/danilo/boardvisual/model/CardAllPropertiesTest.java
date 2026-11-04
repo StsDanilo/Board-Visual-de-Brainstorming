@@ -50,6 +50,7 @@ class CardAllPropertiesTest {
         card.setPanelMode(PanelMode.LIST);
         card.setDetailText("detalhe longo");
         card.setListItemTexts(List.of("um", "dois"));
+        card.setImageFile("foto-do-card.png");
 
         Board child = new Board("board-filho", "");
         Card inside = new Card("dentro-1", 5, 6);

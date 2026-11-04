@@ -28,6 +28,9 @@ import java.util.UUID;
  * entra nesse board, que pode ter outros cards com boards filhos, sem limite.
  * O nome desse board é o texto do card.
  *
+ * Ou pode mostrar uma imagem ({@link #getImageFile()}): o card guarda só o
+ * nome do arquivo na pasta imagens/ do save, e o texto vira a legenda.
+ *
  * Tamanho: {@link #getBaseWidth()}/{@link #getBaseHeight()} guardam o tamanho
  * definido à mão (ao criar ou redimensionar); {@link #getWidth()}/{@link #getHeight()}
  * são o tamanho exibido, que pode ser maior quando o texto não cabe (o card
@@ -62,6 +65,9 @@ public class Card {
     private final ObservableList<ListItem> readOnlyListItems = FXCollections.unmodifiableObservableList(listItems);
 
     private final ObjectProperty<Board> childBoard = new SimpleObjectProperty<>(this, "childBoard");
+
+    /** Nome do arquivo da imagem na pasta {@code imagens/} do save, ou {@code null}. */
+    private final StringProperty imageFile = new SimpleStringProperty(this, "imageFile");
 
     public Card(double x, double y) {
         this(UUID.randomUUID().toString(), x, y);
@@ -222,6 +228,46 @@ public class Card {
         return getChildBoard() != null;
     }
 
+    // ---------------------------------------------------------------- imagem
+
+    /**
+     * Cria um card de imagem: retângulo do tamanho informado (já na proporção
+     * da imagem), centralizado no ponto, fundo branco e sem legenda.
+     */
+    public static Card createImage(String imageFile, double centerX, double centerY, double width, double height) {
+        Card card = new Card(centerX - width / 2, centerY - height / 2);
+        card.resize(width, height);
+        card.setImageFile(imageFile);
+        return card;
+    }
+
+    /**
+     * Imagem do card: só o nome do arquivo dentro da pasta {@code imagens/} do
+     * save (nunca os bytes). {@code null} = card sem imagem.
+     *
+     * Num card de imagem, o tamanho definido à mão tem sempre a proporção da
+     * imagem: a imagem ocupa o topo do card, na largura toda, e o texto (a
+     * legenda) fica no espaço que o card ganha embaixo dela ao crescer.
+     */
+    public StringProperty imageFileProperty() { return imageFile; }
+    public String getImageFile() { return imageFile.get(); }
+    public void setImageFile(String value) { imageFile.set(value == null || value.isBlank() ? null : value); }
+
+    public boolean hasImage() {
+        return getImageFile() != null;
+    }
+
+    /**
+     * Altura da imagem num card de largura {@code cardWidth}: a proporção vem do
+     * tamanho definido à mão. 0 se o card não tem imagem.
+     */
+    public double imageHeight(double cardWidth) {
+        if (!hasImage() || getBaseWidth() <= 0) {
+            return 0;
+        }
+        return cardWidth * getBaseHeight() / getBaseWidth();
+    }
+
     // ---------------------------------------------------------------- formato
 
     /**
@@ -260,6 +306,8 @@ public class Card {
         copy.setPanelMode(getPanelMode());
         copy.setDetailText(getDetailText());
         copy.setListItemTexts(getListItemTexts());
+        // Mesmo arquivo: duplicar não copia a imagem de novo.
+        copy.setImageFile(getImageFile());
         if (hasChildBoard()) {
             copy.setChildBoard(getChildBoard().deepCopy());
         }

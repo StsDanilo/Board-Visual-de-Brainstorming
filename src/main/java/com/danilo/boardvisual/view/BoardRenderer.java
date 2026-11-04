@@ -31,9 +31,19 @@ import java.util.List;
 public final class BoardRenderer {
 
     private final List<String> stylesheets;
+    private final CardImageLoader imageLoader;
 
     public BoardRenderer(List<String> stylesheets) {
+        this(stylesheets, CardImageLoader.NONE);
+    }
+
+    /**
+     * @param imageLoader de onde vêm as imagens dos cards (a pasta do save); precisa
+     *                    devolver imagens já carregadas, porque o snapshot é imediato
+     */
+    public BoardRenderer(List<String> stylesheets, CardImageLoader imageLoader) {
         this.stylesheets = List.copyOf(stylesheets);
+        this.imageLoader = imageLoader == null ? CardImageLoader.NONE : imageLoader;
     }
 
     public BufferedImage render(Board board, Box bounds, double pixelsPerUnit) {
@@ -43,7 +53,7 @@ public final class BoardRenderer {
         }
         Group cards = new Group();
         for (Card card : board.getCards()) {
-            CardView view = new CardView(card);
+            CardView view = new CardView(card, imageLoader);
             view.setTextFontSize(CardTextFit.forScreen().fit(card).fontSize());
             cards.getChildren().add(view);
         }

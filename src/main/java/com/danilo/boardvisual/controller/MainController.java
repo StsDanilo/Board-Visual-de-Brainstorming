@@ -20,6 +20,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Liga a janela aos controllers de interação e cuida das ações de arquivo
@@ -41,6 +43,7 @@ public class MainController {
     private final KeyboardController keyboardController;
     private final EditHistory history;
     private final NavigationController navigation;
+    private final ImageController images;
 
     /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
     private Path currentFolder;
@@ -68,8 +71,9 @@ public class MainController {
         PanelController panelController = new PanelController(
                 boardView, window.getSelectionToolbar(), history, textEditController);
         navigation = new NavigationController(boardView, window.getBreadcrumb(), history);
+        images = new ImageController(stage, boardView, activeTool, history);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
-                canvasController, panelController, navigation, this);
+                canvasController, panelController, navigation, images, this);
         CardTextFitController textFitController = new CardTextFitController();
         boardView.setCardViewInitializer(cardView -> {
             textFitController.attach(cardView);
@@ -196,18 +200,40 @@ public class MainController {
         if (!sameFolder) {
             board.setName(folderName(folder));
         }
-        // "Salvar como" leva junto as imagens do save atual (copiadas antes do JSON).
-        Path imagesSource = currentFolder != null && !sameFolder ? BoardImages.dirOf(currentFolder) : null;
+        // Imagens copiadas antes do JSON: as inseridas desde o último salvamento e,
+        // no "Salvar como", as do save atual.
+        List<Path> imageSources = new ArrayList<>();
+        if (currentFolder != null && !sameFolder) {
+            imageSources.add(BoardImages.dirOf(currentFolder));
+        }
+        if (images.pendingImagesDir() != null) {
+            imageSources.add(images.pendingImagesDir());
+        }
         try {
-            storage.save(board, folder, imagesSource);
-            // A limpeza de imagens não usadas (BoardImages.removeUnused) entra aqui,
-            // depois do save, quando os cards tiverem imagem (ver 3.9 do DOCUMENTACAO.md).
-            currentFolder = folder;
-            legacyFile = null;
-            updateTitle();
+            storage.save(board, folder, imageSources);
         } catch (IOException e) {
             board.setName(previousName);
             showError("Não foi possível salvar o board.", e);
+            return;
+        }
+        currentFolder = folder;
+        legacyFile = null;
+        images.saved(folder);
+        updateTitle();
+        removeUnusedImages(folder, board);
+    }
+
+    /**
+     * Depois do JSON gravado: apaga de imagens/ o que nenhum card usa. "Usa" =
+     * algum card da árvore inteira de boards, ou alguma foto do desfazer/refazer
+     * (senão o Ctrl+Z traria de volta um card sem a imagem). Falhar aqui não
+     * desfaz o salvamento: no pior caso sobra um arquivo, limpo no próximo.
+     */
+    private void removeUnusedImages(Path folder, Board root) {
+        try {
+            BoardImages.removeUnused(folder, ImageController.imagesInUse(root, history));
+        } catch (IOException e) {
+            System.err.println("Não foi possível limpar as imagens não usadas: " + e.getMessage());
         }
     }
 
@@ -227,7 +253,7 @@ public class MainController {
         if (!path.getFileName().toString().toLowerCase().endsWith(".pdf")) {
             path = path.resolveSibling(path.getFileName() + ".pdf");
         }
-        BoardRenderer renderer = new BoardRenderer(stage.getScene().getStylesheets());
+        BoardRenderer renderer = new BoardRenderer(stage.getScene().getStylesheets(), images.loader());
         try {
             new PdfExporter(renderer::render).export(navigation.getRoot(), path);
         } catch (IOException | RuntimeException e) {
@@ -237,6 +263,7 @@ public class MainController {
 
     private void showBoard(Board board, Path folder, Path legacy) {
         history.clear();
+        images.reset(folder); // antes de criar os cards: eles carregam as imagens desta pasta
         navigation.openRoot(board);
         activeTool.set(Tool.SELECT);
         currentFolder = folder;

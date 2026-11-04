@@ -22,6 +22,9 @@ final class Icons {
     /** Seta para entrar (no botão do card). */
     static final String ENTER = "M5 12 H18 M13 7 L18 12 L13 17";
     static final String BACK = "M19 12 H6 M11 7 L6 12 L11 17";
+    /** Moldura com montanha e sol: "imagem". */
+    static final String IMAGE = "M3.5 5.5 H20.5 V18.5 H3.5 Z M3.5 15.5 L8.5 10.5 L14 16 M12 14 L15 11 L20.5 16.5 "
+            + "M14 8.5 A1.5 1.5 0 1 0 17 8.5 A1.5 1.5 0 1 0 14 8.5 Z";
 
     private Icons() {
     }

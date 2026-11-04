@@ -30,6 +30,13 @@ public enum Tool {
     NESTED_BOARD("Board aninhado", KeyCode.B, CardShape.RECTANGLE, PanelMode.NONE, true, Icons.NESTED_BOARD,
             "Clique no canvas para criar um board aninhado  ·  O botão no card entra no board  ·  "
                     + "Alt+← ou o caminho no topo voltam"),
+    /**
+     * Não fica ativa: ao ser escolhida, abre o seletor de arquivo, insere as
+     * imagens no centro da tela e volta para Selecionar (ImageController).
+     */
+    IMAGE("Imagem", KeyCode.I, null, PanelMode.NONE, Icons.IMAGE,
+            "Escolha uma imagem (PNG, JPG, GIF, BMP)  ·  Também dá para colar (Ctrl+V) ou arrastar o arquivo "
+                    + "para o canvas  ·  Duplo clique na imagem escreve a legenda"),
     CONNECTION("Conexão", KeyCode.C, null, PanelMode.NONE, Icons.CONNECTION,
             "Arraste de um card até outro para conectá-los");
 

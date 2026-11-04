@@ -8,6 +8,7 @@ import javafx.beans.property.ReadOnlyBooleanWrapper;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Supplier;
 
@@ -118,6 +119,21 @@ public class EditHistory {
         pendingEdit = null;
         stacksByBoard.clear();
         updateFlags();
+    }
+
+    /**
+     * Acrescenta a {@code names} as imagens citadas em qualquer foto guardada
+     * (desfazer e refazer, de todos os boards). Ao salvar, essas imagens não
+     * podem ser apagadas: o Ctrl+Z pode trazer de volta o card que as usa.
+     */
+    public void collectImageFiles(Set<String> names) {
+        for (Stacks stacks : stacksByBoard.values()) {
+            stacks.undo.forEach(snapshot -> snapshot.collectImageFiles(names));
+            stacks.redo.forEach(snapshot -> snapshot.collectImageFiles(names));
+        }
+        if (pendingEdit != null) {
+            pendingEdit.collectImageFiles(names);
+        }
     }
 
     public ReadOnlyBooleanProperty canUndoProperty() {

@@ -26,6 +26,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PdfExporterTest {
 
+    @Test
+    void invisibleTextOfAnImageCardGoesBelowTheImage() {
+        Card photo = Card.createImage("foto.png", 0, 0, 320, 180);
+        photo.setHeight(220); // 40 de legenda
+        org.apache.pdfbox.pdmodel.common.PDRectangle card =
+                new org.apache.pdfbox.pdmodel.common.PDRectangle(10, 50, 320, 220);
+
+        var caption = PdfExporter.textRect(photo, card, 1);
+        var plain = PdfExporter.textRect(new Card(0, 0), card, 1);
+
+        assertEquals(50, caption.getLowerLeftY(), 1e-3);
+        assertEquals(40, caption.getHeight(), 1e-3, "só a faixa da legenda (PDF: origem embaixo)");
+        assertEquals(320, caption.getWidth(), 1e-3);
+        assertEquals(card, plain, "card sem imagem: o card todo");
+    }
+
     /** Imagem em branco no tamanho pedido: o que importa aqui é a estrutura do PDF. */
     private final List<String> rendered = new ArrayList<>();
     private final PdfExporter exporter = new PdfExporter((board, bounds, ppu) -> {

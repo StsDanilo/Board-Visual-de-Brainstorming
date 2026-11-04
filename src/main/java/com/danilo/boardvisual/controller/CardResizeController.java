@@ -26,6 +26,8 @@ import java.util.List;
  *
  * - Retângulo: 8 alças, largura e altura livres; Shift num canto mantém a proporção.
  * - Elipse e losango: só os 4 cantos, sempre mantendo a proporção.
+ * - Card de imagem: só os 4 cantos, sempre com a proporção da imagem (a
+ *   legenda, se houver, acompanha embaixo).
  * - As bordas puxadas grudam nas linhas de outros cards (mesmo alinhamento de
  *   quando se move; Alt desliga).
  * - O card nunca fica menor do que o texto precisa (na fonte mínima, se a
@@ -41,6 +43,8 @@ public class CardResizeController {
     /** Piso de tamanho, mesmo com pouco texto; acima dele, quem manda é o texto. */
     static final double MIN_WIDTH = 60;
     static final double MIN_HEIGHT = 40;
+    /** Menor tamanho do maior lado de uma imagem. */
+    static final double MIN_IMAGE_SIDE = 40;
 
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;
@@ -52,6 +56,8 @@ public class CardResizeController {
     /** Estado do gesto em andamento; {@code start == null} fora dele. */
     private Point2D start;
     private Box startBox;
+    /** Largura ÷ altura da imagem, se o card é de imagem; 0 nos demais. */
+    private double startImageRatio;
     private final List<Box> others = new ArrayList<>();
     private BoardSnapshot before;
 
@@ -79,6 +85,9 @@ public class CardResizeController {
             others.clear();
             view.getBoard().getCards().stream().filter(c -> c != target).map(CardResizeController::boxOf)
                     .forEach(others::add);
+            // Card de imagem: a proporção é a da imagem (o tamanho definido à mão), não a do card com legenda.
+            startImageRatio = target.hasImage() && target.getBaseHeight() > 0
+                    ? target.getBaseWidth() / target.getBaseHeight() : 0;
             before = history.capture();
             e.consume();
         });
@@ -87,8 +96,13 @@ public class CardResizeController {
                 return;
             }
             Point2D p = view.sceneToWorld(e.getSceneX(), e.getSceneY());
-            boolean keepAspect = target.getShape() != CardShape.RECTANGLE || (e.isShiftDown() && handle.isCorner());
             double threshold = e.isAltDown() ? 0 : CardDragController.SNAP_DISTANCE_PX / view.zoomProperty().get();
+            if (startImageRatio > 0) {
+                dragImage(handle, p.getX() - start.getX(), p.getY() - start.getY(), threshold);
+                e.consume();
+                return;
+            }
+            boolean keepAspect = target.getShape() != CardShape.RECTANGLE || (e.isShiftDown() && handle.isCorner());
             BoxResizer.Result result = BoxResizer.resize(startBox, handle, p.getX() - start.getX(), p.getY() - start.getY(),
                     MIN_WIDTH, MIN_HEIGHT, keepAspect, others, threshold);
             Box box = fitText(target, handle, result.box());
@@ -122,7 +136,38 @@ public class CardResizeController {
                 target.shapeProperty().addListener(shapeListener);
             }
         }
-        view.setResizeTarget(target, target != null && target.getShape() != CardShape.RECTANGLE);
+        view.setResizeTarget(target, target != null && (target.getShape() != CardShape.RECTANGLE || target.hasImage()));
+    }
+
+    /**
+     * Card de imagem: só cantos, sempre com a proporção da imagem. Quem é
+     * redimensionado é a imagem (o tamanho definido à mão); a legenda, se
+     * houver, continua embaixo dela, e o lado oposto à alça fica parado.
+     */
+    private void dragImage(ResizeHandle handle, double dx, double dy, double threshold) {
+        BoxResizer.Result result = resizeImage(startBox, startImageRatio, handle, dx, dy, others, threshold);
+        Box image = result.box();
+        double shownHeight = CardTextFit.forScreen().fit(target, image.width(), image.height()).height();
+        // Alça de cima: a base do card (fim da legenda) fica parada.
+        double y = handle.yEdge() == Edge.START ? startBox.y() + startBox.height() - shownHeight : image.y();
+        target.setX(image.x());
+        target.setY(y);
+        target.resize(image.width(), image.height()); // o recálculo do texto põe a legenda embaixo
+        view.showGuides(result.guides());
+    }
+
+    /**
+     * Nova caixa da imagem de um card de imagem. {@code shown} é a caixa do card
+     * na tela no início do gesto (imagem + legenda); a imagem é o topo dela, na
+     * proporção {@code ratio} (largura ÷ altura). O tamanho mínimo vale para o
+     * maior lado, para imagens muito largas ou altas não "pularem" de tamanho.
+     */
+    static BoxResizer.Result resizeImage(Box shown, double ratio, ResizeHandle handle, double dx, double dy,
+                                         List<Box> others, double threshold) {
+        Box image = new Box(shown.x(), shown.y(), shown.width(), shown.width() / ratio);
+        double minWidth = ratio >= 1 ? MIN_IMAGE_SIDE : MIN_IMAGE_SIDE * ratio;
+        double minHeight = ratio >= 1 ? MIN_IMAGE_SIDE / ratio : MIN_IMAGE_SIDE;
+        return BoxResizer.resize(image, handle, dx, dy, minWidth, minHeight, true, others, threshold);
     }
 
     /**

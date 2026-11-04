@@ -192,6 +192,20 @@
     -fx-padding: 0;
 }
 
+/*
+ * Card de imagem: a imagem fica no topo (ImageView recortado com os cantos do
+ * card, no código). Se o arquivo sumiu ou não abre, um aviso ocupa o lugar dela
+ * e a referência continua no card.
+ */
+.card-image-missing {
+    -fx-background-color: #ececea;
+    -fx-text-fill: -bv-text-muted;
+    -fx-font-size: 12px;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+    -fx-padding: 6;
+}
+
 /* Exportação para PDF (BoardRenderer): só o conteúdo, sem o que é de tela. */
 .board-export .card .card-text {
     -fx-prompt-text-fill: transparent;

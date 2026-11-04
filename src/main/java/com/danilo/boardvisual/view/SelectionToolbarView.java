@@ -42,6 +42,8 @@ public class SelectionToolbarView extends HBox {
         // Invisível também não ocupa espaço na barra.
         panelModeGroup.managedProperty().bind(panelModeGroup.visibleProperty());
         panelModeGroup.setVisible(false);
+        // O formato some quando só há cards de imagem selecionados (eles são sempre retângulos).
+        shapeButton.managedProperty().bind(shapeButton.visibleProperty());
 
         getChildren().addAll(colorButton, shapeButton, fontSizeButton, panelModeGroup,
                 new Separator(Orientation.VERTICAL), duplicateButton, deleteButton);

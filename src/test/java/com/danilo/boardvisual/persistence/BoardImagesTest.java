@@ -33,6 +33,35 @@ class BoardImagesTest {
         }
     }
 
+    // ------------------------------------------------------------ achar
+
+    @Test
+    void findsTheFileInTheFirstFolderThatHasIt(@TempDir Path dir) throws IOException {
+        Path work = dir.resolve("trabalho");
+        Path saved = dir.resolve("save").resolve("imagens");
+        fakeImage(work, "nova.png", 1);
+        fakeImage(saved, "antiga.png", 2);
+        fakeImage(saved, "nova.png", 3);
+
+        assertEquals(work.resolve("nova.png"), BoardImages.find("nova.png", List.of(work, saved)).orElseThrow());
+        assertEquals(saved.resolve("antiga.png"), BoardImages.find("antiga.png", List.of(work, saved)).orElseThrow());
+        assertTrue(BoardImages.find("nenhuma.png", List.of(work, saved)).isEmpty());
+    }
+
+    @Test
+    void namesWithFoldersAreNeverLookedUp(@TempDir Path dir) throws IOException {
+        Path images = dir.resolve("save").resolve("imagens");
+        fakeImage(dir.resolve("save"), "segredo.png", 1);
+        Files.createDirectories(images);
+
+        assertTrue(BoardImages.find("../segredo.png", List.of(images)).isEmpty());
+        assertTrue(BoardImages.find("..\\segredo.png", List.of(images)).isEmpty());
+        assertFalse(BoardImages.isPlainFileName(".."));
+        assertFalse(BoardImages.isPlainFileName("C:segredo.png"));
+        assertFalse(BoardImages.isPlainFileName(null));
+        assertTrue(BoardImages.isPlainFileName("3f2a-1b.png"));
+    }
+
     // ------------------------------------------------------------ limpeza
 
     @Test

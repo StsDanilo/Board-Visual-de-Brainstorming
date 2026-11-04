@@ -5,19 +5,25 @@ import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.model.PanelMode;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.beans.binding.DoubleBinding;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.css.PseudoClass;
 import javafx.geometry.Point2D;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.Tooltip;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
 
 import java.util.Locale;
 
@@ -31,7 +37,8 @@ import java.util.Locale;
  * <pre>
  * CardView
  *  ├─ body (.card)            fundo e borda; o CSS dá a silhueta de cada formato
- *  │   └─ content             área do texto, recuada para caber no formato
+ *  │   ├─ imageBox            imagem no topo (só em cards de imagem), ou o aviso de que ela falta
+ *  │   └─ content             área do texto, recuada para caber no formato (e abaixo da imagem)
  *  │       └─ textArea
  *  ├─ panelButton             abre o painel flutuante (só em cards com painel)
  *  ├─ boardButton             entra no board filho (só em cards com board aninhado)
@@ -44,28 +51,46 @@ public class CardView extends Region {
     private static final PseudoClass CONNECTION_TARGET = PseudoClass.getPseudoClass("connection-target");
     private static final PseudoClass PANEL_OPEN = PseudoClass.getPseudoClass("panel-open");
     private static final PseudoClass HAS_BOARD = PseudoClass.getPseudoClass("has-board");
+    private static final PseudoClass HAS_IMAGE = PseudoClass.getPseudoClass("has-image");
     private static final String SHAPE_CLASS_PREFIX = "shape-";
     /** Texto de exemplo do card vazio (também usado para ajustar a fonte automática). */
     public static final String PROMPT_TEXT = "Escreva uma ideia...";
+    /** Texto de exemplo da legenda de um card de imagem (aparece só enquanto ela é editada vazia). */
+    public static final String CAPTION_PROMPT_TEXT = "Escreva uma legenda...";
+    /** A imagem fica dentro da borda do card ({@code .card}: 1 px). */
+    private static final double IMAGE_INSET = 1;
+    /** Raio dos cantos da imagem: o do card (8) menos a borda. */
+    private static final double IMAGE_CORNER = 7;
     /** Distância da alça de conexão para fora da borda direita. */
     private static final double CONNECTOR_OFFSET = 14;
 
     private final Card card;
+    private final CardImageLoader imageLoader;
     private final StackPane body = new StackPane();
     private final VBox content = new VBox();
     private final TextArea textArea = new TextArea();
     private final Circle connectorHandle = new Circle(6);
     private final Button panelButton = new Button();
     private final Button boardButton = new Button();
+    /** Área da imagem no topo do card (só em cards de imagem): a imagem ou o aviso de que ela falta. */
+    private final StackPane imageBox = new StackPane();
+    private final ImageView imageView = new ImageView();
+    private final Label missingImage = new Label("Imagem não encontrada");
 
     public CardView(Card card) {
+        this(card, CardImageLoader.NONE);
+    }
+
+    public CardView(Card card, CardImageLoader imageLoader) {
         this.card = card;
+        this.imageLoader = imageLoader == null ? CardImageLoader.NONE : imageLoader;
         getStyleClass().add("card-view");
         setPickOnBounds(false);
 
         textArea.getStyleClass().add("card-text");
         textArea.setWrapText(true);
-        textArea.setPromptText(PROMPT_TEXT);
+        textArea.promptTextProperty().bind(Bindings.createStringBinding(
+                () -> card.hasImage() ? CAPTION_PROMPT_TEXT : PROMPT_TEXT, card.imageFileProperty()));
         textArea.setPrefRowCount(1);
         textArea.setPrefColumnCount(1);
         textArea.setMinSize(0, 0);
@@ -77,16 +102,19 @@ public class CardView extends Region {
         content.getStyleClass().add("card-content");
         content.paddingProperty().bind(Bindings.createObjectBinding(
                 () -> CardGeometry.contentInsets(card.getShape(), card.getWidth(), card.getHeight(),
-                        card.isPanel() || card.hasChildBoard()),
+                        card.isPanel() || card.hasChildBoard(), card.imageHeight(card.getWidth())),
                 card.shapeProperty(), card.widthProperty(), card.heightProperty(),
-                card.panelModeProperty(), card.childBoardProperty()));
+                card.panelModeProperty(), card.childBoardProperty(),
+                card.imageFileProperty(), card.baseWidthProperty(), card.baseHeightProperty()));
         content.getChildren().add(textArea);
         // A área ocupa o card todo (o recuo fica por dentro); só o texto deve
         // ser clicável aqui, o resto cai no body, que respeita a silhueta.
         content.setPickOnBounds(false);
 
+        setUpImage();
+
         body.getStyleClass().add("card");
-        body.getChildren().add(content);
+        body.getChildren().addAll(imageBox, content);
         body.prefWidthProperty().bind(card.widthProperty());
         body.prefHeightProperty().bind(card.heightProperty());
         body.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
@@ -174,6 +202,10 @@ public class CardView extends Region {
         Platform.runLater(textArea::requestFocus);
     }
 
+    public boolean isTextFocused() {
+        return textArea.isFocused();
+    }
+
     /**
      * Tamanho da fonte do texto (calculado por {@link CardTextFit}). A família
      * vai junto para ser exatamente a mesma usada na medição.
@@ -200,6 +232,69 @@ public class CardView extends Region {
         panelButton.relocate(center.getX() - panelButton.getWidth() / 2, center.getY() - panelButton.getHeight() / 2);
         boardButton.autosize();
         boardButton.relocate(center.getX() - boardButton.getWidth() / 2, center.getY() - boardButton.getHeight() / 2);
+    }
+
+    /**
+     * Imagem no topo do card, na largura toda (dentro da borda de 1 px); a
+     * altura segue a proporção da imagem ({@link Card#imageHeight}). O recorte
+     * arredonda os cantos como os do card: os de baixo só aparecem arredondados
+     * quando não há legenda (o recorte vai até o fim do card).
+     */
+    private void setUpImage() {
+        imageBox.getStyleClass().add("card-image");
+        imageBox.setMouseTransparent(true); // cliques vão para o body: arrastar, selecionar
+        imageBox.managedProperty().bind(imageBox.visibleProperty());
+        StackPane.setAlignment(imageBox, Pos.TOP_CENTER);
+
+        DoubleBinding boxWidth = Bindings.createDoubleBinding(
+                () -> Math.max(0, card.getWidth() - 2 * IMAGE_INSET), card.widthProperty());
+        DoubleBinding boxHeight = Bindings.createDoubleBinding(
+                () -> Math.max(0, card.imageHeight(card.getWidth()) - 2 * IMAGE_INSET),
+                card.widthProperty(), card.baseWidthProperty(), card.baseHeightProperty(), card.imageFileProperty());
+        imageBox.minWidthProperty().bind(boxWidth);
+        imageBox.prefWidthProperty().bind(boxWidth);
+        imageBox.maxWidthProperty().bind(boxWidth);
+        imageBox.minHeightProperty().bind(boxHeight);
+        imageBox.prefHeightProperty().bind(boxHeight);
+        imageBox.maxHeightProperty().bind(boxHeight);
+
+        imageView.setPreserveRatio(true);
+        imageView.setSmooth(true);
+        imageView.fitWidthProperty().bind(boxWidth);
+        imageView.fitHeightProperty().bind(boxHeight);
+
+        missingImage.getStyleClass().add("card-image-missing");
+        missingImage.setWrapText(true);
+        missingImage.setMinSize(0, 0);
+        missingImage.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        Rectangle clip = new Rectangle();
+        clip.setArcWidth(IMAGE_CORNER * 2);
+        clip.setArcHeight(IMAGE_CORNER * 2);
+        clip.widthProperty().bind(boxWidth);
+        clip.heightProperty().bind(Bindings.createDoubleBinding(
+                () -> Math.max(0, card.getHeight() - 2 * IMAGE_INSET), card.heightProperty()));
+        imageBox.setClip(clip);
+
+        imageBox.getChildren().addAll(imageView, missingImage);
+        applyImage(card.getImageFile());
+        card.imageFileProperty().addListener((obs, old, name) -> applyImage(name));
+    }
+
+    private void applyImage(String fileName) {
+        boolean hasImage = fileName != null;
+        pseudoClassStateChanged(HAS_IMAGE, hasImage);
+        imageBox.setVisible(hasImage);
+        Image image = hasImage ? imageLoader.load(fileName) : null;
+        imageView.setImage(image);
+        // Arquivo que sumiu ou não abre: o card continua (e a referência também), com um aviso.
+        missingImage.setVisible(hasImage && image == null);
+        missingImage.setTooltip(hasImage && image == null ? new Tooltip(fileName) : null);
+    }
+
+    /** Se o card mostra o aviso de imagem não encontrada no lugar da imagem. */
+    public boolean isImageMissing() {
+        return missingImage.isVisible();
     }
 
     private void applyPanelMode(PanelMode mode) {

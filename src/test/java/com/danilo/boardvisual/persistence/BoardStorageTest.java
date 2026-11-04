@@ -415,6 +415,92 @@ class BoardStorageTest {
         }
     }
 
+    // ------------------------------------------------------------ cards de imagem
+
+    @Test
+    void savesAndLoadsAnImageCardWithItsFile(@TempDir Path dir) throws IOException {
+        Path pending = Files.createDirectories(dir.resolve("trabalho"));
+        Files.write(pending.resolve("abc.png"), new byte[]{9, 8, 7});
+        Board board = new Board("Fotos");
+        Card photo = Card.createImage("abc.png", 100, 100, 320, 180);
+        photo.setText("legenda");
+        board.addCard(photo);
+        Path folder = dir.resolve("Fotos");
+
+        storage.save(board, folder, List.of(pending));
+        Card loaded = loadBoard(folder).findCard(photo.getId()).orElseThrow();
+
+        assertEquals("abc.png", loaded.getImageFile());
+        assertEquals("legenda", loaded.getText());
+        assertEquals(320, loaded.getBaseWidth());
+        assertEquals(180, loaded.getBaseHeight());
+        assertArrayEquals(new byte[]{9, 8, 7}, Files.readAllBytes(folder.resolve("imagens").resolve("abc.png")));
+        String json = Files.readString(folder.resolve("board.json"));
+        assertTrue(json.contains("\"imageFile\": \"abc.png\""), "o JSON guarda só o nome do arquivo");
+    }
+
+    @Test
+    void cardsWithoutImageDoNotWriteTheField(@TempDir Path dir) throws IOException {
+        Board board = new Board("Sem");
+        board.addCard(new Card(1, 2));
+        Path folder = dir.resolve("Sem");
+
+        storage.save(board, folder);
+
+        assertFalse(Files.readString(folder.resolve("board.json")).contains("imageFile"));
+    }
+
+    @Test
+    void previousSaveWithoutTheImageFieldOpens(@TempDir Path dir) throws IOException {
+        Path folder = Files.createDirectories(dir.resolve("Anterior"));
+        Files.writeString(folder.resolve("board.json"), """
+                { "version": 2, "id": "b1", "name": "Anterior",
+                  "cards": [ { "id": "c1", "x": 5, "y": 6, "width": 200, "height": 120, "text": "oi" } ],
+                  "connections": [] }
+                """, StandardCharsets.UTF_8);
+
+        Card card = loadBoard(folder).findCard("c1").orElseThrow();
+
+        assertFalse(card.hasImage());
+        assertNull(card.getImageFile());
+        assertEquals("oi", card.getText());
+    }
+
+    @Test
+    void missingImageFileDoesNotBreakAndKeepsTheReference(@TempDir Path dir) throws IOException {
+        Path folder = Files.createDirectories(dir.resolve("Faltando"));
+        Files.writeString(folder.resolve("board.json"), """
+                { "version": 2, "id": "b1", "name": "Faltando",
+                  "cards": [ { "id": "c1", "x": 0, "y": 0, "width": 300, "height": 200,
+                               "baseWidth": 300, "baseHeight": 200, "imageFile": "sumiu.png" },
+                             { "id": "c2", "x": 0, "y": 0, "imageFile": "../fora-da-pasta.png" } ],
+                  "connections": [] }
+                """, StandardCharsets.UTF_8);
+
+        Board board = loadBoard(folder);
+
+        assertEquals("sumiu.png", board.findCard("c1").orElseThrow().getImageFile());
+        assertEquals("../fora-da-pasta.png", board.findCard("c2").orElseThrow().getImageFile());
+        assertTrue(BoardImages.find("sumiu.png", List.of(BoardImages.dirOf(folder))).isEmpty());
+        // Salvar de novo não perde a referência (a imagem pode voltar para a pasta).
+        storage.save(board, folder);
+        assertEquals("sumiu.png", loadBoard(folder).findCard("c1").orElseThrow().getImageFile());
+    }
+
+    @Test
+    void imagesComeFromSeveralSources(@TempDir Path dir) throws IOException {
+        Path current = Files.createDirectories(dir.resolve("Atual").resolve("imagens"));
+        Files.write(current.resolve("antiga.png"), new byte[]{1});
+        Path pending = Files.createDirectories(dir.resolve("trabalho"));
+        Files.write(pending.resolve("nova.png"), new byte[]{2});
+        Path copy = dir.resolve("Copia");
+
+        storage.save(new Board("Copia"), copy, List.of(current, pending));
+
+        assertArrayEquals(new byte[]{1}, Files.readAllBytes(copy.resolve("imagens").resolve("antiga.png")));
+        assertArrayEquals(new byte[]{2}, Files.readAllBytes(copy.resolve("imagens").resolve("nova.png")));
+    }
+
     @Test
     void inspectsTheTargetOfASaveAs(@TempDir Path dir) throws IOException {
         assertEquals(Target.FREE, BoardStorage.inspectTarget(dir.resolve("nao-existe")));

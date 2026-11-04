@@ -2,7 +2,8 @@
 
 > Documento de estudo e referência do projeto, mantido junto com o código: toda mudança relevante
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
-> Estado descrito: até a exportação para PDF (card [3]) e o salvamento em pasta (`board.json` + `imagens/`).
+> Estado descrito: até a exportação para PDF (card [3]), o salvamento em pasta (`board.json` + `imagens/`)
+> e as imagens nos cards (colar, arrastar, ferramenta Imagem).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -25,7 +26,8 @@ mas você pode parar em qualquer um:
 Um aplicativo desktop para organizar ideias no espaço, no estilo Miro/Milanote. Existe um canvas
 infinito; nele você cria **cards** (retângulo, elipse ou losango) com texto, arrasta livremente,
 liga os cards com **setas**, pinta com cores, seleciona vários de uma vez, desfaz erros e salva
-tudo numa **pasta** no computador (um `board.json` mais uma pasta `imagens/`). Cards podem abrir um **painel flutuante** (texto ou lista)
+tudo numa **pasta** no computador (um `board.json` mais uma pasta `imagens/`). **Imagens** entram no board
+como cards (colar, arrastar o arquivo ou escolher). Cards podem abrir um **painel flutuante** (texto ou lista)
 ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade).
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards.
 Não há servidor nem banco de dados.
@@ -98,7 +100,7 @@ sem tocar no modelo.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato. Tudo como propriedade observável. |
+| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato, imagem (nome do arquivo). Tudo como propriedade observável. |
 | `CardShape` | Enum dos formatos (`RECTANGLE`, `ELLIPSE`, `DIAMOND`) com o tamanho padrão de cada um. |
 | `Connection` | Uma seta: id, card de origem, card de destino. Imutável. |
 | `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada). |
@@ -116,13 +118,14 @@ contém cards, que contêm boards, que contêm cards... O `board.json` salva ess
 |---|---|
 | `MainWindow` | Layout da janela: menu, área do canvas (com a barra de ferramentas por cima), barra de status. |
 | `BoardView` | O canvas: pan/zoom, camadas, cria/remove `CardView`/`ConnectionView` quando o board muda, seleção, caixa de seleção, posição da barra flutuante. |
-| `CardView` | Desenho de um card: fundo com a silhueta do formato, campo de texto, alça de conexão. |
+| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, alça de conexão. |
+| `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
 | `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards. |
 | `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato; recuo do texto dentro do formato. |
 | `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). |
 | `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica. |
 | `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. |
-| `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato, tamanho do texto, modo do painel (Texto/Lista), duplicar, excluir. |
+| `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens), tamanho do texto, modo do painel (Texto/Lista), duplicar, excluir. |
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar. |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
@@ -137,14 +140,15 @@ contém cards, que contêm boards, que contêm cards... O `board.json` salva ess
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar, salvar como em pasta, exportar PDF); desfazer/refazer do menu. |
+| `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF); desfazer/refazer do menu. |
+| `ImageController` | Imagens: inserir (ferramenta Imagem, `Ctrl+V`, arrastar arquivo), pasta de trabalho das imagens ainda não salvas, carregar a imagem de cada card (com cache). |
 | `CanvasController` | Mouse no fundo: pan, zoom, caixa de seleção, criar card. |
 | `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo), com alinhamento. |
-| `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas. |
+| `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas (card de imagem: proporção da imagem). |
 | `CardTextFitController` | Reaplica a fonte e o crescimento de cada card quando o texto, a fonte ou o tamanho mudam. |
 | `ConnectionController` | Criar setas arrastando de um card a outro. |
 | `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção. |
-| `TextEditController` | Registra a edição de texto no histórico (sessões de edição). |
+| `TextEditController` | Registra a edição de texto no histórico (sessões de edição); duplo clique num card de imagem abre a legenda. |
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
 | `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível; guarda o board principal. |
 | `KeyboardController` | Atalhos de teclado. |
@@ -172,7 +176,8 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 |---|---|
 | `BoardFileFormat` | Records que espelham exatamente o `board.json`; as constantes de versão (2 = save em pasta). |
 | `BoardStorage` | Converte `Board` ⇄ JSON; grava o save em pasta com segurança (imagens antes do JSON); abre pasta, `board.json` ou `.json` antigo; diz se um destino de "salvar como" está livre. |
-| `BoardImages` | A pasta `imagens/` do save: copiar arquivos para ela e remover os que nenhum card usa. |
+| `BoardImages` | A pasta `imagens/` do save: copiar arquivos para ela, achar um arquivo pelo nome (recusando nomes com pasta) e remover os que nenhum card usa. |
+| `ImageImporter` | Traz uma imagem (arquivo ou imagem em memória) para uma pasta de imagens: confere o formato, reduz se passar de 2000 px, nome novo `<uuid>.png/.jpg`. |
 
 ### `export/` — o PDF
 
@@ -206,6 +211,7 @@ Main.main()
          │   ├─ new SelectionActionsController(...)
          │   ├─ new PanelController(...)
          │   ├─ new NavigationController(...)
+         │   ├─ new ImageController(...)     ← dá ao BoardView o carregador de imagens; arrastar arquivo
          │   ├─ new KeyboardController(...)  ← instala handlers de tecla na janela
          │   ├─ wireMenu()
          │   └─ newBoard()                   ← navigation.openRoot(new Board("Sem título"))
@@ -392,12 +398,13 @@ Um save é uma **pasta**, não mais um arquivo solto:
 ```
 MeuBoard/
   board.json        o board principal, com a árvore inteira de boards aninhados
-  imagens/          um arquivo por imagem (<id>.png); a pasta só nasce com a primeira imagem
+  imagens/          um arquivo por imagem (<uuid>.png ou .jpg); a pasta só nasce com a primeira imagem
 ```
 
 ```
 Salvar:  Board → BoardData (records) → Gson → board.json.tmp → move para board.json
-         (antes, se houver imagens a trazer, elas são copiadas para imagens/)
+         (antes, se houver imagens a trazer, elas são copiadas para imagens/;
+          depois, as que nenhum card usa são apagadas)
 Abrir:   pasta, board.json ou .json antigo → Gson → BoardData → valida/completa → Board novo → BoardView.setBoard
 ```
 
@@ -410,7 +417,10 @@ Exemplo real do `board.json`:
   "name": "Ideias",
   "cards": [
     { "id": "a1…", "x": 150.0, "y": 190.0, "width": 200.0, "height": 120.0,
-      "text": "Ideia central", "color": "#FFF1A8", "shape": "RECTANGLE" }
+      "text": "Ideia central", "color": "#FFF1A8", "shape": "RECTANGLE" },
+    { "id": "f7…", "x": 420.0, "y": 160.0, "width": 320.0, "height": 219.0,
+      "baseWidth": 320.0, "baseHeight": 180.0, "text": "praia ao sol",
+      "color": "#FFFFFF", "shape": "RECTANGLE", "imageFile": "4c4e9a3e-….png" }
   ],
   "connections": [
     { "id": "c9…", "sourceId": "a1…", "targetId": "b2…" }
@@ -466,6 +476,9 @@ preferir, `BoardStorage.load` já aceita uma pasta direto: basta um item de menu
   pede confirmação para substituir; tem outros arquivos → recusa. No Windows o seletor nunca devolve uma
   pasta existente (digitar o nome dela só "entra" na pasta), então essas duas guardas valem para outros
   sistemas.
+- **Imagens a trazer** (`BoardStorage.save(board, pasta, origens)`): a pasta de trabalho com as imagens
+  inseridas desde o último salvamento (3.17) e, no "Salvar como", também a `imagens/` do save atual.
+  Board novo e board vindo de `.json` antigo não têm `imagens/` de origem: só a pasta de trabalho.
 
 ### Ordem de gravação (por que é segura)
 
@@ -482,21 +495,22 @@ que não chegou; e o `board.json` anterior só é trocado no passo 3, de uma vez
 
 `BoardImages.removeUnused(pastaDoSave, nomesReferenciados)` apaga de `imagens/` os arquivos que não
 estão no conjunto e devolve os nomes apagados. Só mexe em arquivos da própria `imagens/` (subpastas e o
-resto do save ficam). **Ainda não é chamada pelo `MainController`**: hoje nenhum card referencia imagem,
-então não há conjunto a passar (chamar com conjunto vazio apagaria tudo). A funcionalidade de imagens
-liga isso em `MainController.saveTo`, logo depois de `storage.save(...)` (há um comentário no lugar).
+resto do save ficam). O `MainController.saveTo` chama logo depois de gravar o JSON, no save de destino,
+com o conjunto de `ImageController.imagesInUse`:
 
-> **Cuidado com o desfazer.** Um card excluído e restaurado com `Ctrl+Z` *depois* de salvar voltaria sem
-> a imagem se ela tivesse sido apagada. O conjunto passado a `removeUnused` precisa incluir também os
-> nomes citados nas fotos do histórico (todas as pilhas de desfazer/refazer), não só os do board atual.
+- as imagens dos cards de **todos os boards da árvore** (os aninhados compartilham a mesma `imagens/`), e
+- as citadas em **qualquer foto do histórico** (desfazer e refazer, de todos os boards, e a foto da edição
+  de texto em andamento).
 
-### Como a funcionalidade de imagens se encaixa
+> **Por que o histórico entra (decisão).** Um card excluído e restaurado com `Ctrl+Z` *depois* de salvar
+> voltaria sem a imagem se ela tivesse sido apagada. Com o histórico no conjunto, o arquivo só some no
+> primeiro salvamento depois que ninguém mais pode trazê-lo de volta (ex.: depois de reabrir o board, que
+> zera o histórico). O custo é guardar por um tempo arquivos de cards já excluídos.
 
-- A propriedade do card guarda **só o nome do arquivo** (ex.: `a1b2….png`), nunca os bytes (checklist 5.1).
-- Imagens de um board ainda sem pasta ficam numa pasta de trabalho temporária; no primeiro "Salvar"
-  elas são passadas como `imagesSource` (`BoardStorage.save(board, pasta, imagesSource)`) e copiadas
-  antes do JSON. O "Salvar como" já passa a `imagens/` do save atual.
-- Depois do save, chamar `BoardImages.removeUnused` com o conjunto descrito acima.
+Uma falha na limpeza não desfaz o salvamento (o JSON já está gravado): no pior caso sobra um arquivo,
+limpo no próximo "Salvar". O "Salvar como" limpa só o destino; o save de origem não é tocado.
+
+Como as imagens chegam à pasta e onde ficam antes do primeiro salvamento: 3.17.
 
 ## 3.10 Painel flutuante
 
@@ -600,6 +614,7 @@ Com **exatamente um** card selecionado e a ferramenta Selecionar, aparecem alça
 |---|---|---|
 | Retângulo | 8 (cantos e bordas) | Largura e altura livres; `Shift` num canto mantém a proporção |
 | Elipse, losango | 4 (cantos) | Sempre mantêm a proporção (a área útil para texto depende das duas dimensões) |
+| Card de imagem | 4 (cantos) | Sempre a proporção **da imagem**, mesmo com legenda embaixo (3.17) |
 
 ```
 MOUSE_PRESSED na alça (CardResizeController)
@@ -706,7 +721,8 @@ MainController.exportPdf()
 | Caminho no topo | `Principal › board 2 › board 3` em texto de verdade; cada nível anterior é link para a página dele |
 | Board | **Imagem** feita pelo `BoardRenderer`, com 2 pixels por ponto (nítida no zoom e na impressão) |
 | Cards clicáveis | Card de board aninhado → página do filho; painel com conteúdo → primeira página de detalhes |
-| Texto invisível | O texto de cada card, invisível, sobre o card: buscar (`Ctrl+F`) e copiar funcionam |
+| Texto invisível | O texto de cada card, invisível, sobre o card: buscar (`Ctrl+F`) e copiar funcionam. Num card de imagem, só sobre a faixa da legenda (`PdfExporter.textRect`) |
+| Imagens dos cards | Vêm na própria imagem do board: o `BoardRenderer` recebe o mesmo carregador de imagens da tela (`ImageController.loader()`), então inclui as ainda não salvas; imagem que falta sai com o aviso |
 
 **Página de detalhes** (painel flutuante): A4, título (texto do card), link `‹ Voltar ao board`, e o
 conteúdo em texto de verdade — parágrafos no modo texto, marcadores `•` no modo lista (itens vazios
@@ -745,7 +761,114 @@ Divisão de responsabilidades:
 |---|---|---|
 | Ctrl+N/O/S/Shift+S, Ctrl+E, Ctrl+0 | aceleradores de menu | aparecem no menu |
 | Ctrl+Z, Ctrl+Y, Ctrl+A | aceleradores de menu | idem; e só disparam se o texto não usar a tecla |
-| V R E L P B C, Delete, Ctrl+D, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional |
+| V R E L P B I C, Delete, Ctrl+D, Ctrl+V, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional |
+
+`Ctrl+V` (colar imagem) segue a mesma regra das letras: com texto em edição ele nem chega ao
+`KeyboardController` como atalho (`isEditingText()`), e o texto cola o que estiver na área de
+transferência. Fora da edição, se não há imagem para colar, a tecla não é consumida.
+
+## 3.17 Imagens nos cards
+
+Uma imagem entra no board como um **card comum com um dado a mais**: `Card.imageFile`, o **nome do
+arquivo** dentro de `imagens/` (nunca os bytes, nunca base64 no JSON — decisão do Danilo). Por ser um
+card, mover, conectar, selecionar em grupo, duplicar, desfazer e salvar funcionam sem código novo.
+
+### Três formas de inserir (`ImageController`)
+
+| Como | Onde o card nasce | Detalhes |
+|---|---|---|
+| Ferramenta **Imagem** (`I` ou botão) | centro da área visível | Abre o seletor de arquivo (vários de uma vez) e volta para Selecionar: a ferramenta nunca fica ativa |
+| **Colar** (`Ctrl+V`, fora da edição de texto) | centro da área visível | Imagem copiada (print, navegador, editor) ou arquivos de imagem copiados no Explorer |
+| **Arrastar** arquivo para o canvas | onde foi solto | Filtros de `DRAG_OVER`/`DRAG_DROPPED` no `BoardView` (funcionam também soltando em cima de um card); a leitura acontece depois do evento, para liberar o Explorer |
+
+Várias imagens de uma vez entram em cascata (24 px) e são **um único passo** no desfazer. O card nasce
+com a proporção da imagem, no máximo 320 px no maior lado (imagens minúsculas sobem para 60 px), fundo
+branco, sem legenda, e fica selecionado.
+
+```
+arquivo / imagem colada
+  → ImageImporter.importFile / importImage(…, pastaDeTrabalho)   confere, reduz, grava <uuid>.png|.jpg
+  → Card.createImage(nome, centro, largura, altura)
+  → history.perform(() -> board.addCard(card))
+  → BoardView cria o CardView → CardImageLoader acha o arquivo (pasta de trabalho, depois imagens/ do save)
+```
+
+### Formatos e tamanho (`ImageImporter`)
+
+| Entrada | O que vai para a pasta |
+|---|---|
+| PNG ou JPG até 2000 px no maior lado | **os bytes originais**, com nome novo (`.png`/`.jpg`) |
+| PNG ou JPG maior | reduzido para 2000 px no maior lado: JPG continua JPG (qualidade 0,9), PNG continua PNG (com transparência) |
+| GIF | PNG do **primeiro quadro** (a tela e o PDF mostram imagem parada) |
+| BMP | PNG (o BMP não tem compressão e deixaria o save pesado) |
+| Imagem colada (sem arquivo) | PNG |
+| Outro formato, arquivo quebrado | recusado com mensagem; nada é gravado |
+
+O formato é decidido pelo **conteúdo** do arquivo (o leitor do ImageIO), não pela extensão: um JPG
+renomeado para `.png` vira `.jpg`. Imagens enormes são lidas pulando pixels até ~2× o limite (economiza
+memória) e depois reduzidas em etapas de metade (sem serrilhado). Tudo com o **ImageIO do módulo
+`java.desktop`**, que o projeto já usava (4.9): nenhum módulo novo.
+
+### Onde a imagem mora antes de salvar (pasta de trabalho)
+
+Inserir uma imagem **não mexe na pasta do save**: o arquivo vai para uma **pasta de trabalho temporária**
+(`%TEMP%\boardvisual-imagens-…`, criada na primeira imagem). O `CardImageLoader` procura primeiro nela e
+depois na `imagens/` do save atual.
+
+| Momento | O que acontece |
+|---|---|
+| Salvar / Salvar como | a pasta de trabalho é uma das origens copiadas para `imagens/` (antes do JSON, 3.9); depois do sucesso ela é esvaziada |
+| Novo / Abrir outro board | a pasta de trabalho é esvaziada (imagens de um board não salvo são descartadas, como o texto) e o cache de imagens é limpo |
+| Fechar o programa | a pasta de trabalho é apagada (gancho de encerramento da JVM) |
+
+Assim um board novo (sem pasta), um board vindo de `.json` antigo e um save em pasta funcionam igual.
+
+### Aparência e legenda (`CardView`, `CardTextFit`)
+
+```
+┌─────────────────────┐  ← imagem: largura do card, altura = largura × (altura÷largura à mão)
+│      (imagem)       │     recortada com os cantos do card
+│                     │
+├─────────────────────┤
+│   legenda (texto)   │  ← só existe se o card cresceu para ela
+└─────────────────────┘
+```
+
+- **Invariante:** num card de imagem, o **tamanho definido à mão é o tamanho da imagem** (tem a proporção
+  dela). A imagem é desenhada com `Card.imageHeight(largura)`; o texto do card é a **legenda**, recuada
+  para baixo da imagem (`CardGeometry.contentInsets(…, alturaDaImagem)`).
+- **Sem legenda não há o que encaixar:** o `CardTextFit` devolve o próprio tamanho (texto vazio nunca faz
+  o card crescer). **Com legenda** vale o crescimento de sempre (retângulo cresce só na altura), então a
+  imagem não distorce. A fonte "automática" da legenda é fixa em **14 px** (`CAPTION_FONT_SIZE`): o
+  espaço do texto começa em zero, e "a maior fonte que cabe" sairia sempre a mínima. Fonte manual vale.
+- **Escrever a legenda:** **duplo clique** na imagem (não há área de texto para clicar). Enquanto a
+  legenda vazia está em edição, o card abre uma linha com "Escreva uma legenda...". Sair sem digitar
+  devolve o tamanho e **não cria passo** no desfazer: o crescimento ao ganhar o foco espera o
+  `TextEditController` tirar a foto do início da edição (`Platform.runLater`); ao perder o foco, encolhe
+  antes de ele registrar.
+- **Sempre retângulo:** o botão de formato some quando só há imagens selecionadas; numa seleção mista, o
+  formato vale só para os outros cards.
+- **Redimensionar:** só os 4 cantos, sempre na proporção da imagem (`CardResizeController.resizeImage`,
+  com o `BoxResizer` no modo de proporção). Quem muda é a imagem; a legenda acompanha embaixo. Numa alça
+  de cima, a base do card (fim da legenda) fica parada. O mínimo vale para o **maior lado** (40 px), para
+  um panorama 20:1 não "pular" de tamanho.
+- **Duplicar** reaproveita o mesmo arquivo (`Card.copy` copia o nome).
+- **Excluir** não apaga o arquivo: a limpeza só acontece ao salvar (3.9).
+
+### Imagem faltando ou corrompida
+
+Ao abrir, o modelo nem olha os arquivos: o card vem com o nome que estiver no JSON. Se o `CardImageLoader`
+não acha o arquivo (ou o JavaFX não consegue abri-lo), o card mostra um **aviso cinza "Imagem não
+encontrada"** do mesmo tamanho (com o nome do arquivo na dica) e **mantém a referência**: salvar de novo
+não perde o dado, e devolver o arquivo à `imagens/` faz a imagem voltar ao reabrir. Nomes com pasta
+(`../x.png`, editados à mão) nunca são procurados fora da pasta (`BoardImages.isPlainFileName`).
+
+### Fora do escopo (ficou o caminho aberto)
+
+- **Exportar PNG/SVG:** o `BoardRenderer` já recebe o `CardImageLoader`; um exportador de PNG só precisa
+  chamar `render` e gravar a imagem.
+- Copiar/colar **cards** entre boards (tarefa 6): o `Ctrl+V` de hoje só trata imagens; quando houver
+  cards na área de transferência interna, decidir a prioridade no `KeyboardController`.
 
 ---
 
@@ -935,7 +1058,7 @@ pseudoClassStateChanged(PseudoClass.getPseudoClass("selected"), true);
 
 Pseudo-classes usadas: `:selected`, `:connection-target`, `:tool-select`, `:tool-rectangle`,
 `:tool-ellipse`, `:tool-diamond`, `:tool-connection`, `:tool-create`, `:panning`, `:space-pan`,
-`:mixed`, e as nativas `:hover`, `:pressed`, `:focus-within`.
+`:mixed`, `:has-board`, `:has-image`, e as nativas `:hover`, `:pressed`, `:focus-within`.
 
 ### Formatos com `-fx-shape`
 
@@ -1087,6 +1210,9 @@ lugar de referências, que espelham exatamente o JSON.
 | Pasta escolhida sem `board.json` ("pasta incompleta") | `IOException` com mensagem amigável |
 | `board.json` vazio | `IOException` ("O arquivo está vazio.") |
 | Pasta `imagens/` ausente | normal: ela só nasce com a primeira imagem |
+| Card sem `imageFile` (saves anteriores) | card sem imagem, sem novo bump de `version` |
+| `imageFile` aponta para arquivo que sumiu ou não abre | abre normalmente; o card mostra "Imagem não encontrada" e guarda o nome (3.17) |
+| `imageFile` com pasta no nome (`../x.png`) | mantido no card, mas nunca procurado fora de `imagens/` (aviso de imagem não encontrada) |
 
 ### Gravação segura
 
@@ -1104,7 +1230,7 @@ module com.danilo.boardvisual {
     requires javafx.controls;
     requires com.google.gson;
     requires org.apache.pdfbox;                                   // exportar PDF
-    requires java.desktop;                                        // BufferedImage, entregue ao PDFBox
+    requires java.desktop;                                        // BufferedImage (PDFBox) e ImageIO (imagens)
     exports com.danilo.boardvisual;                               // JavaFX instancia BoardVisualApp
     opens com.danilo.boardvisual.persistence to com.google.gson;  // Gson lê os records por reflexão
 }
@@ -1113,6 +1239,11 @@ module com.danilo.boardvisual {
 O PDFBox não tem `module-info`; é um **módulo automático** (o nome `org.apache.pdfbox` vem do
 manifesto do jar). A imagem do board passa do JavaFX para o PDFBox como `BufferedImage`, convertida
 pixel a pixel no `BoardRenderer` para não precisar do módulo `javafx.swing`.
+
+As imagens dos cards usam o **ImageIO** (`javax.imageio`), que também está no `java.desktop`: ler e
+conferir PNG/JPG/GIF/BMP, reduzir e gravar PNG/JPG (`ImageImporter`). O JavaFX sozinho lê imagens, mas
+não grava; o caminho "oficial" seria `SwingFXUtils` do módulo `javafx.swing`, evitado aqui do mesmo jeito
+que no PDF: a imagem colada (JavaFX) vira `BufferedImage` pixel a pixel no `ImageController`.
 
 - Sem `exports`, o JavaFX não consegue criar a `Application`.
 - Sem `opens`, o Gson falha em tempo de execução ao ler/escrever os records.
@@ -1127,6 +1258,8 @@ pixel a pixel no `BoardRenderer` para não precisar do módulo `javafx.swing`.
 | App abre | `BoardView` | atalhos funcionam sem clicar |
 | Clique no fundo ou no corpo de um card | `BoardView` | sair da edição de texto |
 | Card criado | `TextArea` do card | já digitar |
+| Imagem inserida | `BoardView` | imagem nasce sem legenda; atalhos (`Delete`, `Ctrl+D`...) já valem para ela |
+| Duplo clique num card de imagem | `TextArea` (legenda) | não há área de texto visível para clicar |
 | Esc durante edição | `BoardView` | sair da edição |
 | Desfazer/refazer | `BoardView` | encerrar edição antes (ver 4.7) |
 
@@ -1145,7 +1278,8 @@ você estava editando.
 - [ ] `Card.copy()`: copiar o valor (se fizer sentido na duplicação)
 - [ ] `BoardSnapshot.CardState`: novo componente + `of()` + `applyTo()` → **senão desfazer ignora a propriedade**
   (exemplo completo: veja como `panelMode`, `detailText` e `listItems` foram adicionados, ou
-  `baseWidth`/`baseHeight`/`fontSize`, com valor padrão para arquivos antigos)
+  `baseWidth`/`baseHeight`/`fontSize`, com valor padrão para arquivos antigos; o mais recente é
+  `imageFile`, que percorreu o checklist inteiro)
 - [ ] `BoardFileFormat.CardData`: novo componente → **senão não salva**
 - [ ] `BoardStorage.toData` / `fromData`: mapear, com valor padrão para arquivos antigos
 - [ ] `CardView`: refletir visualmente (pseudo-classe ou variável CSS), se houver efeito visual
@@ -1176,9 +1310,14 @@ a funcionar sem mais nada.
 
 ## 5.3 Adicionar uma ferramenta
 
-1. Constante em `Tool` (nome, tecla, formato ou `null`, ícone, dica).
+1. Constante em `Tool` (nome, tecla, formato ou `null`, ícone em `Icons`, dica).
 2. Comportamento no controller adequado, checando `activeTool.get() == Tool.NOVA`.
 3. Cursor/estilo em `app.css` usando `:tool-nova`, se preciso.
+
+**Ferramenta que é uma ação** (ex.: `Tool.IMAGE`): em vez de esperar um clique no canvas, o controller
+escuta `activeTool` e, quando ela vira a ferramenta, faz a ação e volta para Selecionar — dentro de um
+`Platform.runLater`, para não mudar a propriedade no meio da notificação da própria mudança. Botão, tecla
+e dica funcionam sem mais nada.
 
 ## 5.4 Adicionar uma ação na barra flutuante
 
@@ -1205,7 +1344,8 @@ derivada da largura, e o canto oposto à alça fica parado.
 ## 5.6 Mapa das próximas funcionalidades (Trello)
 
 Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
-**[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15):
+**[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9) e as
+imagens nos cards (3.17):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -1214,7 +1354,6 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
-| **Imagens nos cards** | Propriedade com o nome do arquivo (checklist 5.1); arquivos em `imagens/` do save (3.9: `imagesSource` no `BoardStorage.save` e `BoardImages.removeUnused` depois do save) | A infraestrutura de pasta já existe; falta a propriedade, a ferramenta/colar/arrastar e o conjunto de nomes usados (incluindo o histórico de desfazer) |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
 | **Lock de item** | Propriedade `locked` (checklist 5.1); `CardDragController` ignora cards travados; pseudo-classe `:locked` | Excluir/duplicar travados? decidir |
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
@@ -1240,6 +1379,14 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | `version` dentro do JSON decide pasta × `.json` antigo | Decidir pelo nome ou extensão do arquivo | O nome pode ser qualquer um num save antigo; `board.json` é só o nome fixo exigido dos saves novos |
 | Salvar um board vindo de `.json` antigo = "Salvar como" | Sobrescrever o `.json` ou converter em lugar | Nunca se perde o arquivo antigo; sem conversor separado, o primeiro salvamento converte |
 | Limpar `imagens/` só ao salvar, com o conjunto de nomes dado por quem chama | Apagar a imagem ao excluir o card | O desfazer pode trazer o card de volta; ver a atenção em 3.9 |
+| Conjunto de imagens em uso = árvore inteira + fotos do histórico | Só o board atual | Ctrl+Z depois de salvar traz o card com a imagem; arquivos de cards excluídos ficam até o histórico ser zerado (3.9) |
+| Imagem inserida vai para uma pasta de trabalho temporária, mesmo com o save já em pasta | Gravar direto em `imagens/` do save | O save só muda quando o usuário salva; board novo, `.json` antigo e save em pasta seguem o mesmo caminho (3.17) |
+| PNG/JPG dentro do limite: bytes originais; acima de 2000 px: reduzido (JPG→JPG, resto→PNG); GIF e BMP → PNG | Recomprimir tudo; guardar sempre o original | Sem perda quando não precisa; save leve; GIF parado igual na tela e no PDF |
+| ImageIO (`java.desktop`, já exigido) | Módulo `javafx.swing` (`SwingFXUtils`) | Nenhum módulo novo; a conversão JavaFX → `BufferedImage` é um laço de pixels (4.9) |
+| Card de imagem: tamanho à mão = imagem; legenda faz o card crescer embaixo | Guardar a proporção da imagem num campo à parte | Nenhuma propriedade extra; a proporção nunca se perde, nem com a imagem faltando (o aviso ocupa o mesmo espaço) |
+| Fonte automática da legenda = 14 px fixos | "Maior fonte que cabe", como nos outros cards | O espaço da legenda começa em zero: o automático daria sempre a fonte mínima |
+| Card de imagem é sempre retângulo | Recortar a imagem em elipse/losango | Imagem recortada perde conteúdo; o botão de formato some para imagens |
+| Imagem faltando: aviso no lugar e referência mantida | Remover o card ou a referência ao abrir | Não perde dado: devolver o arquivo à pasta faz a imagem voltar |
 | Nome do board filho = texto do card | Nome próprio no `Board` | Nada para manter em sincronia; renomear o card renomeia o caminho |
 | Desfazer por board | Um histórico global | `Ctrl+Z` desfaz o que está na tela, não algo de outro nível |
 | Barra flutuante fora do `world` | Dentro do `world` | Não sofrer zoom |
@@ -1285,18 +1432,30 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
     renomeado deixa de abrir (versão 2 exige o nome `board.json`) (3.9).
 17. **Limpeza de imagens × desfazer:** o conjunto de nomes passado a `BoardImages.removeUnused` precisa
     incluir as imagens das fotos do histórico; só o board atual faria o `Ctrl+Z` trazer um card sem a
-    imagem. Conjunto vazio apaga **tudo** de `imagens/`; por isso a limpeza só é ligada quando houver
-    cards com imagem (3.9).
+    imagem. Conjunto vazio apaga **tudo** de `imagens/`. Use sempre `ImageController.imagesInUse` (3.9).
 18. **Tudo que está solto na pasta do save é do usuário.** O programa só mexe em `board.json`,
     `board.json.tmp` e nos arquivos diretamente dentro de `imagens/`; o "Salvar como" não copia outros
     arquivos da pasta de origem.
 19. **`mvn test` com JDK 21 e caminho com acento** (ex.: `...\Projeto de programação\...`) falha com
     `ClassNotFoundException` ao criar a classe de teste (o argfile do surefire sai com a codificação
     errada). Use o JDK 17 no `JAVA_HOME`, como o resto da documentação já pressupõe (A).
+20. **Card de imagem: tamanho à mão = imagem.** Quem mexer no tamanho de um card de imagem precisa manter
+    `baseWidth`/`baseHeight` na proporção da imagem (como faz `CardResizeController.resizeImage`);
+    `Card.resize` com outra proporção deixaria a imagem com faixas vazias (ela é desenhada com
+    `preserveRatio`). `Card.changeShape` não é chamado para imagens (3.17).
+21. **Foto de celular deitada:** nem o ImageIO nem o JavaFX leem a orientação EXIF do JPG. Uma foto que
+    o celular gravou "deitada" com a marca de girar aparece deitada no board (e no PDF).
+22. **JPG em CMYK** (alguns arquivos de gráfica/Photoshop) não abre no ImageIO: a inserção é recusada com
+    mensagem. Converter para RGB antes.
+23. **Imagem colada invisível:** alguns programas no Windows copiam a imagem com o canal alfa todo zerado.
+    O `ImageController.toBufferedImage` trata "tudo transparente" como opaco; se um dia aparecer uma
+    imagem colada "vazia", é por aí.
+24. **Pasta de trabalho no `%TEMP%`:** se o programa for fechado à força (sem passar pelo encerramento da
+    JVM), a pasta `boardvisual-imagens-…` fica para trás no temporário do sistema. Não afeta nenhum save.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 111 testes, sem abrir janela
+### Automatizados (`mvn test`) — 145 testes, sem abrir janela
 
 | Classe | Cobre |
 |---|---|
@@ -1306,14 +1465,17 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 | `AlignmentGuidesTest` | grudar borda/centro, candidato mais próximo, limite, guias atravessando várias caixas, redimensionar (só bordas puxadas) |
 | `BoxResizerTest` | cada tipo de alça, lado oposto parado, tamanho mínimo, proporção, grude só nas bordas puxadas, Alt (limite 0) |
 | `BoardSnapshotTest` | foto/restauração: mudança de propriedades, fonte e tamanho definido à mão, card excluído com setas, card novo |
-| `CardTextFitTest` | fonte máxima/menor/mínima, palavra nunca quebrada no meio, retângulo cresce só na altura, elipse mantém proporção, volta ao tamanho à mão, fonte manual, card vazio, espaço do botão (com medidor falso, sem JavaFX) |
+| `CardTextFitTest` | fonte máxima/menor/mínima, palavra nunca quebrada no meio, retângulo cresce só na altura, elipse mantém proporção, volta ao tamanho à mão, fonte manual, card vazio, espaço do botão; card de imagem: sem legenda não cresce, legenda cresce embaixo sem distorcer a imagem, fonte da legenda, imagem maior (com medidor falso, sem JavaFX) |
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
 | `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
-| `PdfExporterTest` | ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário |
-| `BoardStorageTest` | salvar/abrir em pasta (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), abrir pela pasta ou pelo `board.json`, `.json` antigo (abre, salva no formato novo sem alterar o antigo, versão decide e não o nome), JSON inválido, pasta incompleta, `board.json` vazio, versão futura, `version` 2 com outro nome, "salvar como" copiando `imagens/`, imagens copiadas antes do JSON (falha na gravação não deixa JSON solto), falha mantém o `board.json` anterior, destino livre × save existente × ocupado |
-| `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada |
-| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão: preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
+| `PdfExporterTest` | ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
+| `BoardStorageTest` | salvar/abrir em pasta (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), abrir pela pasta ou pelo `board.json`, `.json` antigo (abre, salva no formato novo sem alterar o antigo, versão decide e não o nome), JSON inválido, pasta incompleta, `board.json` vazio, versão futura, `version` 2 com outro nome, "salvar como" copiando `imagens/`, imagens copiadas antes do JSON (falha na gravação não deixa JSON solto), falha mantém o `board.json` anterior, destino livre × save existente × ocupado; card de imagem salvo e aberto com o arquivo, card sem imagem não grava o campo, save anterior sem o campo abre, imagem faltando (e nome com `../`) não quebra e mantém a referência, imagens de várias origens |
+| `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada; achar o arquivo na ordem das pastas, nomes com pasta recusados |
+| `ImageImporterTest` | (imagens reais geradas no teste) PNG e JPG pequenos copiados byte a byte com nome novo, grande reduzido a 2000 px mantendo a proporção (JPG continua JPG, PNG mantém transparência), GIF e BMP viram PNG, formato pelo conteúdo e não pela extensão, arquivo quebrado/não imagem/inexistente recusado sem sobras, imagem em memória vira PNG, extensões aceitas |
+| `ImageCardTest` | card de imagem nasce retângulo do tamanho da imagem, altura da imagem pela proporção, nome em branco = sem imagem, duplicar reutiliza o arquivo, desfazer/refazer a inserção, imagens da árvore inteira e das fotos |
+| `ImageCardControllerTest` | limpeza ao salvar mantém imagens de boards aninhados e do histórico e remove só a órfã; histórico zerado libera a imagem; tamanho inicial (limite, natural, ampliada); redimensionar mantém a proporção em todos os cantos, canto oposto parado, mínimo pelo maior lado |
+| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o
 benefício direto da separação em camadas.
@@ -1334,6 +1496,18 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   salvamento em pasta foi validado: novo board → `Ctrl+S` → reabrir → "salvar como" com imagem falsa em
   `imagens/` → abrir um `.json` antigo → salvar no formato novo (conferindo que o `.json` antigo ficou
   byte a byte igual) → abrir um `board.json` quebrado (mensagem de erro, board da tela preservado).
+- **Imagens nos cards** foram validadas por um roteiro que roda o app na mesma JVM e dirige mouse e
+  teclado com o `java.awt.Robot` (funciona mesmo com um seletor nativo aberto, ao contrário do `Robot` do
+  JavaFX, que exige a thread do JavaFX). A área de transferência do sistema é preenchida pelo AWT (texto,
+  imagem ou lista de arquivos, como um programa de fora), e o **arrastar** vem de uma janela Swing com um
+  rótulo arrastável — um arraste de verdade entre programas, como o do Explorer. Os caminhos nos seletores
+  nativos entram por `Ctrl+V` (digitar letra a letra depende do layout do teclado). Roteiro: ferramenta `I`
+  → colar imagem → colar arquivos GIF/BMP copiados (um passo; desfazer/refazer) → arrastar um JPG de
+  3000 px → redimensionar pelo canto (proporção) → duplo clique e legenda (com `i` e `Ctrl+V` indo para o
+  texto) → duplicar → excluir → `Ctrl+S` numa pasta com acento → `Ctrl+Z` traz o card excluído com a
+  imagem → exportar PDF (renderizado de volta para conferir a imagem; legenda buscável) → reabrir →
+  "salvar como" (só as imagens usadas) → apagar um arquivo e reabrir (aviso no card, referência mantida).
+  Rodou com o app no classpath e no module path (como o `mvn javafx:run`).
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.

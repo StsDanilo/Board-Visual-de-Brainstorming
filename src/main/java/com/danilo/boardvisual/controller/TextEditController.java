@@ -2,6 +2,8 @@ package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.view.CardView;
 import javafx.beans.value.ObservableBooleanValue;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 
 /**
  * Registra a edição de texto de um card no histórico.
@@ -20,6 +22,13 @@ public class TextEditController {
 
     public void attach(CardView cardView) {
         track(cardView.textFocusedProperty());
+        // Card de imagem sem legenda não tem área de texto para clicar: duplo clique abre a legenda.
+        cardView.getBody().addEventHandler(MouseEvent.MOUSE_CLICKED, e -> {
+            if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2 && cardView.getCard().hasImage()) {
+                cardView.focusText();
+                e.consume();
+            }
+        });
     }
 
     /** Trata como uma sessão de edição o período em que {@code editing} for verdadeiro. */

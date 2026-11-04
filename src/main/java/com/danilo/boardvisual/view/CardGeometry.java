@@ -52,6 +52,27 @@ final class CardGeometry {
      * Em painéis flutuantes, a parte de baixo reserva espaço para o botão.
      */
     static Insets contentInsets(CardShape shape, double width, double height, boolean panel) {
+        return contentInsets(shape, width, height, panel, 0);
+    }
+
+    /** Espaço entre a imagem e a legenda, num card de imagem. */
+    static final double IMAGE_CAPTION_GAP = 6;
+
+    /**
+     * Como {@link #contentInsets(CardShape, double, double, boolean)}, num card
+     * com imagem de altura {@code imageHeight} no topo: o texto (legenda) fica
+     * abaixo dela.
+     */
+    static Insets contentInsets(CardShape shape, double width, double height, boolean panel, double imageHeight) {
+        Insets insets = shapeInsets(shape, width, height, panel);
+        if (imageHeight <= 0) {
+            return insets;
+        }
+        return new Insets(Math.max(insets.getTop(), imageHeight + IMAGE_CAPTION_GAP),
+                insets.getRight(), insets.getBottom(), insets.getLeft());
+    }
+
+    private static Insets shapeInsets(CardShape shape, double width, double height, boolean panel) {
         Insets base = switch (shape) {
             case RECTANGLE -> new Insets(12, 10, 10, 10);
             // Retângulo inscrito na elipse: lados a·√2 e b·√2.
