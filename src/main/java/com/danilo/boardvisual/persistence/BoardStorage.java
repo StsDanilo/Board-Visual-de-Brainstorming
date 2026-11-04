@@ -174,6 +174,7 @@ public class BoardStorage {
                         c.getBaseWidth(), c.getBaseHeight(), c.isAutoFontSize() ? null : c.getFontSize(),
                         c.getText(), c.getColor(), c.getShape().name(),
                         c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts(), c.getImageFile(),
+                        c.hasLink() ? c.getLink() : null,
                         c.hasChildBoard() ? toData(c.getChildBoard()) : null))
                 .toList();
         List<ConnectionData> connections = board.getConnections().stream()
@@ -208,6 +209,12 @@ public class BoardStorage {
                 // Mantido mesmo se o arquivo não existir ou o nome for estranho: a tela
                 // mostra o aviso de imagem não encontrada, e o dado não se perde.
                 card.setImageFile(cd.imageFile());
+                // Arquivo adulterado ou editado à mão: o que não for http(s) válido
+                // (file:, javascript:, caminho do computador...) é descartado aqui.
+                card.setLink(cd.link());
+                if (cd.link() != null && !cd.link().isBlank() && !card.hasLink()) {
+                    System.err.println("Link inválido descartado ao abrir o card " + cd.id());
+                }
                 if (cd.childBoard() != null) {
                     card.setChildBoard(fromData(cd.childBoard()));
                 }

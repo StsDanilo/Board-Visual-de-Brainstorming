@@ -2,10 +2,13 @@ package com.danilo.boardvisual.export;
 
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.PanelMode;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageDestination;
@@ -212,6 +215,98 @@ class PdfExporterTest {
         }
         try (var files = Files.list(dir)) {
             assertEquals(1, files.count(), "sem arquivo temporário sobrando");
+        }
+    }
+
+    // ------------------------------------------------------------ link externo
+
+    private static List<PDAnnotationLink> uriLinks(PDPage page) throws IOException {
+        List<PDAnnotationLink> result = new ArrayList<>();
+        for (PDAnnotationLink link : links(page)) {
+            if (link.getAction() instanceof PDActionURI) {
+                result.add(link);
+            }
+        }
+        return result;
+    }
+
+    private static String uriOf(PDAnnotationLink link) {
+        return ((PDActionURI) link.getAction()).getURI();
+    }
+
+    @Test
+    void cardWithLinkOpensTheAddressFromTheWholeCard(@TempDir Path dir) throws IOException {
+        Board root = new Board("Links");
+        Card card = new Card(0, 0);
+        card.setText("Site");
+        card.setLink("https://açaí.com.br/página");
+        root.addCard(card);
+        Path file = dir.resolve("links.pdf");
+
+        exporter.export(root, file);
+
+        try (PDDocument document = Loader.loadPDF(file.toFile())) {
+            List<PDAnnotationLink> uris = uriLinks(document.getPage(0));
+            assertEquals(1, uris.size());
+            assertEquals("https://xn--aa-4iaz.com.br/p%C3%A1gina", uriOf(uris.get(0)), "endereço só em ASCII");
+            PDRectangle rect = uris.get(0).getRectangle();
+            assertEquals(card.getWidth(), rect.getWidth(), 1e-3, "o card todo é clicável");
+            assertEquals(card.getHeight(), rect.getHeight(), 1e-3);
+        }
+    }
+
+    @Test
+    void cardThatAlreadyLeadsToAPageOpensTheLinkOnlyFromTheClip() throws IOException {
+        Board root = new Board("Misto");
+        Card holder = new Card(0, 0);
+        holder.setText("Projeto");
+        holder.setChildBoard(new Board(""));
+        holder.setLink("exemplo.com");
+        root.addCard(holder);
+
+        try (PDDocument document = exporter.build(root)) {
+            PDPage page = document.getPage(0);
+            List<PDAnnotationLink> all = links(page);
+            assertEquals(2, all.size());
+            PDAnnotationLink toChild = all.get(0);
+            PDAnnotationLink toSite = all.get(1); // depois = por cima do link do card
+            assertTrue(toSite.getAction() instanceof PDActionURI, "o clipe fica por cima");
+            assertEquals("https://exemplo.com", uriOf(toSite));
+            assertEquals(1, pageIndex(document, toChild), "o card continua levando ao board filho");
+
+            PDRectangle clip = toSite.getRectangle();
+            PDRectangle cardRect = toChild.getRectangle();
+            assertEquals(CardMarkers.SIZE, clip.getWidth(), 1e-3, "só a área do clipe");
+            assertTrue(clip.getLowerLeftX() >= cardRect.getLowerLeftX());
+            assertTrue(clip.getUpperRightX() <= cardRect.getUpperRightX());
+            assertTrue(clip.getUpperRightY() <= cardRect.getUpperRightY());
+            assertTrue(clip.getUpperRightY() > cardRect.getUpperRightY() - 30, "na borda de cima");
+        }
+    }
+
+    @Test
+    void markerRectFollowsTheScreenLayout() {
+        Card card = new Card(0, 0);
+        card.setLink("exemplo.com");
+        PDRectangle cardRect = new PDRectangle(100, 50, 200, 120);
+        CardMarkers.Spot spot = CardMarkers.layout(card).get(0);
+
+        PDRectangle half = PdfExporter.markerRect(card, new PDRectangle(100, 50, 100, 60), 0.5, CardMarkers.Kind.LINK);
+        PDRectangle full = PdfExporter.markerRect(card, cardRect, 1, CardMarkers.Kind.LINK);
+
+        assertEquals(100 + spot.x(), full.getLowerLeftX(), 1e-3);
+        assertEquals(170 - spot.y(), full.getUpperRightY(), 1e-3, "PDF: origem embaixo");
+        assertEquals(spot.size() / 2, half.getWidth(), 1e-3, "acompanha a escala da página");
+        assertEquals(cardRect, PdfExporter.markerRect(new Card(0, 0), cardRect, 1, CardMarkers.Kind.LINK),
+                "sem o marcador: o card todo");
+    }
+
+    @Test
+    void cardsWithoutLinkHaveNoUriAnnotation() throws IOException {
+        try (PDDocument document = exporter.build(sample())) {
+            for (PDPage page : document.getPages()) {
+                assertEquals(List.of(), uriLinks(page));
+            }
         }
     }
 }

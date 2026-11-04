@@ -39,10 +39,15 @@ mvn test
   A imagem vira um card (mover, redimensionar sempre na proporção, conectar, duplicar, desfazer, salvar),
   com legenda opcional embaixo (duplo clique na imagem). Aceita PNG, JPG, GIF (primeiro quadro) e BMP;
   imagens maiores que 2000 px são reduzidas ao inserir. O arquivo fica na pasta `imagens/` do save
+- Link externo em qualquer card (comum, painel, board aninhado ou imagem): clique direito no card
+  › "Adicionar link..." (ou o botão Link da barra flutuante) e digite o endereço. O card mostra um
+  clipe na borda de cima; clicar nele abre o endereço no navegador (a dica mostra o endereço). Só
+  aceita `http://` e `https://` (sem esquema, assume `https://`). No PDF o card vira link para o site
+- Menu de clique direito nos cards (clique sem arrastar; arrastar com o direito continua movendo a visão)
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Imagem, Conexão e cor dos novos cards
-- Barra flutuante da seleção: cor, formato, tamanho do texto, duplicar e excluir
+- Barra flutuante da seleção: cor, formato, tamanho do texto, link (com um card selecionado), duplicar e excluir
 - Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`);
   saves antigos (um `.json` solto) continuam abrindo e viram pasta no primeiro "Salvar"
 - Exportar para PDF navegável: uma página por board, cards de board aninhado e caminho do topo
@@ -72,6 +77,8 @@ mvn test
 | `Esc` | Sair da edição de texto → fechar painel flutuante → voltar para Selecionar → limpar seleção |
 | `Espaço` + arrastar | Mover a visão (também: botão do meio ou direito) |
 | `Shift` + clique | Somar/retirar card da seleção |
+| Clique direito no card (sem arrastar) | Menu do card: adicionar, editar, abrir ou remover o link |
+| Clique no clipe do card | Abrir o link no navegador |
 | `Alt` + arrastar card ou alça | Mover/redimensionar sem alinhamento automático |
 | `Shift` + arrastar canto | Redimensionar mantendo a proporção (retângulo) |
 | `Ctrl+N` / `Ctrl+O` | Novo board / abrir |
@@ -100,6 +107,8 @@ MeuBoard/
   arquivo faz a imagem voltar.
 
 - **Salvar como** (`Ctrl+Shift+S`): o nome digitado vira o nome da pasta.
+- Links dos cards ficam no `board.json`; um endereço que não seja `http(s)` (arquivo editado à mão)
+  é descartado ao abrir.
 - **Abrir** (`Ctrl+O`): escolha o `board.json` dentro da pasta do board.
 - **Saves antigos** (um `.json` solto) abrem normalmente. O primeiro "Salvar" pede a pasta nova e não
   mexe no arquivo antigo.

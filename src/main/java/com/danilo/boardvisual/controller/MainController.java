@@ -45,13 +45,19 @@ public class MainController {
     private final EditHistory history;
     private final NavigationController navigation;
     private final ImageController images;
+    private final CardContextMenuController contextMenu;
+    private final LinkController links;
 
     /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
     private Path currentFolder;
     /** .json antigo aberto e ainda não salvo no formato novo (pasta); nulo nos demais casos. */
     private Path legacyFile;
 
-    public MainController(Stage stage, MainWindow window) {
+    /**
+     * @param linkOpener abre os links dos cards no navegador (na aplicação,
+     *                   {@code HostServices::showDocument}; nos roteiros de teste, um interceptador)
+     */
+    public MainController(Stage stage, MainWindow window, LinkController.Opener linkOpener) {
         this.stage = stage;
         this.window = window;
         this.boardView = window.getBoardView();
@@ -73,6 +79,8 @@ public class MainController {
                 boardView, window.getSelectionToolbar(), history, textEditController);
         navigation = new NavigationController(boardView, window.getBreadcrumb(), history);
         images = new ImageController(stage, boardView, activeTool, history);
+        contextMenu = new CardContextMenuController(boardView);
+        links = new LinkController(boardView, window.getSelectionToolbar(), history, linkOpener, contextMenu);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
                 canvasController, panelController, navigation, images, this);
         CardTextFitController textFitController = new CardTextFitController();
@@ -83,6 +91,7 @@ public class MainController {
             textEditController.attach(cardView);
             panelController.attach(cardView);
             navigation.attach(cardView);
+            links.attach(cardView);
         });
 
         wireMenu();
@@ -104,6 +113,16 @@ public class MainController {
         window.getSelectAllItem().setOnAction(e -> boardView.selectAll());
         window.getUndoItem().disableProperty().bind(history.canUndoProperty().not());
         window.getRedoItem().disableProperty().bind(history.canRedoProperty().not());
+    }
+
+    /** Menu de clique direito dos cards (as próximas funcionalidades acrescentam itens nele). */
+    public CardContextMenuController getContextMenu() {
+        return contextMenu;
+    }
+
+    /** Link externo dos cards (usado pelos roteiros de teste de interface). */
+    public LinkController getLinks() {
+        return links;
     }
 
     public void undo() {

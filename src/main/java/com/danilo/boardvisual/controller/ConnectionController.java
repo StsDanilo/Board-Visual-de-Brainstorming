@@ -40,8 +40,9 @@ public class ConnectionController {
     public void attach(CardView cardView) {
         // Filtros no próprio card: pegam o evento antes do TextArea e da alça.
         cardView.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
-            if (e.getButton() != MouseButton.PRIMARY) {
-                return;
+            if (e.getButton() != MouseButton.PRIMARY
+                    || cardView.isMarkerNode(e.getPickResult().getIntersectedNode())) {
+                return; // o marcador (clipe do link) age em qualquer ferramenta
             }
             Card card = cardView.getCard();
             boolean onHandle = e.getPickResult().getIntersectedNode() == cardView.getConnectorHandle();

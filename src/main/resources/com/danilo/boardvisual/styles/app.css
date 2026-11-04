@@ -206,6 +206,91 @@
     -fx-padding: 6;
 }
 
+/*
+ * Marcadores na borda de cima do card (CardMarkers): hoje o clipe do link.
+ * O tamanho (18 px) é fixado no código e NÃO deve ser definido aqui (o CSS
+ * venceria o código e desalinharia o marcador da conta do texto e do PDF).
+ * Aparecem também no PDF e no PNG, como aviso de que o card tem link.
+ */
+.card-marker {
+    -fx-background-color: -bv-border-strong, -bv-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 9, 8;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.card-marker .tool-icon {
+    -fx-stroke: -bv-accent;
+    -fx-stroke-width: 2.4;
+}
+
+.card-marker:hover {
+    -fx-background-color: -bv-accent, -bv-surface;
+}
+
+.card-marker:pressed {
+    -fx-background-color: -bv-accent, rgba(79, 124, 255, 0.14);
+}
+
+/* Botão Link da barra flutuante: marcado quando o card já tem link. */
+.link-button:selected .tool-icon {
+    -fx-stroke: -bv-accent;
+}
+
+/* Popup de edição do link. */
+.link-editor {
+    -fx-pref-width: 360;
+}
+
+.link-editor .link-editor-field {
+    -fx-background-color: -bv-border, -bv-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 6, 5;
+    -fx-padding: 6;
+    -fx-text-fill: -bv-text;
+    -fx-prompt-text-fill: -bv-text-muted;
+    -fx-highlight-fill: -bv-accent-soft;
+    -fx-highlight-text-fill: -bv-text;
+}
+
+.link-editor .link-editor-field:focused {
+    -fx-background-color: -bv-accent, -bv-surface;
+}
+
+.link-editor-error {
+    -fx-text-fill: -bv-danger;
+    -fx-font-size: 12px;
+}
+
+.link-editor-buttons {
+    -fx-spacing: 6;
+    -fx-padding: 4 0 0 0;
+}
+
+.link-editor-button {
+    -fx-background-color: -bv-border, -bv-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 6, 5;
+    -fx-padding: 5 12 5 12;
+    -fx-text-fill: -bv-text;
+    -fx-cursor: hand;
+}
+
+.link-editor-button:hover {
+    -fx-background-color: -bv-border-strong, -bv-hover;
+}
+
+.link-editor-button.primary {
+    -fx-background-color: -bv-accent, -bv-accent;
+    -fx-text-fill: -bv-surface;
+}
+
+.link-editor-button.danger:hover {
+    -fx-background-color: -bv-danger, -bv-danger-soft;
+    -fx-text-fill: -bv-danger;
+}
+
 /* Exportação para PDF (BoardRenderer): só o conteúdo, sem o que é de tela. */
 .board-export .card .card-text {
     -fx-prompt-text-fill: transparent;

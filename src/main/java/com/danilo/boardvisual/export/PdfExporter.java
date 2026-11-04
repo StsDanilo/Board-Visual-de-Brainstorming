@@ -4,7 +4,9 @@ import com.danilo.boardvisual.alignment.Box;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.BoardNames;
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.PanelMode;
+import com.danilo.boardvisual.model.WebLink;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -14,6 +16,7 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.graphics.state.RenderingMode;
+import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary;
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitDestination;
@@ -28,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Exporta um board e todos os seus boards aninhados para um PDF navegável.
@@ -42,7 +46,9 @@ import java.util.List;
  *
  * Em cada página de board: o caminho no topo (cada nível anterior é um link),
  * o board como imagem, e áreas clicáveis por cima — card de board aninhado
- * leva à página do filho, painel flutuante leva à página de detalhes. Uma
+ * leva à página do filho, painel flutuante leva à página de detalhes, card com
+ * link externo abre o endereço no navegador (o card todo, ou só o clipe se o
+ * card já leva a outra página). Uma
  * camada de texto invisível por cima dos cards permite buscar e copiar.
  * Os marcadores do PDF (barra lateral) espelham a mesma árvore.
  *
@@ -177,8 +183,31 @@ public final class PdfExporter {
                 if (target != null) {
                     link(page, rect, target);
                 }
+                // Link externo: o card todo abre o endereço; se o card já leva a outra
+                // página (board aninhado, detalhes), só o clipe abre (anotação por cima).
+                Optional<String> uri = WebLink.toBrowserUri(card.getLink());
+                if (uri.isPresent()) {
+                    uriLink(page, target == null ? rect : markerRect(card, rect, node.scale, CardMarkers.Kind.LINK),
+                            uri.get());
+                }
             }
         }
+    }
+
+    /**
+     * Onde fica um marcador do card na página (a mesma conta da tela,
+     * {@link CardMarkers#layout}); o card inteiro se ele não tem esse marcador.
+     */
+    static PDRectangle markerRect(Card card, PDRectangle cardRect, double scale, CardMarkers.Kind kind) {
+        for (CardMarkers.Spot spot : CardMarkers.layout(card)) {
+            if (spot.kind() == kind) {
+                float size = (float) (spot.size() * scale);
+                float x = cardRect.getLowerLeftX() + (float) (spot.x() * scale);
+                float top = cardRect.getUpperRightY() - (float) (spot.y() * scale);
+                return new PDRectangle(x, top - size, size, size);
+            }
+        }
+        return cardRect;
     }
 
     /**
@@ -333,6 +362,19 @@ public final class PdfExporter {
         PDPageFitDestination destination = new PDPageFitDestination();
         destination.setPage(target);
         link.setDestination(destination);
+        page.getAnnotations().add(link);
+    }
+
+    /** Área clicável sem borda que abre um endereço web (já conferido, só ASCII). */
+    private static void uriLink(PDPage page, PDRectangle rect, String uri) throws IOException {
+        PDAnnotationLink link = new PDAnnotationLink();
+        link.setRectangle(rect);
+        PDBorderStyleDictionary border = new PDBorderStyleDictionary();
+        border.setWidth(0);
+        link.setBorderStyle(border);
+        PDActionURI action = new PDActionURI();
+        action.setURI(uri);
+        link.setAction(action);
         page.getAnnotations().add(link);
     }
 

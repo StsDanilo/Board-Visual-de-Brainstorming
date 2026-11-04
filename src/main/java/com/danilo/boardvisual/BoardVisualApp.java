@@ -15,7 +15,8 @@ public class BoardVisualApp extends Application {
     @Override
     public void start(Stage stage) {
         MainWindow window = new MainWindow();
-        new MainController(stage, window);
+        // Os links dos cards abrem no navegador padrão pelo HostServices da aplicação.
+        new MainController(stage, window, getHostServices()::showDocument);
 
         Scene scene = new Scene(window, 1280, 720);
         scene.getStylesheets().add(

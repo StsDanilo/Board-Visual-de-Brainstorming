@@ -213,4 +213,29 @@ class CardTextFitTest {
 
         assertTrue(withButton < plain);
     }
+
+    @Test
+    void linkMarkerSpaceIsReservedAtTheTop() {
+        String text = "uma ideia comprida ".repeat(4).trim();
+        Card plain = rectangle(text);
+        Card linked = rectangle(text);
+        linked.setLink("exemplo.com");
+
+        assertTrue(fit.fit(linked).fontSize() < fit.fit(plain).fontSize(), "o texto começa abaixo do clipe");
+
+        Card longText = rectangle(LONG_TEXT);
+        Card longLinked = rectangle(LONG_TEXT);
+        longLinked.setLink("exemplo.com");
+        assertTrue(fit.fit(longLinked).height() > fit.fit(longText).height(), "cresce o que o clipe ocupa");
+    }
+
+    @Test
+    void diamondHasRoomForTheMarkerAboveTheText() {
+        // No losango o recuo de cima já passa da fileira de marcadores: nada muda.
+        String text = "Ideia";
+        double plain = fit.fit(CardShape.DIAMOND, 260, 170, false, 0, 0, text, Card.AUTO_FONT_SIZE).fontSize();
+        double marked = fit.fit(CardShape.DIAMOND, 260, 170, false, 0, 1, text, Card.AUTO_FONT_SIZE).fontSize();
+
+        assertEquals(plain, marked);
+    }
 }

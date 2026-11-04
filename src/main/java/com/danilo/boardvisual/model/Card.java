@@ -2,6 +2,8 @@ package com.danilo.boardvisual.model;
 
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.ReadOnlyStringProperty;
+import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -30,6 +32,9 @@ import java.util.UUID;
  *
  * Ou pode mostrar uma imagem ({@link #getImageFile()}): o card guarda só o
  * nome do arquivo na pasta imagens/ do save, e o texto vira a legenda.
+ *
+ * Qualquer card pode ter ainda um endereço web ({@link #getLink()}), aberto
+ * no navegador pelo marcador de clipe.
  *
  * Tamanho: {@link #getBaseWidth()}/{@link #getBaseHeight()} guardam o tamanho
  * definido à mão (ao criar ou redimensionar); {@link #getWidth()}/{@link #getHeight()}
@@ -68,6 +73,12 @@ public class Card {
 
     /** Nome do arquivo da imagem na pasta {@code imagens/} do save, ou {@code null}. */
     private final StringProperty imageFile = new SimpleStringProperty(this, "imageFile");
+
+    /**
+     * Endereço web do card ("" = sem link). Só leitura por fora: tudo passa por
+     * {@link #setLink}, que garante que nunca há aqui algo além de http(s) válido.
+     */
+    private final ReadOnlyStringWrapper link = new ReadOnlyStringWrapper(this, "link", "");
 
     public Card(double x, double y) {
         this(UUID.randomUUID().toString(), x, y);
@@ -268,6 +279,27 @@ public class Card {
         return cardWidth * getBaseHeight() / getBaseWidth();
     }
 
+    // ---------------------------------------------------------------- link
+
+    /**
+     * Endereço web (link externo) do card, já normalizado ({@link WebLink});
+     * vazio = sem link. Qualquer card pode ter um: comum, painel, board
+     * aninhado ou imagem. A tela mostra um marcador de clipe ({@link CardMarkers}).
+     */
+    public ReadOnlyStringProperty linkProperty() { return link.getReadOnlyProperty(); }
+    public String getLink() { return link.get(); }
+
+    /**
+     * Define o link. O valor é normalizado ({@code exemplo.com} vira
+     * {@code https://exemplo.com}); o que não é http(s) válido vira "sem link"
+     * (quem quer avisar o usuário confere antes com {@link WebLink#check}).
+     */
+    public void setLink(String value) { link.set(WebLink.normalizeOrEmpty(value)); }
+
+    public boolean hasLink() {
+        return !getLink().isEmpty();
+    }
+
     // ---------------------------------------------------------------- formato
 
     /**
@@ -308,6 +340,7 @@ public class Card {
         copy.setListItemTexts(getListItemTexts());
         // Mesmo arquivo: duplicar não copia a imagem de novo.
         copy.setImageFile(getImageFile());
+        copy.setLink(getLink());
         if (hasChildBoard()) {
             copy.setChildBoard(getChildBoard().deepCopy());
         }

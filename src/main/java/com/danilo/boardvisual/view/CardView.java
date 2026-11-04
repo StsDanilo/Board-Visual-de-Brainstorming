@@ -1,9 +1,11 @@
 package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.model.PanelMode;
 import javafx.application.Platform;
+import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.DoubleBinding;
 import javafx.beans.property.ReadOnlyBooleanProperty;
@@ -25,7 +27,11 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Representação visual de um {@link Card}.
@@ -42,6 +48,7 @@ import java.util.Locale;
  *  │       └─ textArea
  *  ├─ panelButton             abre o painel flutuante (só em cards com painel)
  *  ├─ boardButton             entra no board filho (só em cards com board aninhado)
+ *  ├─ marcadores              botõezinhos na borda de cima (clipe do link), ver {@link CardMarkers}
  *  └─ connectorHandle         alça para criar conexões
  * </pre>
  */
@@ -76,6 +83,8 @@ public class CardView extends Region {
     private final StackPane imageBox = new StackPane();
     private final ImageView imageView = new ImageView();
     private final Label missingImage = new Label("Imagem não encontrada");
+    /** Marcadores na borda de cima, um botão por tipo (ver {@link CardMarkers}). */
+    private final Map<CardMarkers.Kind, Button> markers = new EnumMap<>(CardMarkers.Kind.class);
 
     public CardView(Card card) {
         this(card, CardImageLoader.NONE);
@@ -100,12 +109,16 @@ public class CardView extends Region {
         // O recuo depende do formato e do tamanho, por isso é calculado aqui e
         // não no CSS (e .card-content não deve definir -fx-padding no app.css).
         content.getStyleClass().add("card-content");
-        content.paddingProperty().bind(Bindings.createObjectBinding(
-                () -> CardGeometry.contentInsets(card.getShape(), card.getWidth(), card.getHeight(),
-                        card.isPanel() || card.hasChildBoard(), card.imageHeight(card.getWidth())),
+        List<Observable> paddingDeps = new ArrayList<>(List.of(
                 card.shapeProperty(), card.widthProperty(), card.heightProperty(),
                 card.panelModeProperty(), card.childBoardProperty(),
                 card.imageFileProperty(), card.baseWidthProperty(), card.baseHeightProperty()));
+        paddingDeps.addAll(List.of(CardMarkers.dependencies(card)));
+        content.paddingProperty().bind(Bindings.createObjectBinding(
+                () -> CardGeometry.contentInsets(card.getShape(), card.getWidth(), card.getHeight(),
+                        card.isPanel() || card.hasChildBoard(), card.imageHeight(card.getWidth()),
+                        CardMarkers.of(card).size()),
+                paddingDeps.toArray(new Observable[0])));
         content.getChildren().add(textArea);
         // A área ocupa o card todo (o recuo fica por dentro); só o texto deve
         // ser clicável aqui, o resto cai no body, que respeita a silhueta.
@@ -146,7 +159,11 @@ public class CardView extends Region {
         pseudoClassStateChanged(HAS_BOARD, card.hasChildBoard());
         card.childBoardProperty().addListener((obs, old, child) -> pseudoClassStateChanged(HAS_BOARD, child != null));
 
-        getChildren().addAll(body, panelButton, boardButton, connectorHandle);
+        setUpMarkers();
+
+        getChildren().addAll(body, panelButton, boardButton);
+        getChildren().addAll(markers.values());
+        getChildren().add(connectorHandle);
 
         layoutXProperty().bind(card.xProperty());
         layoutYProperty().bind(card.yProperty());
@@ -176,6 +193,21 @@ public class CardView extends Region {
 
     public Button getBoardButton() {
         return boardButton;
+    }
+
+    /** O botão do marcador ({@link CardMarkers}); só aparece quando o card tem esse marcador. */
+    public Button getMarker(CardMarkers.Kind kind) {
+        return markers.get(kind);
+    }
+
+    /** Indica se o nó faz parte de um marcador (clicar nele age, não seleciona nem arrasta o card). */
+    public boolean isMarkerNode(Node node) {
+        for (Node n = node; n != null && n != this; n = n.getParent()) {
+            if (n instanceof Button button && markers.containsValue(button)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Destaca o botão enquanto o painel deste card está aberto. */
@@ -232,6 +264,46 @@ public class CardView extends Region {
         panelButton.relocate(center.getX() - panelButton.getWidth() / 2, center.getY() - panelButton.getHeight() / 2);
         boardButton.autosize();
         boardButton.relocate(center.getX() - boardButton.getWidth() / 2, center.getY() - boardButton.getHeight() / 2);
+        for (CardMarkers.Spot spot : CardMarkers.layout(card)) {
+            Button marker = markers.get(spot.kind());
+            marker.resize(spot.size(), spot.size());
+            marker.relocate(spot.x(), spot.y());
+        }
+    }
+
+    /**
+     * Marcadores na borda de cima (hoje só o clipe do link). Um botão por tipo,
+     * criado sempre e mostrado só quando o card tem aquele marcador; a posição
+     * vem de {@link CardMarkers#layout}, a mesma conta usada pelo texto e pelo PDF.
+     * O tamanho é fixado aqui, não no CSS (o app.css venceria o código, 4.5).
+     */
+    private void setUpMarkers() {
+        for (CardMarkers.Kind kind : CardMarkers.Kind.values()) {
+            Button marker = new Button();
+            marker.getStyleClass().addAll("card-marker", "card-marker-" + kind.name().toLowerCase(Locale.ROOT));
+            marker.setGraphic(Icons.marker(kind));
+            marker.setFocusTraversable(false);
+            marker.setMinSize(CardMarkers.SIZE, CardMarkers.SIZE);
+            marker.setPrefSize(CardMarkers.SIZE, CardMarkers.SIZE);
+            marker.setMaxSize(CardMarkers.SIZE, CardMarkers.SIZE);
+            marker.setVisible(false);
+            Tooltip tooltip = new Tooltip();
+            tooltip.textProperty().bind(switch (kind) {
+                case LINK -> Bindings.concat("Abrir no navegador:\n", card.linkProperty());
+            });
+            marker.setTooltip(tooltip);
+            markers.put(kind, marker);
+        }
+        for (Observable dependency : CardMarkers.dependencies(card)) {
+            dependency.addListener(obs -> applyMarkers());
+        }
+        applyMarkers();
+    }
+
+    private void applyMarkers() {
+        List<CardMarkers.Kind> shown = CardMarkers.of(card);
+        markers.forEach((kind, marker) -> marker.setVisible(shown.contains(kind)));
+        requestLayout();
     }
 
     /**

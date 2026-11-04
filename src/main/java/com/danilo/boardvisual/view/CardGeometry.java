@@ -1,6 +1,7 @@
 package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
 import javafx.beans.Observable;
 import javafx.geometry.Insets;
@@ -64,12 +65,26 @@ final class CardGeometry {
      * abaixo dela.
      */
     static Insets contentInsets(CardShape shape, double width, double height, boolean panel, double imageHeight) {
+        return contentInsets(shape, width, height, panel, imageHeight, 0);
+    }
+
+    /**
+     * Como acima, num card com {@code markers} marcadores na borda de cima
+     * ({@link CardMarkers}): o texto começa abaixo da fileira deles. Num card de
+     * imagem os marcadores ficam sobre a imagem, então quase nunca mudam nada.
+     */
+    static Insets contentInsets(CardShape shape, double width, double height, boolean panel, double imageHeight,
+                                int markers) {
         Insets insets = shapeInsets(shape, width, height, panel);
-        if (imageHeight <= 0) {
+        double top = insets.getTop();
+        if (imageHeight > 0) {
+            top = Math.max(top, imageHeight + IMAGE_CAPTION_GAP);
+        }
+        top = Math.max(top, CardMarkers.reservedTop(shape, width, height, markers));
+        if (top == insets.getTop()) {
             return insets;
         }
-        return new Insets(Math.max(insets.getTop(), imageHeight + IMAGE_CAPTION_GAP),
-                insets.getRight(), insets.getBottom(), insets.getLeft());
+        return new Insets(top, insets.getRight(), insets.getBottom(), insets.getLeft());
     }
 
     private static Insets shapeInsets(CardShape shape, double width, double height, boolean panel) {

@@ -16,7 +16,7 @@ import javafx.scene.layout.HBox;
  * Novas ações (bloquear...) entram como mais botões aqui.
  *
  * Os botões de modo (Texto | Lista) só aparecem quando todos os selecionados
- * são painéis flutuantes.
+ * são painéis flutuantes; o botão Link, só com um card selecionado.
  */
 public class SelectionToolbarView extends HBox {
 
@@ -30,6 +30,8 @@ public class SelectionToolbarView extends HBox {
     private final Button textModeButton = actionButton("Painel: texto", Icons.PANEL_TEXT);
     private final Button listModeButton = actionButton("Painel: lista", Icons.PANEL_LIST);
     private final HBox panelModeGroup = new HBox();
+    /** Link externo do card selecionado (só com exatamente um card selecionado). */
+    private final Button linkButton = new Button();
 
     public SelectionToolbarView() {
         getStyleClass().addAll("floating-panel", "selection-toolbar");
@@ -45,8 +47,27 @@ public class SelectionToolbarView extends HBox {
         // O formato some quando só há cards de imagem selecionados (eles são sempre retângulos).
         shapeButton.managedProperty().bind(shapeButton.visibleProperty());
 
-        getChildren().addAll(colorButton, shapeButton, fontSizeButton, panelModeGroup,
+        linkButton.getStyleClass().addAll("tool-button", "link-button");
+        linkButton.setGraphic(Icons.link());
+        linkButton.setTooltip(new Tooltip("Link: adicionar, editar ou remover o endereço web do card"));
+        linkButton.setFocusTraversable(false);
+        linkButton.managedProperty().bind(linkButton.visibleProperty());
+
+        getChildren().addAll(colorButton, shapeButton, fontSizeButton, panelModeGroup, linkButton,
                 new Separator(Orientation.VERTICAL), duplicateButton, deleteButton);
+    }
+
+    /**
+     * Botão "Link". Aparece só com um card selecionado (o link é de um card) e
+     * fica marcado quando esse card já tem link.
+     */
+    public void showLink(boolean visible, boolean cardHasLink) {
+        linkButton.setVisible(visible);
+        linkButton.pseudoClassStateChanged(SELECTED, visible && cardHasLink);
+    }
+
+    public Button getLinkButton() {
+        return linkButton;
     }
 
     /**

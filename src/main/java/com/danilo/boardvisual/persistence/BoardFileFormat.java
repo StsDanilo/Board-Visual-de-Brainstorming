@@ -39,12 +39,16 @@ final class BoardFileFormat {
      * imageFile (nome do arquivo em imagens/, null = sem imagem) veio com as
      * imagens nos cards; arquivos anteriores não o têm (card sem imagem). O
      * Gson não grava campos nulos, então cards sem imagem nem citam o campo.
+     *
+     * link (endereço web, null = sem link) veio com o link externo, do mesmo
+     * jeito: sem novo bump de versão, ausente nos saves anteriores e nos cards
+     * sem link. Ao abrir, um link que não seja http(s) válido é descartado.
      */
     record CardData(String id, double x, double y, double width, double height,
                     Double baseWidth, Double baseHeight, Double fontSize,
                     String text, String color, String shape,
                     String panelMode, String detailText, List<String> listItems,
-                    String imageFile, BoardData childBoard) {
+                    String imageFile, String link, BoardData childBoard) {
     }
 
     record ConnectionData(String id, String sourceId, String targetId) {

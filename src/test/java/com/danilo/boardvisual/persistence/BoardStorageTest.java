@@ -466,6 +466,82 @@ class BoardStorageTest {
         assertEquals("oi", card.getText());
     }
 
+    // ------------------------------------------------------------ link externo
+
+    @Test
+    void savesAndLoadsTheLinkOfAnyKindOfCard(@TempDir Path dir) throws IOException {
+        Board board = new Board("Links");
+        Card plain = new Card("c1", 0, 0);
+        plain.setLink("exemplo.com/ideias");
+        Card photo = Card.createImage("foto.png", 400, 0, 200, 100);
+        photo.setLink("https://unit.br");
+        Card nested = new Card("c3", 0, 300);
+        nested.setChildBoard(new Board(""));
+        nested.setLink("http://localhost:8080/x");
+        board.addCard(plain);
+        board.addCard(photo);
+        board.addCard(nested);
+        Path folder = dir.resolve("Links");
+
+        storage.save(board, folder);
+        Board loaded = loadBoard(folder);
+
+        assertEquals("https://exemplo.com/ideias", loaded.findCard("c1").orElseThrow().getLink());
+        assertEquals("https://unit.br", loaded.findCard(photo.getId()).orElseThrow().getLink());
+        assertEquals("http://localhost:8080/x", loaded.findCard("c3").orElseThrow().getLink());
+        assertTrue(Files.readString(folder.resolve("board.json")).contains("\"link\": \"https://unit.br\""));
+    }
+
+    @Test
+    void cardsWithoutLinkDoNotWriteTheField(@TempDir Path dir) throws IOException {
+        Board board = new Board("Sem");
+        board.addCard(new Card(1, 2));
+        Path folder = dir.resolve("Sem");
+
+        storage.save(board, folder);
+
+        assertFalse(Files.readString(folder.resolve("board.json")).contains("\"link\""));
+    }
+
+    @Test
+    void previousSaveWithoutTheLinkFieldOpensWithoutLink(@TempDir Path dir) throws IOException {
+        Path folder = Files.createDirectories(dir.resolve("Anterior"));
+        Files.writeString(folder.resolve("board.json"), """
+                { "version": 2, "id": "b1", "name": "Anterior",
+                  "cards": [ { "id": "c1", "x": 5, "y": 6, "width": 200, "height": 120, "text": "oi" } ],
+                  "connections": [] }
+                """, StandardCharsets.UTF_8);
+
+        Card card = loadBoard(folder).findCard("c1").orElseThrow();
+
+        assertFalse(card.hasLink());
+        assertEquals("", card.getLink());
+    }
+
+    @Test
+    void maliciousLinksInTheFileAreDiscarded(@TempDir Path dir) throws IOException {
+        Path folder = Files.createDirectories(dir.resolve("Adulterado"));
+        Files.writeString(folder.resolve("board.json"), """
+                { "version": 2, "id": "b1", "name": "Adulterado",
+                  "cards": [
+                    { "id": "js", "x": 0, "y": 0, "link": "javascript:alert(1)" },
+                    { "id": "arquivo", "x": 0, "y": 0, "link": "file:///C:/Windows/System32/calc.exe" },
+                    { "id": "caminho", "x": 0, "y": 0, "link": "C:\\\\Windows\\\\notepad.exe" },
+                    { "id": "rede", "x": 0, "y": 0, "link": "\\\\\\\\servidor\\\\x.bat" },
+                    { "id": "disfarce", "x": 0, "y": 0, "link": "https://banco.com@golpe.com" },
+                    { "id": "bom", "x": 0, "y": 0, "link": "HTTPS://exemplo.com" }
+                  ],
+                  "connections": [] }
+                """, StandardCharsets.UTF_8);
+
+        Board board = loadBoard(folder);
+
+        for (String id : List.of("js", "arquivo", "caminho", "rede", "disfarce")) {
+            assertFalse(board.findCard(id).orElseThrow().hasLink(), id);
+        }
+        assertEquals("https://exemplo.com", board.findCard("bom").orElseThrow().getLink());
+    }
+
     @Test
     void missingImageFileDoesNotBreakAndKeepsTheReference(@TempDir Path dir) throws IOException {
         Path folder = Files.createDirectories(dir.resolve("Faltando"));

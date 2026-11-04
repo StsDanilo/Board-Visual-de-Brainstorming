@@ -1,5 +1,6 @@
 package com.danilo.boardvisual.view;
 
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.model.PanelMode;
 import javafx.scene.shape.SVGPath;
@@ -26,7 +27,31 @@ final class Icons {
     static final String IMAGE = "M3.5 5.5 H20.5 V18.5 H3.5 Z M3.5 15.5 L8.5 10.5 L14 16 M12 14 L15 11 L20.5 16.5 "
             + "M14 8.5 A1.5 1.5 0 1 0 17 8.5 A1.5 1.5 0 1 0 14 8.5 Z";
 
+    /**
+     * Clipe de papel em pé (três voltas): o símbolo de "link". {@link #link()}
+     * o inclina 45°, como costuma aparecer.
+     */
+    static final String LINK = "M10 8 V15.5 A2 2 0 0 0 14 15.5 V6 A3 3 0 0 0 8 6 V17 A4 4 0 0 0 16 17 V9";
+
     private Icons() {
+    }
+
+    /** Ícone de link (clipe inclinado), no tamanho dos ícones das barras. */
+    static SVGPath link() {
+        SVGPath icon = create(LINK);
+        icon.setRotate(45);
+        return icon;
+    }
+
+    /** Ícone de cada marcador de card (switch exaustivo: marcador novo precisa de ícone). */
+    static SVGPath marker(CardMarkers.Kind kind) {
+        SVGPath icon = switch (kind) {
+            case LINK -> link();
+        };
+        // O marcador tem 18 px: o ícone de 24 px encolhe para caber.
+        icon.setScaleX(0.62);
+        icon.setScaleY(0.62);
+        return icon;
     }
 
     static String shape(CardShape shape) {

@@ -3,6 +3,7 @@ package com.danilo.boardvisual.view;
 import com.danilo.boardvisual.export.PngExporter;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
 import javafx.application.Platform;
 import javafx.scene.image.Image;
@@ -19,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -140,6 +142,55 @@ class BoardRendererPngTest {
         assertEquals(plan.height(), image.getHeight());
         assertTrue(rgb(image, pixel(plan, first.getX() + 100, first.getY() + 100)) != 0xFFFFFF, "card do início");
         assertTrue(rgb(image, pixel(plan, last.getX() + 100, last.getY() + 100)) != 0xFFFFFF, "card do fim");
+    }
+
+    /** O clipe do link aparece na imagem exportada (aviso visual de que o card tem link). */
+    @Test
+    void linkMarkerIsDrawnInTheExport(@TempDir Path folder) throws Exception {
+        Board board = new Board("Link");
+        Card card = new Card(0, 0);
+        card.setText("Site");
+        card.setLink("exemplo.com");
+        Card plain = new Card(300, 0);
+        plain.setText("Site");
+        board.addCard(card);
+        board.addCard(plain);
+        Path file = folder.resolve("link.png");
+
+        onFxThread(() -> {
+            String css = BoardRendererPngTest.class
+                    .getResource("/com/danilo/boardvisual/styles/app.css").toExternalForm();
+            BoardRenderer renderer = new BoardRenderer(List.of(css));
+            new PngExporter((b, bounds, scale, bg) -> renderer.render(b, bounds, scale, false))
+                    .export(board, file, PngExporter.Background.WHITE);
+            return null;
+        });
+
+        PngExporter.Plan plan = PngExporter.plan(board);
+        BufferedImage image = ImageIO.read(file.toFile());
+        CardMarkers.Spot spot = CardMarkers.layout(card).get(0);
+        assertTrue(hasBluish(image, plan, card.getX() + spot.x(), card.getY() + spot.y(), spot.size()),
+                "clipe azul no canto do card com link");
+        assertFalse(hasBluish(image, plan, plain.getX() + spot.x(), plain.getY() + spot.y(), spot.size()),
+                "o card sem link não tem clipe");
+    }
+
+    /** Algum pixel azulado (a cor de destaque do clipe) no quadrado do marcador. */
+    private static boolean hasBluish(BufferedImage image, PngExporter.Plan plan, double x, double y, double size) {
+        int[] from = pixel(plan, x, y);
+        int[] to = pixel(plan, x + size, y + size);
+        for (int py = from[1]; py < to[1]; py++) {
+            for (int px = from[0]; px < to[0]; px++) {
+                int c = image.getRGB(px, py) & 0xFFFFFF;
+                int r = (c >> 16) & 0xFF;
+                int g = (c >> 8) & 0xFF;
+                int b = c & 0xFF;
+                if (b > 180 && b - r > 80 && b - g > 40) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Pixel da imagem que corresponde ao ponto (x, y) do board. */

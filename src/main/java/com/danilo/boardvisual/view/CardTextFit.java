@@ -1,6 +1,7 @@
 package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
 import javafx.geometry.Insets;
 import javafx.scene.text.Font;
@@ -17,6 +18,7 @@ import java.util.List;
  *   {@link #MAX_FONT_SIZE} em que o texto cabe no tamanho definido à mão.
  * - Se nem a fonte mínima (ou a fonte manual) cabe, o card cresce: o retângulo
  *   só na altura; elipse e losango mantendo a proporção.
+ * - Marcadores na borda de cima (link): o texto começa abaixo deles.
  * - Card de imagem: o texto é a legenda, abaixo da imagem. Sem legenda nada
  *   muda; com legenda (fonte {@link #CAPTION_FONT_SIZE} ou a manual), o card
  *   cresce embaixo da imagem, que mantém a proporção.
@@ -96,55 +98,73 @@ public final class CardTextFit {
     public Fit fit(Card card, double width, double height, String text) {
         double imageRatio = card.hasImage() && card.getBaseWidth() > 0 ? card.getBaseHeight() / card.getBaseWidth() : 0;
         return fit(card.getShape(), width, height, card.isPanel() || card.hasChildBoard(),
-                imageRatio, text, card.getFontSize());
+                imageRatio, CardMarkers.of(card).size(), text, card.getFontSize());
     }
 
-    /** Card sem imagem (ver o método completo abaixo). */
+    /** Card sem imagem e sem marcadores (ver o método completo abaixo). */
     public Fit fit(CardShape shape, double width, double height, boolean hasButton, String text, double fontSize) {
-        return fit(shape, width, height, hasButton, 0, text, fontSize);
+        return fit(shape, width, height, hasButton, 0, 0, text, fontSize);
+    }
+
+    /** Card sem marcadores (ver o método completo abaixo). */
+    public Fit fit(CardShape shape, double width, double height, boolean hasButton, double imageRatio,
+                   String text, double fontSize) {
+        return fit(shape, width, height, hasButton, imageRatio, 0, text, fontSize);
     }
 
     /**
      * @param hasButton  se o card tem botão embaixo (painel ou board aninhado), que ocupa espaço
      * @param imageRatio altura ÷ largura da imagem no topo do card; 0 = card sem imagem
+     * @param markers    quantos marcadores o card tem em cima ({@link CardMarkers}): o texto fica abaixo deles
      * @param fontSize   tamanho manual, ou {@link Card#AUTO_FONT_SIZE}
      */
     public Fit fit(CardShape shape, double width, double height, boolean hasButton, double imageRatio,
-                   String text, double fontSize) {
+                   int markers, String text, double fontSize) {
+        Frame frame = new Frame(shape, hasButton, imageRatio, markers);
         boolean empty = text == null || text.isEmpty();
         if (imageRatio > 0) {
             // Card de imagem: o tamanho definido à mão é o da imagem, sem espaço para texto.
             // Sem legenda não há o que encaixar; com legenda, o card cresce embaixo da imagem.
             double font = fontSize > 0 ? fontSize : CAPTION_FONT_SIZE;
-            if (empty || fits(shape, width, height, hasButton, imageRatio, text, font)) {
+            if (empty || fits(frame, width, height, text, font)) {
                 return new Fit(font, width, height);
             }
-            return grow(shape, width, height, hasButton, imageRatio, text, font);
+            return grow(frame, width, height, text, font);
         }
         if (fontSize <= 0) {
             // Vazio: a fonte se ajusta ao texto de exemplo, mas ele nunca faz o card crescer.
             String measured = empty ? CardView.PROMPT_TEXT : text;
-            double auto = largestAutoFont(shape, width, height, hasButton, measured);
+            double auto = largestAutoFont(frame, width, height, measured);
             if (!Double.isNaN(auto)) {
                 return new Fit(auto, width, height);
             }
             if (empty) {
                 return new Fit(MIN_FONT_SIZE, width, height);
             }
-            return grow(shape, width, height, hasButton, text, MIN_FONT_SIZE);
+            return grow(frame, width, height, text, MIN_FONT_SIZE);
         }
-        if (empty || fits(shape, width, height, hasButton, text, fontSize)) {
+        if (empty || fits(frame, width, height, text, fontSize)) {
             return new Fit(fontSize, width, height);
         }
-        return grow(shape, width, height, hasButton, text, fontSize);
+        return grow(frame, width, height, text, fontSize);
+    }
+
+    /**
+     * O que, além do tamanho, decide o espaço do texto: formato, botão embaixo,
+     * imagem em cima e marcadores na borda de cima.
+     */
+    private record Frame(CardShape shape, boolean button, double imageRatio, int markers) {
+        Insets insets(double w, double h) {
+            return CardGeometry.contentInsets(shape, w, h, button, w * imageRatio, markers);
+        }
     }
 
     /** Maior fonte automática em que o texto cabe, ou NaN se nem a mínima cabe. */
-    private double largestAutoFont(CardShape shape, double w, double h, boolean button, String text) {
-        if (fitsAuto(shape, w, h, button, text, MAX_FONT_SIZE)) {
+    private double largestAutoFont(Frame frame, double w, double h, String text) {
+        if (fitsAuto(frame, w, h, text, MAX_FONT_SIZE)) {
             return MAX_FONT_SIZE;
         }
-        if (!fitsAuto(shape, w, h, button, text, MIN_FONT_SIZE)) {
+        if (!fitsAuto(frame, w, h, text, MIN_FONT_SIZE)) {
             return Double.NaN;
         }
         double lo = MIN_FONT_SIZE; // cabe
@@ -154,7 +174,7 @@ public final class CardTextFit {
             if (mid <= lo) {
                 break;
             }
-            if (fitsAuto(shape, w, h, button, text, mid)) {
+            if (fitsAuto(frame, w, h, text, mid)) {
                 lo = mid;
             } else {
                 hi = mid;
@@ -167,11 +187,11 @@ public final class CardTextFit {
      * No automático, além da altura, cada palavra tem que caber inteira na
      * largura (senão a fonte grande quebraria palavras no meio).
      */
-    private boolean fitsAuto(CardShape shape, double w, double h, boolean button, String text, double font) {
-        if (!fits(shape, w, h, button, text, font)) {
+    private boolean fitsAuto(Frame frame, double w, double h, String text, double font) {
+        if (!fits(frame, w, h, text, font)) {
             return false;
         }
-        double available = textArea(shape, w, h, button)[0];
+        double available = textArea(frame, w, h)[0];
         for (String word : text.split("\\s+")) {
             if (!word.isEmpty() && measurer.wordWidth(word, font) > available) {
                 return false;
@@ -180,21 +200,12 @@ public final class CardTextFit {
         return true;
     }
 
-    private boolean fits(CardShape shape, double w, double h, boolean button, String text, double font) {
-        return fits(shape, w, h, button, 0, text, font);
-    }
-
-    private boolean fits(CardShape shape, double w, double h, boolean button, double imageRatio,
-                         String text, double font) {
-        double[] area = textArea(shape, w, h, button, imageRatio);
+    private boolean fits(Frame frame, double w, double h, String text, double font) {
+        double[] area = textArea(frame, w, h);
         if (area[0] <= 1 || area[1] <= 0) {
             return false;
         }
         return measurer.textHeight(text, font, area[0]) <= area[1];
-    }
-
-    private Fit grow(CardShape shape, double w, double h, boolean button, String text, double font) {
-        return grow(shape, w, h, button, 0, text, font);
     }
 
     /**
@@ -202,10 +213,10 @@ public final class CardTextFit {
      * imagem acompanha a largura (a altura dela é largura × proporção), então
      * crescer só na altura dá espaço à legenda sem distorcer a imagem.
      */
-    private Fit grow(CardShape shape, double w, double h, boolean button, double imageRatio, String text, double font) {
-        if (shape == CardShape.RECTANGLE) {
+    private Fit grow(Frame frame, double w, double h, String text, double font) {
+        if (frame.shape() == CardShape.RECTANGLE) {
             // No retângulo o recuo não depende da altura: dá para calcular direto.
-            Insets insets = CardGeometry.contentInsets(shape, w, h, button, w * imageRatio);
+            Insets insets = frame.insets(w, h);
             double wrapWidth = Math.max(1, w - insets.getLeft() - insets.getRight() - 2 * CARD_BORDER
                     - SCROLLBAR_WIDTH - SLACK);
             double needed = measurer.textHeight(text, font, wrapWidth) + SLACK
@@ -214,13 +225,13 @@ public final class CardTextFit {
         }
         double lo = 1;       // não cabe
         double hi = 2;
-        while (!fits(shape, w * hi, h * hi, button, imageRatio, text, font) && hi < MAX_SCALE) {
+        while (!fits(frame, w * hi, h * hi, text, font) && hi < MAX_SCALE) {
             lo = hi;
             hi *= 2;
         }
         while ((hi - lo) * w > 0.5) {
             double mid = (lo + hi) / 2;
-            if (fits(shape, w * mid, h * mid, button, imageRatio, text, font)) {
+            if (fits(frame, w * mid, h * mid, text, font)) {
                 hi = mid;
             } else {
                 lo = mid;
@@ -229,13 +240,9 @@ public final class CardTextFit {
         return new Fit(font, w * hi, h * hi);
     }
 
-    private static double[] textArea(CardShape shape, double w, double h, boolean button) {
-        return textArea(shape, w, h, button, 0);
-    }
-
     /** Largura de quebra e altura disponíveis para o texto, já com a folga. */
-    private static double[] textArea(CardShape shape, double w, double h, boolean button, double imageRatio) {
-        Insets insets = CardGeometry.contentInsets(shape, w, h, button, w * imageRatio);
+    private static double[] textArea(Frame frame, double w, double h) {
+        Insets insets = frame.insets(w, h);
         return new double[] {
                 w - insets.getLeft() - insets.getRight() - 2 * CARD_BORDER - SCROLLBAR_WIDTH - SLACK,
                 h - insets.getTop() - insets.getBottom() - 2 * CARD_BORDER - SLACK

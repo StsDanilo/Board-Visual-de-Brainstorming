@@ -1,9 +1,11 @@
 package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.view.CardTextFit;
 import com.danilo.boardvisual.view.CardView;
 import javafx.application.Platform;
+import javafx.beans.Observable;
 import javafx.beans.InvalidationListener;
 
 /**
@@ -30,6 +32,10 @@ public class CardTextFitController {
         card.panelModeProperty().addListener(refit);
         card.childBoardProperty().addListener(refit);
         card.imageFileProperty().addListener(refit);
+        // Marcadores (link) ocupam a borda de cima: o texto começa abaixo deles.
+        for (Observable dependency : CardMarkers.dependencies(card)) {
+            dependency.addListener(refit);
+        }
         // Legenda vazia de um card de imagem: não há espaço para o texto, então
         // enquanto ela é editada o card abre uma linha (com o texto de exemplo).
         // Ao ganhar o foco, espera o TextEditController tirar a foto do início da

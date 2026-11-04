@@ -55,8 +55,13 @@ public class CardDragController {
 
         // Qualquer clique no card (inclusive no texto) o traz para frente e ajusta a seleção.
         cardView.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
-            cardView.toFront();
             state.selectOnlyOnRelease = false;
+            // Clicar num marcador (ex.: o clipe do link) só aciona o marcador:
+            // não seleciona, não traz para frente, não arrasta.
+            if (cardView.isMarkerNode(e.getPickResult().getIntersectedNode())) {
+                return;
+            }
+            cardView.toFront();
             if (activeTool.get() != Tool.SELECT || e.getButton() != MouseButton.PRIMARY) {
                 return;
             }
