@@ -3,7 +3,7 @@
 > Documento de estudo e referência do projeto, mantido junto com o código: toda mudança relevante
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
 > Estado descrito: até a exportação para PDF (card [3]), o salvamento em pasta (`board.json` + `imagens/`)
-> e as imagens nos cards (colar, arrastar, ferramenta Imagem).
+> as imagens nos cards (colar, arrastar, ferramenta Imagem) e a exportação do board atual para PNG.
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -29,7 +29,8 @@ liga os cards com **setas**, pinta com cores, seleciona vários de uma vez, desf
 tudo numa **pasta** no computador (um `board.json` mais uma pasta `imagens/`). **Imagens** entram no board
 como cards (colar, arrastar o arquivo ou escolher). Cards podem abrir um **painel flutuante** (texto ou lista)
 ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade).
-Tudo pode ser exportado para um **PDF navegável**, com links entre os boards.
+Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
+pode virar uma **imagem PNG** (fundo branco ou transparente).
 Não há servidor nem banco de dados.
 
 ## Tecnologias
@@ -129,7 +130,7 @@ contém cards, que contêm boards, que contêm cards... O `board.json` salva ess
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar. |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
-| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15). |
+| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente. |
 | `PopupButton` | Base de "botão que abre um painelzinho". |
 | `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
@@ -140,7 +141,7 @@ contém cards, que contêm boards, que contêm cards... O `board.json` salva ess
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF); desfazer/refazer do menu. |
+| `MainController` | Monta e conecta tudo; ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF, exportar PNG do board atual); desfazer/refazer do menu. |
 | `ImageController` | Imagens: inserir (ferramenta Imagem, `Ctrl+V`, arrastar arquivo), pasta de trabalho das imagens ainda não salvas, carregar a imagem de cada card (com cache). |
 | `CanvasController` | Mouse no fundo: pan, zoom, caixa de seleção, criar card. |
 | `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo), com alinhamento. |
@@ -150,7 +151,7 @@ contém cards, que contêm boards, que contêm cards... O `board.json` salva ess
 | `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção. |
 | `TextEditController` | Registra a edição de texto no histórico (sessões de edição); duplo clique num card de imagem abre a legenda. |
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
-| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível; guarda o board principal. |
+| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível; guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. |
 | `KeyboardController` | Atalhos de teclado. |
 | `EditHistory` | Pilha de desfazer/refazer. |
 
@@ -179,12 +180,13 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 | `BoardImages` | A pasta `imagens/` do save: copiar arquivos para ela, achar um arquivo pelo nome (recusando nomes com pasta) e remover os que nenhum card usa. |
 | `ImageImporter` | Traz uma imagem (arquivo ou imagem em memória) para uma pasta de imagens: confere o formato, reduz se passar de 2000 px, nome novo `<uuid>.png/.jpg`. |
 
-### `export/` — o PDF
+### `export/` — o PDF e o PNG
 
 | Arquivo | Responsabilidade |
 |---|---|
 | `PdfExporter` | Monta o PDF: páginas na ordem da árvore, caminho no topo, links, páginas de detalhes, marcadores. |
 | `PdfText` | Fonte padrão do PDF (Helvetica), medida e quebra de linha, troca de caracteres sem suporte. |
+| `PngExporter` | PNG de um board: área e escala (com os limites de tamanho), nome sugerido do arquivo, gravação segura. Sem JavaFX (3.18). |
 
 ### Outros
 
@@ -759,7 +761,7 @@ Divisão de responsabilidades:
 
 | Atalho | Tratado por | Por quê |
 |---|---|---|
-| Ctrl+N/O/S/Shift+S, Ctrl+E, Ctrl+0 | aceleradores de menu | aparecem no menu |
+| Ctrl+N/O/S/Shift+S, Ctrl+E, Ctrl+Shift+E, Ctrl+0 | aceleradores de menu | aparecem no menu |
 | Ctrl+Z, Ctrl+Y, Ctrl+A | aceleradores de menu | idem; e só disparam se o texto não usar a tecla |
 | V R E L P B I C, Delete, Ctrl+D, Ctrl+V, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional |
 
@@ -865,10 +867,65 @@ não perde o dado, e devolver o arquivo à `imagens/` faz a imagem voltar ao rea
 
 ### Fora do escopo (ficou o caminho aberto)
 
-- **Exportar PNG/SVG:** o `BoardRenderer` já recebe o `CardImageLoader`; um exportador de PNG só precisa
-  chamar `render` e gravar a imagem.
+- **Exportar PNG:** feito em 3.18, com o mesmo `CardImageLoader`. **SVG** continua fora (tarefa 8).
 - Copiar/colar **cards** entre boards (tarefa 6): o `Ctrl+V` de hoje só trata imagens; quando houver
   cards na área de transferência interna, decidir a prioridade no `KeyboardController`.
+
+## 3.18 Exportar PNG do board atual
+
+`Arquivo › Exportar PNG...` (`Ctrl+Shift+E`) grava uma imagem **só do board que está na tela** — o
+principal ou o aninhado que estiver aberto. Para a árvore inteira existe o PDF (3.15).
+`Arquivo › Exportar PNG com fundo transparente...` faz o mesmo sem o fundo branco.
+
+```
+MainController.exportPng(fundo)
+  boardView.requestFocus()            conclui uma edição de texto em andamento (como no PDF)
+  board = navigation.getCurrent()     o board da tela
+  board vazio? → aviso "Este board está vazio." e para (nem abre o seletor)
+  seletor de arquivo; nome sugerido = PngExporter.suggestedFileName(caminho de nomes)
+  new PngExporter((b, área, escala, fundo) -> BoardRenderer.render(..., transparente?))
+      .export(board, arquivo + ".png" se faltar, fundo)
+    PngExporter.plan(board): área = PdfExporter.contentBounds (cards + 32), escala = 2 px/unidade ou menos
+    BoardRenderer.render → BufferedImage (RGB com fundo branco, ARGB com fundo transparente)
+    ImageIO.write em .png.tmp na mesma pasta → move para o nome final (nunca fica arquivo pela metade)
+```
+
+| Parte | Como |
+|---|---|
+| O que entra | Exatamente o que o PDF desenha: cards (formatos, cores, fonte), setas, painéis flutuantes **fechados**, pilha do board aninhado, imagens com legenda. Nada de interface: seleção, alças, barra flutuante, caixa de seleção, alça de conexão e cursor de texto ficam de fora, porque o `BoardRenderer` não usa o `BoardView` |
+| Imagens dos cards | O mesmo `ImageController.loader()` da tela: vêm da pasta do save ou, em board ainda não salvo, da pasta de trabalho temporária |
+| Tamanho | O do conteúdo (cards + margem de 32, como o PDF), a **2 pixels por unidade** do board |
+| Limite | No máximo **8.000 px no lado maior** e **40 milhões de pixels** no total; acima disso a escala é reduzida (a imagem fica menos nítida, mas sai inteira). São os mesmos limites da imagem de cada board no PDF |
+| Fundo | Branco (padrão) ou transparente: sombras e bordas suavizadas ficam semitransparentes, então a imagem pode ser colada sobre qualquer cor |
+| Nome sugerido | O do board, como no PDF (nome da pasta do save, do `.json` antigo ou "Sem título"); num aninhado, o caminho com ` - ` entre os níveis: `Meu board - Projeto - Etapa 1.png`. Caracteres que o Windows não aceita (`\ / : * ? " < >` e a barra vertical) viram `_`; nome limitado a 120 caracteres |
+| Estado | Exportar não mexe em seleção, pan/zoom, desfazer nem título; o board não é alterado (a cópia visual é montada à parte) |
+
+**Por que o limite é esse.** Cada cópia da imagem ocupa 4 bytes por pixel; durante a exportação
+existem três ao mesmo tempo (snapshot do JavaFX, `int[]` copiado pelo `PixelReader` e `BufferedImage`),
+então 40 milhões de pixels ≈ 480 MB no pico — o máximo razoável para a memória padrão da JVM. O lado de
+8.000 px foi testado de verdade (o snapshot do JavaFX 21 divide em pedaços imagens maiores que a textura
+da placa de vídeo): um board de 30.000 × 184 unidades sai com 8.000 px de largura e os dois extremos
+aparecem (`BoardRendererPngTest`).
+
+**Conversão sem `javafx.swing`.** O `WritableImage` do JavaFX não grava arquivo; o `BoardRenderer`
+copia os pixels com o `PixelReader` (`getPixels` em ARGB) para uma `BufferedImage`, e o `ImageIO`
+(módulo `java.desktop`, que já estava no projeto) grava o PNG. Nenhum módulo novo no `module-info`.
+
+**Separação para teste** (como no PDF): `PngExporter` não conhece JavaFX — recebe um `Renderer`
+(board, área, escala, fundo → `BufferedImage`). A conta de tamanho, o nome sugerido e a gravação
+são testados sem tela; um teste de ponta a ponta liga o JavaFX e gera PNGs de verdade.
+
+Decisões tomadas (o card deixou "a decidir"):
+- **Fundo transparente = segundo item de menu**, não uma pergunta a cada exportação: o caso comum
+  (branco) continua com um clique/atalho e nenhuma caixa extra; quem quer transparência acha a opção
+  escrita no menu. O `PngExporter.Background` fica pronto para o SVG (tarefa 8) reaproveitar.
+- **Board vazio = aviso**, sem gerar arquivo: uma imagem em branco não serve para nada e esconderia o
+  engano (por exemplo, exportar estando dentro de um aninhado vazio).
+- **"Só a seleção" ficou para depois:** com cards selecionados, exportar só eles mudaria o resultado
+  conforme algo que não está no arquivo (a seleção), e decidir as setas entre selecionados e não
+  selecionados pede um board temporário. Caminho: um terceiro item de menu que passa ao `BoardRenderer`
+  só os cards selecionados e as setas entre eles, com a área calculada sobre eles.
+- **"Todos os boards"** (uma pasta com um PNG por board) está fora desta tarefa; o PDF já cobre a árvore.
 
 ---
 
@@ -1244,6 +1301,7 @@ As imagens dos cards usam o **ImageIO** (`javax.imageio`), que também está no 
 conferir PNG/JPG/GIF/BMP, reduzir e gravar PNG/JPG (`ImageImporter`). O JavaFX sozinho lê imagens, mas
 não grava; o caminho "oficial" seria `SwingFXUtils` do módulo `javafx.swing`, evitado aqui do mesmo jeito
 que no PDF: a imagem colada (JavaFX) vira `BufferedImage` pixel a pixel no `ImageController`.
+O **Exportar PNG** usa o mesmo par: `BoardRenderer` converte pixel a pixel e o `ImageIO` grava (3.18).
 
 - Sem `exports`, o JavaFX não consegue criar a `Application`.
 - Sem `opens`, o Gson falha em tempo de execução ao ler/escrever os records.
@@ -1359,6 +1417,8 @@ imagens nos cards (3.17):
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
 | **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem |
 | **Aviso de alterações não salvas** | Comparar `board.snapshot()` com a foto do último salvamento | O snapshot já resolve a detecção |
+| **Exportar SVG** (tarefa 8) | Item ao lado dos de PNG no menu `Arquivo`; pode reaproveitar `PngExporter.Background` e `suggestedFileName` | Vetorial: não dá para usar o snapshot; desenhar formatos e setas à mão |
+| **PNG só da seleção / de todos os boards** | Seleção: `BoardRenderer` com só os cards selecionados e as setas entre eles. Todos: percorrer a árvore como o `PdfExporter.BoardNode`, um arquivo por board nomeado pelo caminho | Decisões em 3.18 |
 
 ---
 
@@ -1399,6 +1459,10 @@ imagens nos cards (3.17):
 | Compilar com `release 17` | Java 25 | Maven do terminal usa JDK 17; o IntelliJ usa 25 |
 | PDF: board como imagem + texto invisível | Desenhar cards e setas em vetorial no PDF | Reaproveita o desenho exato da tela (formatos, sombras, fontes) com pouco código; vetorial fica como evolução |
 | PDF: fonte padrão Helvetica | Embutir a fonte da tela | Nada a embutir nem a distribuir; cobre o português. Emoji e símbolos raros viram "?" |
+| PNG: só o board da tela | Exportar a árvore inteira em vários PNGs | Uma imagem é "foto" do que se vê; a árvore já tem o PDF (3.18) |
+| PNG: fundo transparente num segundo item de menu | Perguntar a cada exportação; preferência guardada | Nenhuma caixa a mais no caso comum, e a opção fica visível (3.18) |
+| PNG: reduzir a escala acima de 8.000 px / 40 Mpx | Falhar com erro; dividir em várias imagens | Sempre sai uma imagem inteira, sem estourar a memória (3.18) |
+| PNG: board vazio avisa e não grava | Gravar uma imagem pequena em branco | Imagem vazia não tem uso e esconderia o engano (3.18) |
 
 ## B. Armadilhas conhecidas
 
@@ -1452,10 +1516,20 @@ imagens nos cards (3.17):
     imagem colada "vazia", é por aí.
 24. **Pasta de trabalho no `%TEMP%`:** se o programa for fechado à força (sem passar pelo encerramento da
     JVM), a pasta `boardvisual-imagens-…` fica para trás no temporário do sistema. Não afeta nenhum save.
+25. **Snapshot com origem fracionária sai 1 px maior.** Com escala reduzida (ex.: 0,27 px por unidade), a
+    origem do recorte cai entre pixels e o JavaFX arredonda as duas pontas. O `BoardRenderer` alinha a
+    origem a um pixel inteiro (a margem de 32 absorve o deslocamento) e conta os pixels como o
+    `PngExporter.pixels`; quem mexer numa conta precisa mexer na outra.
+26. **Cópias de exportação ficam presas aos cards.** O `CardView` escuta propriedades do card com listeners
+    comuns (não fracos); as cópias montadas pelo `BoardRenderer` (PDF e PNG) continuam referenciadas pelos
+    cards até eles sumirem. Em uso normal é pouca memória; exportar muitas vezes um board grande acumula.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 145 testes, sem abrir janela
+### Automatizados (`mvn test`) — 158 testes, sem abrir janela
+
+(O `BoardRendererPngTest` liga o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela
+ele é pulado em vez de falhar.)
 
 | Classe | Cobre |
 |---|---|
@@ -1475,6 +1549,8 @@ imagens nos cards (3.17):
 | `ImageImporterTest` | (imagens reais geradas no teste) PNG e JPG pequenos copiados byte a byte com nome novo, grande reduzido a 2000 px mantendo a proporção (JPG continua JPG, PNG mantém transparência), GIF e BMP viram PNG, formato pelo conteúdo e não pela extensão, arquivo quebrado/não imagem/inexistente recusado sem sobras, imagem em memória vira PNG, extensões aceitas |
 | `ImageCardTest` | card de imagem nasce retângulo do tamanho da imagem, altura da imagem pela proporção, nome em branco = sem imagem, duplicar reutiliza o arquivo, desfazer/refazer a inserção, imagens da árvore inteira e das fotos |
 | `ImageCardControllerTest` | limpeza ao salvar mantém imagens de boards aninhados e do histórico e remove só a órfã; histórico zerado libera a imagem; tamanho inicial (limite, natural, ampliada); redimensionar mantém a proporção em todos os cantos, canto oposto parado, mínimo pelo maior lado |
+| `PngExporterTest` | área com margem e 2 px por unidade, redução pelo lado maior (8.000 px exatos, sem 1 px a mais) e pelo total de pixels, arredondamento, nome sugerido (principal, caminho do aninhado, caracteres proibidos, ponto/espaço no fim, nome reservado, vazio, comprimento), `.png` acrescentado só se faltar, PNG gravado no tamanho previsto e sem `.tmp`, substitui arquivo existente, board vazio recusado sem gravar |
+| `BoardRendererPngTest` | (JavaFX de verdade, CSS do app) PNG de board com formatos, cor, seta e card de imagem: tamanho previsto, fundo branco, cor do card, seta entre os cards, imagem do card no lugar certo; a mesma exportação com fundo transparente (canto transparente, card opaco); board de 30.000 unidades reduzido a 8.000 px com os dois extremos desenhados |
 | `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o
@@ -1508,6 +1584,18 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   imagem → exportar PDF (renderizado de volta para conferir a imagem; legenda buscável) → reabrir →
   "salvar como" (só as imagens usadas) → apagar um arquivo e reabrir (aviso no card, referência mantida).
   Rodou com o app no classpath e no module path (como o `mvn javafx:run`).
+- **Exportar PNG** foi validado do mesmo jeito (32 verificações): board com retângulo, elipse e losango
+  coloridos, duas setas, painel fechado, card de board aninhado e imagem colada com legenda (board ainda
+  não salvo, imagem na pasta temporária) → `Ctrl+Shift+E` (nome sugerido lido do campo do seletor com
+  `Ctrl+C`; tamanho, fundo e a cor de cada card/imagem conferidos no arquivo; seleção, pan/zoom, desfazer e
+  título iguais antes e depois) → menu "com fundo transparente" pelo teclado, digitando o nome sem `.png`
+  → entrar no aninhado e exportar (só ele; nome com o caminho) → salvar em pasta e exportar de novo
+  (imagens vindas da pasta do save) → cancelar o seletor (nada gravado) → board novo vazio (aviso, nada
+  gravado). Os PNGs foram abertos e comparados com a tela.
+- **Cuidado com o foco:** um clique fora da janela do app (coordenada fora da área visível do board)
+  ativa outra janela, e as teclas seguintes vão para ela. O roteiro do PNG confere que todo clique cai
+  dentro da janela e, antes de digitar num seletor, lê o título da janela da frente (`GetForegroundWindow`
+  por PowerShell) e aborta se não for o seletor do app.
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.

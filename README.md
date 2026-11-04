@@ -47,6 +47,9 @@ mvn test
   saves antigos (um `.json` solto) continuam abrindo e viram pasta no primeiro "Salvar"
 - Exportar para PDF navegável: uma página por board, cards de board aninhado e caminho do topo
   viram links, painéis flutuantes ganham páginas de "Detalhes", marcadores com a árvore de boards
+- Exportar PNG do board que está na tela (o principal ou o aninhado aberto): imagem nítida
+  (2 pixels por unidade, reduzida acima de 8.000 px), com fundo branco ou transparente
+  (`Arquivo › Exportar PNG com fundo transparente...`)
 
 ## Atalhos de teclado
 
@@ -73,7 +76,8 @@ mvn test
 | `Shift` + arrastar canto | Redimensionar mantendo a proporção (retângulo) |
 | `Ctrl+N` / `Ctrl+O` | Novo board / abrir |
 | `Ctrl+S` / `Ctrl+Shift+S` | Salvar / salvar como |
-| `Ctrl+E` | Exportar PDF |
+| `Ctrl+E` | Exportar PDF (todos os boards) |
+| `Ctrl+Shift+E` | Exportar PNG do board atual (fundo branco) |
 | `Ctrl+0` | Redefinir visualização |
 
 Enquanto o texto de um card está sendo editado, as teclas vão para o texto (inclusive `Ctrl+Z`,
@@ -110,7 +114,7 @@ src/main/java/com/danilo/boardvisual
 ├─ view/         Nós JavaFX: canvas, cards, setas, barras
 ├─ controller/   Interações de mouse e ações sobre o board
 ├─ persistence/  Leitura e escrita do save (pasta com board.json e imagens/)
-└─ export/       Exportação para PDF (Apache PDFBox)
+└─ export/       Exportação para PDF (Apache PDFBox) e PNG
 src/main/resources/.../styles/app.css   Estilo visual (paleta e espaçamentos)
 ```
 

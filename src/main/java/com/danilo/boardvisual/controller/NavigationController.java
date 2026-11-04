@@ -65,6 +65,16 @@ public class NavigationController {
         return path.isEmpty() ? null : path.get(0).board;
     }
 
+    /** O board que está na tela (o principal ou um aninhado). */
+    public Board getCurrent() {
+        return path.isEmpty() ? null : currentLevel().board;
+    }
+
+    /** Nomes do caminho, do board principal até o da tela (os mesmos do caminho no topo). */
+    public List<String> pathNames() {
+        return path.stream().map(level -> nameOf(level).get()).toList();
+    }
+
     public void enter(Card card) {
         if (!card.hasChildBoard() || path.isEmpty()) {
             return;

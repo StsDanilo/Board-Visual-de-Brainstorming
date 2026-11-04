@@ -17,7 +17,7 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 
 /**
- * Desenha um board inteiro numa imagem, fora da tela (para o PDF).
+ * Desenha um board inteiro numa imagem, fora da tela (para o PDF e o PNG).
  *
  * Monta os mesmos {@link CardView} e {@link ConnectionView} do canvas numa cena
  * própria, com o mesmo CSS, e tira um snapshot na resolução pedida. Não usa o
@@ -46,7 +46,15 @@ public final class BoardRenderer {
         this.imageLoader = imageLoader == null ? CardImageLoader.NONE : imageLoader;
     }
 
+    /** Com fundo branco (o PDF e o PNG padrão). */
     public BufferedImage render(Board board, Box bounds, double pixelsPerUnit) {
+        return render(board, bounds, pixelsPerUnit, false);
+    }
+
+    /**
+     * @param transparent fundo transparente (imagem com canal alfa) em vez de branco
+     */
+    public BufferedImage render(Board board, Box bounds, double pixelsPerUnit, boolean transparent) {
         Group connections = new Group();
         for (Connection connection : board.getConnections()) {
             connections.getChildren().add(new ConnectionView(connection));
@@ -66,21 +74,33 @@ public final class BoardRenderer {
         root.layout();
 
         SnapshotParameters parameters = new SnapshotParameters();
-        parameters.setFill(Color.WHITE);
+        parameters.setFill(transparent ? Color.TRANSPARENT : Color.WHITE);
         parameters.setTransform(new Scale(pixelsPerUnit, pixelsPerUnit));
-        parameters.setViewport(new Rectangle2D(bounds.x() * pixelsPerUnit, bounds.y() * pixelsPerUnit,
-                Math.ceil(bounds.width() * pixelsPerUnit), Math.ceil(bounds.height() * pixelsPerUnit)));
+        // Origem num pixel inteiro: com origem fracionária o snapshot arredonda as duas
+        // pontas e sai 1 px maior que o pedido (a margem em volta absorve o deslocamento).
+        parameters.setViewport(new Rectangle2D(
+                Math.floor(bounds.x() * pixelsPerUnit), Math.floor(bounds.y() * pixelsPerUnit),
+                pixels(bounds.width(), pixelsPerUnit), pixels(bounds.height(), pixelsPerUnit)));
         WritableImage snapshot = content.snapshot(parameters, null);
-        return toBufferedImage(snapshot);
+        return toBufferedImage(snapshot, transparent);
     }
 
-    /** Converte sem depender do módulo javafx.swing (fundo branco: sem transparência). */
-    private static BufferedImage toBufferedImage(WritableImage image) {
+    /** Pixels de um lado: para cima, descontando o erro de ponto flutuante (mesma conta do PngExporter). */
+    private static int pixels(double units, double pixelsPerUnit) {
+        return Math.max(1, (int) Math.ceil(units * pixelsPerUnit - 1e-6));
+    }
+
+    /**
+     * Converte sem depender do módulo javafx.swing: copia os pixels pelo
+     * PixelReader. Com fundo branco a imagem não precisa de canal alfa.
+     */
+    private static BufferedImage toBufferedImage(WritableImage image, boolean alpha) {
         int width = (int) image.getWidth();
         int height = (int) image.getHeight();
         int[] pixels = new int[width * height];
         image.getPixelReader().getPixels(0, 0, width, height, PixelFormat.getIntArgbInstance(), pixels, 0, width);
-        BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        BufferedImage result = new BufferedImage(width, height,
+                alpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
         result.setRGB(0, 0, width, height, pixels, 0, width);
         return result;
     }

@@ -1,6 +1,7 @@
 package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.export.PdfExporter;
+import com.danilo.boardvisual.export.PngExporter;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.persistence.BoardImages;
 import com.danilo.boardvisual.persistence.BoardStorage;
@@ -94,6 +95,8 @@ public class MainController {
         window.getSaveItem().setOnAction(e -> save());
         window.getSaveAsItem().setOnAction(e -> saveAs());
         window.getExportPdfItem().setOnAction(e -> exportPdf());
+        window.getExportPngItem().setOnAction(e -> exportPng(PngExporter.Background.WHITE));
+        window.getExportTransparentPngItem().setOnAction(e -> exportPng(PngExporter.Background.TRANSPARENT));
         window.getExitItem().setOnAction(e -> Platform.exit());
         window.getResetViewItem().setOnAction(e -> boardView.resetView());
         window.getUndoItem().setOnAction(e -> undo());
@@ -258,6 +261,40 @@ public class MainController {
             new PdfExporter(renderer::render).export(navigation.getRoot(), path);
         } catch (IOException | RuntimeException e) {
             showError("Não foi possível exportar o PDF.", e);
+        }
+    }
+
+    /**
+     * Exporta para PNG só o board que está na tela (o principal ou um aninhado).
+     * Não mexe no board nem na tela: seleção, posição, zoom e desfazer ficam como estão.
+     */
+    public void exportPng(PngExporter.Background background) {
+        boardView.requestFocus(); // conclui uma edição de texto em andamento
+        Board board = navigation.getCurrent();
+        if (PngExporter.isEmpty(board)) {
+            showMessage(Alert.AlertType.INFORMATION, "Este board está vazio.",
+                    "Não há nada para exportar. Crie um card antes de exportar a imagem.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(background == PngExporter.Background.TRANSPARENT
+                ? "Exportar PNG com fundo transparente" : "Exportar PNG");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Imagem PNG (*.png)", "*.png"));
+        startInCurrentLocation(chooser);
+        List<String> path = new ArrayList<>(navigation.pathNames());
+        path.set(0, displayName()); // o nome do principal é o da pasta do save, como no PDF
+        chooser.setInitialFileName(PngExporter.suggestedFileName(path));
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) {
+            return;
+        }
+        BoardRenderer renderer = new BoardRenderer(stage.getScene().getStylesheets(), images.loader());
+        PngExporter exporter = new PngExporter((b, bounds, scale, bg) ->
+                renderer.render(b, bounds, scale, bg == PngExporter.Background.TRANSPARENT));
+        try {
+            exporter.export(board, PngExporter.withPngExtension(file.toPath()), background);
+        } catch (IOException | RuntimeException e) {
+            showError("Não foi possível exportar o PNG.", e);
         }
     }
 
