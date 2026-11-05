@@ -49,6 +49,8 @@ public class MainController {
     private final CardContextMenuController contextMenu;
     private final LinkController links;
     private final BoardLinkController boardLinks;
+    private final StackOrderController stackOrder;
+    private final LockController locks;
 
     /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
     private Path currentFolder;
@@ -84,8 +86,11 @@ public class MainController {
         contextMenu = new CardContextMenuController(boardView);
         links = new LinkController(boardView, window.getSelectionToolbar(), history, linkOpener, contextMenu);
         boardLinks = new BoardLinkController(boardView, window.getSelectionToolbar(), history, navigation, contextMenu);
+        stackOrder = new StackOrderController(boardView, window.getSelectionToolbar(), history, contextMenu);
+        locks = new LockController(boardView, window.getSelectionToolbar(), history, contextMenu);
+        selectionActionsController.setNotifier(window::showStatusMessage);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
-                canvasController, panelController, navigation, images, this);
+                canvasController, panelController, navigation, images, stackOrder, locks, this);
         CardTextFitController textFitController = new CardTextFitController();
         boardView.setCardViewInitializer(cardView -> {
             textFitController.attach(cardView);
@@ -132,6 +137,16 @@ public class MainController {
     /** Link para outro board (usado pelos roteiros de teste de interface). */
     public BoardLinkController getBoardLinks() {
         return boardLinks;
+    }
+
+    /** Ordem de empilhamento (usado pelos roteiros de teste de interface). */
+    public StackOrderController getStackOrder() {
+        return stackOrder;
+    }
+
+    /** Travar/destravar cards (usado pelos roteiros de teste de interface). */
+    public LockController getLocks() {
+        return locks;
     }
 
     /** Navegação entre boards (usado pelos roteiros de teste de interface). */

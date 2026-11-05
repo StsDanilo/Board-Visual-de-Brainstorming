@@ -51,11 +51,24 @@ mvn test
   ao board de onde você saiu. Renomear o destino não quebra o link; se o destino for excluído, a seta
   aparece riscada em vermelho (desfazer a exclusão faz o link voltar a funcionar). No PDF o card vira
   link para a página do destino
+- Ordem de empilhamento: escolher quais cards ficam por cima de quais, e essa ordem é **salva** (vale ao
+  reabrir, no desfazer, no PDF e no PNG). "Trazer para frente" / "Enviar para trás" (um nível) e "Trazer
+  para o topo" / "Enviar para o fundo", pelo clique direito, pelo botão de camadas da barra flutuante ou
+  pelos atalhos. Com vários cards selecionados, a ordem entre eles se mantém. Clicar num card **não** o traz
+  mais para frente; um card novo, colado ou duplicado entra no topo
+- Travar card (cadeado): protege o card contra mudanças sem querer. Um card travado não se move (nem
+  arrastado em grupo: os outros se movem e ele fica), não mostra as alças de redimensionar, não troca de
+  formato e não é excluído pelo `Delete` (aparece um aviso: destrave antes). Continua livre para selecionar,
+  editar o texto, mudar a cor e o tamanho do texto, ligar setas, abrir links, painéis e boards, e mudar a
+  ordem. Clique direito › "Travar"/"Destravar", botão de cadeado da barra flutuante (tracejado se a seleção
+  tem travados e destravados) ou `Ctrl+L`. Um cadeado pequeno aparece no canto do card (só na tela, não no
+  PDF/PNG). Duplicar um card travado cria uma cópia destravada
 - Menu de clique direito nos cards (clique sem arrastar; arrastar com o direito continua movendo a visão)
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Imagem, Conexão e cor dos novos cards
-- Barra flutuante da seleção: cor, formato, tamanho do texto, link e link para outro board (com um card selecionado), duplicar e excluir
+- Barra flutuante da seleção: cor, formato, tamanho do texto, link e link para outro board (com um card selecionado),
+  ordem (camadas), travar (cadeado), duplicar e excluir
 - Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`);
   saves antigos (um `.json` solto) continuam abrindo e viram pasta no primeiro "Salvar"
 - Exportar para PDF navegável: uma página por board, cards de board aninhado e caminho do topo
@@ -77,15 +90,20 @@ mvn test
 | Duplo clique na imagem | Escrever a legenda |
 | `Alt+←` | Voltar ao board anterior (depois de um link para outro board: ao board de onde você saiu) |
 | `C` | Conexão |
-| `Delete` / `Backspace` | Excluir seleção |
+| `Delete` / `Backspace` | Excluir seleção (cards travados ficam) |
 | `Ctrl+D` | Duplicar seleção |
+| `Ctrl+]` ou `Ctrl+PgUp` | Trazer para frente (um nível) |
+| `Ctrl+[` ou `Ctrl+PgDn` | Enviar para trás (um nível) |
+| `Ctrl+Shift+]` ou `Ctrl+Shift+PgUp` | Trazer para o topo |
+| `Ctrl+Shift+[` ou `Ctrl+Shift+PgDn` | Enviar para o fundo |
+| `Ctrl+L` | Travar / destravar a seleção |
 | `Ctrl+A` | Selecionar tudo |
 | `Ctrl+Z` | Desfazer |
 | `Ctrl+Y` / `Ctrl+Shift+Z` | Refazer |
 | `Esc` | Sair da edição de texto → fechar painel flutuante → voltar para Selecionar → limpar seleção |
 | `Espaço` + arrastar | Mover a visão (também: botão do meio ou direito) |
 | `Shift` + clique | Somar/retirar card da seleção |
-| Clique direito no card (sem arrastar) | Menu do card: adicionar, editar, abrir ou remover o link; escolher, trocar, ir para ou remover o link para outro board |
+| Clique direito no card (sem arrastar) | Menu do card: adicionar, editar, abrir ou remover o link; escolher, trocar, ir para ou remover o link para outro board; ordem de empilhamento; travar/destravar |
 | Clique no clipe do card | Abrir o link no navegador |
 | Clique na seta curva do card | Ir para o board de destino |
 | Na lista de boards | Setas para escolher, `Enter` confirma, `Esc` cancela |
@@ -100,6 +118,10 @@ mvn test
 Enquanto o texto de um card está sendo editado, as teclas vão para o texto (inclusive `Ctrl+Z`,
 que desfaz dentro do próprio texto, e `Ctrl+V`, que cola no texto); só o `Esc` age como atalho. Ao sair da edição, tudo o que foi
 digitado vira um único passo no desfazer do board.
+
+Os atalhos com colchetes funcionam pelo **caractere** da tecla: no teclado ABNT2 são as teclas `[` e `]`
+de sempre (sem `AltGr`). `Ctrl+PgUp`/`Ctrl+PgDn` fazem o mesmo em qualquer teclado (nos notebooks, às
+vezes com `Fn`).
 
 ## Salvar e abrir
 

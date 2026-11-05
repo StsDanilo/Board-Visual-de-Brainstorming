@@ -22,7 +22,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
                             double baseWidth, double baseHeight, double fontSize,
                             String text, String color, CardShape shape,
                             PanelMode panelMode, String detailText, List<String> listItems,
-                            String imageFile, String link, String boardLink,
+                            String imageFile, String link, String boardLink, boolean locked,
                             String childBoardId, BoardSnapshot childBoard) {
 
         public CardState {
@@ -35,7 +35,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
                     card.getBaseWidth(), card.getBaseHeight(), card.getFontSize(),
                     card.getText(), card.getColor(), card.getShape(),
                     card.getPanelMode(), card.getDetailText(), card.getListItemTexts(), card.getImageFile(),
-                    card.getLink(), card.getBoardLink(),
+                    card.getLink(), card.getBoardLink(), card.isLocked(),
                     child == null ? null : child.getId(), child == null ? null : child.snapshot());
         }
 
@@ -56,6 +56,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
             card.setImageFile(imageFile);
             card.setLink(link);
             card.setBoardLink(boardLink);
+            card.setLocked(locked);
             applyChildBoardTo(card);
         }
 

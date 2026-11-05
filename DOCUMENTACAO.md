@@ -4,8 +4,9 @@
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
 > Estado descrito: até a exportação para PDF (card [3]), o salvamento em pasta (`board.json` + `imagens/`)
 > as imagens nos cards (colar, arrastar, ferramenta Imagem), a exportação do board atual para PNG
-> o link externo nos cards (marcador de clipe, menu de clique direito) e o link para outro board
-> (atalho para qualquer board da árvore, com volta ao board de origem).
+> o link externo nos cards (marcador de clipe, menu de clique direito), o link para outro board
+> (atalho para qualquer board da árvore, com volta ao board de origem), a ordem de empilhamento salva
+> (trazer para frente / enviar para trás) e o lock de item (card travado, com cadeado).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -33,6 +34,8 @@ como cards (colar, arrastar o arquivo ou escolher). Qualquer card pode ter um **
 clipe no card abre o endereço no navegador). Cards podem abrir um **painel flutuante** (texto ou lista)
 ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade), e qualquer card
 pode ser um **atalho para outro board** da árvore, mesmo em outro ramo (seta curva no card).
+Você escolhe quais cards ficam **por cima** de quais (a ordem é salva) e pode **travar** um card
+(cadeado) para não movê-lo nem excluí-lo sem querer.
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
 pode virar uma **imagem PNG** (fundo branco ou transparente).
 Não há servidor nem banco de dados.
@@ -105,13 +108,14 @@ sem tocar no modelo.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato, imagem (nome do arquivo), link (endereço web), link para outro board (id do board de destino). Tudo como propriedade observável. |
+| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato, imagem (nome do arquivo), link (endereço web), link para outro board (id do board de destino), travado (`locked`). Tudo como propriedade observável. |
+| `StackMove` | Enum dos movimentos na ordem de empilhamento: `FORWARD`, `BACKWARD` (um nível), `TO_FRONT`, `TO_BACK` (3.21). |
 | `BoardTree` | Consultas na árvore de boards (Java puro): caminho do principal até um board pelo id, lista de todos os boards com o caminho de cada um (indentada), ids da árvore. Usada pela navegação, pela lista de destinos, pelo marcador quebrado e pelo PDF. |
 | `WebLink` | Regras do endereço web do card (Java puro): aceita só `http`/`https`, normaliza (`exemplo.com` → `https://exemplo.com`), recusa o resto com mensagem; forma ASCII entregue ao navegador e ao PDF. |
 | `CardMarkers` | Marcadores na borda de cima do card (clipe do link externo, seta curva do link para outro board): quais o card tem e onde ficam em cada formato. A mesma conta serve à tela, ao espaço do texto e ao PDF. |
 | `CardShape` | Enum dos formatos (`RECTANGLE`, `ELLIPSE`, `DIAMOND`) com o tamanho padrão de cada um. |
 | `Connection` | Uma seta: id, card de origem, card de destino. Imutável. |
-| `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada). |
+| `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada). A ordem da lista de cards é a **ordem de empilhamento** (o último fica por cima); `reorder` a muda por permutação (3.21). |
 | `BoardSnapshot` | "Foto" imutável do board, usada pelo desfazer/refazer. |
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
@@ -125,27 +129,28 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainWindow` | Layout da janela: menu, área do canvas (com a barra de ferramentas por cima), barra de status. |
-| `BoardView` | O canvas: pan/zoom, camadas, cria/remove `CardView`/`ConnectionView` quando o board muda, seleção, caixa de seleção, posição da barra flutuante. |
-| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão. |
+| `MainWindow` | Layout da janela: menu, área do canvas (com a barra de ferramentas por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). |
+| `BoardView` | O canvas: pan/zoom, camadas, cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção, posição da barra flutuante. |
+| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). |
 | `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
 | `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards. |
 | `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato; recuo do texto dentro do formato. |
 | `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). |
 | `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica. |
 | `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. |
-| `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens), tamanho do texto, modo do painel (Texto/Lista), link e link para outro board (só com um card), duplicar, excluir. |
+| `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens; desabilitado se todos estão travados), tamanho do texto, modo do painel (Texto/Lista), link e link para outro board (só com um card), ordem (camadas), cadeado (travar/destravar, com estado misto), duplicar, excluir. |
+| `StackOrderButton` | Botão "Ordem" (camadas) da barra flutuante: popup com as quatro ações da ordem de empilhamento e os atalhos; as que não mudariam nada aparecem desabilitadas. |
 | `LinkEditorPopup` | Popup pequeno com o campo do endereço do link (Salvar, Cancelar, Remover), com a mensagem de erro da validação. |
 | `BoardLinkPickerPopup` | Popup com a lista da árvore de boards (indentada, com o caminho de cada um) para escolher o destino do link para outro board; o board do card aparece desabilitado e o destino atual, marcado. |
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar (a dica diz para onde ele leva). |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
 | `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente; links para boards que não existem mais saem com o marcador quebrado. |
-| `PopupButton` | Base de "botão que abre um painelzinho". |
+| `PopupButton` | Base de "botão que abre um painelzinho" (`beforeShowPopup`: atualizar as opções logo antes de abrir). |
 | `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
 | `CardPalette` | As 8 cores oferecidas. |
-| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado). |
+| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado; camadas da ordem; cadeado aberto e fechado). |
 
 ### `controller/` — o comportamento
 
@@ -154,11 +159,13 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `MainController` | Monta e conecta tudo (recebe de fora quem abre links no navegador); ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF, exportar PNG do board atual); desfazer/refazer do menu. |
 | `ImageController` | Imagens: inserir (ferramenta Imagem, `Ctrl+V`, arrastar arquivo), pasta de trabalho das imagens ainda não salvas, carregar a imagem de cada card (com cache). |
 | `CanvasController` | Mouse no fundo: pan, zoom, caixa de seleção, criar card. |
-| `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo), com alinhamento. |
-| `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas (card de imagem: proporção da imagem). |
+| `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo; travados ficam parados), com alinhamento. Clicar não muda a ordem de empilhamento. |
+| `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas (card de imagem: proporção da imagem). Card travado não ganha alças. |
 | `CardTextFitController` | Reaplica a fonte e o crescimento de cada card quando o texto, a fonte ou o tamanho mudam. |
 | `ConnectionController` | Criar setas arrastando de um card a outro. |
-| `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção. |
+| `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção (travados: sem formato, sem excluir, com aviso na barra de status; cópia de travado nasce destravada; cópias entram no topo da pilha). |
+| `StackOrderController` | Ordem de empilhamento: botão Ordem, quatro itens no menu de clique direito, atalhos (`moveFor`); cada mudança é um passo no desfazer (3.21). |
+| `LockController` | Travar/destravar a seleção: botão de cadeado (com estado misto), item "Travar"/"Destravar" no menu, `Ctrl+L`; um passo no desfazer (3.22). |
 | `TextEditController` | Registra a edição de texto no histórico (sessões de edição); duplo clique num card de imagem abre a legenda. |
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
 | `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`); guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. |
@@ -231,6 +238,8 @@ Main.main()
          │   ├─ new CardContextMenuController(...) ← menu de clique direito (vazio; os outros põem itens)
          │   ├─ new LinkController(...)      ← botão Link, itens do menu, clipe do card abre o link
          │   ├─ new BoardLinkController(...) ← botão de seta curva, itens do menu, seta do card vai ao board
+         │   ├─ new StackOrderController(...)← botão Ordem, itens do menu (trazer para frente...)
+         │   ├─ new LockController(...)      ← botão de cadeado, item Travar/Destravar do menu
          │   ├─ new KeyboardController(...)  ← instala handlers de tecla na janela
          │   ├─ wireMenu()
          │   └─ newBoard()                   ← navigation.openRoot(new Board("Sem título"))
@@ -270,10 +279,10 @@ Cada seção segue o caminho **evento → controller → modelo → tela**.
 
 ```
 MOUSE_PRESSED no card
-  ├─ filtro no CardView: traz para frente; ajusta a seleção (clique / Shift+clique)
+  ├─ filtro no CardView: ajusta a seleção (clique / Shift+clique); NÃO muda a ordem de empilhamento
   └─ handler no body (se não foi no texto):
-       guarda ponto inicial (mundo), posições iniciais de TODOS os selecionados
-       e uma foto do board (history.capture())
+       guarda ponto inicial (mundo), posições iniciais dos selecionados NÃO travados
+       (só travados: nada a mover, termina aqui) e uma foto do board (history.capture())
 MOUSE_DRAGGED
   └─ para cada selecionado: x = xInicial + deslocamento; y = yInicial + deslocamento
 MOUSE_RELEASED
@@ -292,6 +301,14 @@ Nenhuma dessas três coisas é chamada pelo código de arrastar.
 **Detalhe de UX:** clicar sem arrastar num card que faz parte de um grupo seleciona só ele — mas
 apenas **ao soltar** o botão, e só se não houve movimento. Se a seleção mudasse já no clique,
 seria impossível arrastar o grupo.
+
+**Card travado (3.22):** fica parado. Num grupo com travados, os outros se movem normalmente (pegando
+o grupo por qualquer card, até pelo travado), e o travado serve de referência para o alinhamento.
+
+**Clicar não traz para frente.** Até a ordem de empilhamento (3.21), o filtro do clique chamava
+`cardView.toFront()`, que mudava só a tela (ao reabrir, valia a ordem da lista). Isso foi retirado: a
+ordem agora é um dado salvo e só muda pelas ações explícitas, e um frame (tarefa futura) precisa
+continuar atrás dos cards ao ser clicado.
 
 ## 3.3 Criar uma conexão
 
@@ -361,9 +378,12 @@ tamanho mantendo o centro (a área útil para texto de uma elipse/losango é men
 
 - **Duplicar:** `card.copy()` (id novo, mesmo tamanho/texto/cor/formato), deslocado 24px, e a
   seleção passa para as cópias — duplicar de novo cria uma "escada". Setas não são copiadas. Os links
-  (para site e para outro board) vão junto: a cópia leva ao mesmo destino.
+  (para site e para outro board) vão junto: a cópia leva ao mesmo destino. As cópias entram no **topo** da
+  ordem de empilhamento, entre si na ordem dos originais (3.21); a cópia de um card travado nasce
+  **destravada** (3.22).
 - **Excluir:** `board.removeCard(card)`, que antes remove todas as setas ligadas ao card.
-  A seleção se ajusta sozinha (o `BoardView` retira da seleção cards que saem do board).
+  A seleção se ajusta sozinha (o `BoardView` retira da seleção cards que saem do board). Cards
+  **travados** não são excluídos: ficam (selecionados) e aparece um aviso na barra de status (3.22).
 
 Ambos passam por `history.perform`.
 
@@ -661,8 +681,10 @@ MOUSE_RELEASED
 
 ## 3.13 Redimensionar cards
 
-Com **exatamente um** card selecionado e a ferramenta Selecionar, aparecem alças em volta dele
-(`ResizeHandlesView`, desenhada pelo `BoardView` em pixels de tela, como as guias).
+Com **exatamente um** card selecionado, **não travado** (3.22), e a ferramenta Selecionar, aparecem alças
+em volta dele (`ResizeHandlesView`, desenhada pelo `BoardView` em pixels de tela, como as guias). O
+`CardResizeController` observa o formato e o travado do card selecionado: destravar (ou desfazer o
+travar) faz as alças aparecerem na hora.
 
 | Formato | Alças | Comportamento |
 |---|---|---|
@@ -816,6 +838,19 @@ Divisão de responsabilidades:
 | Ctrl+N/O/S/Shift+S, Ctrl+E, Ctrl+Shift+E, Ctrl+0 | aceleradores de menu | aparecem no menu |
 | Ctrl+Z, Ctrl+Y, Ctrl+A | aceleradores de menu | idem; e só disparam se o texto não usar a tecla |
 | V R E L P B I C, Delete, Ctrl+D, Ctrl+V, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional |
+| Ctrl+] / Ctrl+[ e Ctrl+PgUp / Ctrl+PgDn (com Shift: topo / fundo) | `KeyboardController` → `StackOrderController.moveFor` | ordem de empilhamento (3.21) |
+| Ctrl+L | `KeyboardController` → `LockController` | travar / destravar (3.22); a letra L sozinha continua sendo o Losango |
+
+**Colchetes no teclado ABNT2 (verificado):** o JavaFX 21 no Windows dá a `KeyCode` pela **posição** da tecla
+no teclado americano (tabela de teclas virtuais do glass). No ABNT2, a tecla `[` (ao lado do `´`) é a
+`VK_OEM_6` e chega como `KeyCode.CLOSE_BRACKET`; a tecla `]` (ao lado do `~`) é a `VK_OEM_5` e chega como
+`KeyCode.BACK_SLASH`; e `KeyCode.OPEN_BRACKET` é a tecla do acento agudo. Conferido perguntando ao próprio
+JavaFX, nesta máquina (layout 0416), qual `KeyCode` ele dá a cada caractere (`getKeyCodeForChar`, sem gerar
+tecla nenhuma). Comparar a `KeyCode` (`KeyCodeCombination(CLOSE_BRACKET)`) **trocaria** as ações no ABNT2.
+Por isso os colchetes são `KeyCharacterCombination("]")`/`("[")`: o JavaFX acha a tecla pelo **caractere**
+no layout atual, e o atalho funciona no ABNT2 e no americano. `Ctrl+PgUp`/`Ctrl+PgDn` ficam como
+alternativa que não depende do layout. Não validado com a tecla física: o roteiro de interface dispara
+os `KeyEvent` com as `KeyCode`s que o glass produz para essas teclas (sem entrada do sistema).
 
 **Popup do link (3.19):** o que se digita no campo do endereço nunca chega a estes atalhos — o popup
 consome todas as teclas no fim do caminho (sem isso, "r" trocaria a ferramenta e `Delete` excluiria o
@@ -1076,9 +1111,9 @@ CONTEXT_MENU_REQUESTED  → consumido sobre cards (senão o TextArea abriria o m
 ```
 
 O menu é **montado na hora**: cada controller registra um `Contributor` (`itemsFor(contexto)` → itens), e
-os grupos de contribuidores são separados por uma linha. Hoje contribuem o `LinkController` e o
-`BoardLinkController` (3.20), nessa ordem; a ordem de empilhamento entrará como mais um contribuidor, sem
-mexer no menu.
+os grupos de contribuidores são separados por uma linha. Hoje contribuem o `LinkController`, o
+`BoardLinkController` (3.20), o `StackOrderController` (3.21) e o `LockController` (3.22), nessa ordem; os
+dois últimos entraram sem mexer no menu.
 O contexto traz o card, o `CardView` e a posição de tela do clique (onde abrir um popup). Clique direito
 no fundo não abre menu.
 
@@ -1093,7 +1128,8 @@ no fundo não abre menu.
 
 ### Fora do escopo
 
-Ordem de empilhamento, frames. (O link para outro board, que reaproveita o marcador e o menu, é a 3.20.)
+Frames. (O link para outro board, que reaproveita o marcador e o menu, é a 3.20; a ordem de empilhamento,
+que pluga itens no mesmo menu, é a 3.21.)
 
 ## 3.20 Link para outro board (atalho entre caminhos)
 
@@ -1187,7 +1223,118 @@ muda. Como só se edita o board da tela, isso cobre todos os casos.
 
 - Só destinos **dentro da mesma árvore** (o mesmo save). Link para outro arquivo/pasta fica de fora.
 - Sem busca na lista (uma tarefa futura de busca global vai reaproveitar `BoardTree.pathTo`).
-- Fora do escopo: ordem de empilhamento, frames, busca global.
+- Fora do escopo: frames, busca global.
+
+## 3.21 Ordem de empilhamento (trazer para frente / enviar para trás)
+
+Quando cards se sobrepõem, a **ordem de empilhamento** diz quem fica por cima. Ela é a **posição do card em
+`board.getCards()`**: o primeiro fica no fundo, o último por cima. Essa lista já era a ordem de desenho, do
+arquivo (o array `cards` do JSON) e do PDF/PNG; o que muda é que agora há controle explícito sobre ela, e
+ela é **salva**.
+
+> **Mudança de comportamento:** clicar num card **não o traz mais para frente**. Antes o clique fazia
+> `toFront()` só na tela (ao reabrir, voltava a ordem da lista: era a armadilha 10). Agora a ordem muda
+> só pelas ações abaixo. Um frame (tarefa futura) precisa continuar atrás dos cards ao ser clicado.
+
+| Ação | Menu de clique direito | Barra flutuante | Atalho |
+|---|---|---|---|
+| Um nível para cima | "Trazer para frente" | botão **Ordem** (camadas) → lista | `Ctrl+]` ou `Ctrl+PgUp` |
+| Para o topo | "Trazer para o topo" | idem | `Ctrl+Shift+]` ou `Ctrl+Shift+PgUp` |
+| Um nível para baixo | "Enviar para trás" | idem | `Ctrl+[` ou `Ctrl+PgDn` |
+| Para o fundo | "Enviar para o fundo" | idem | `Ctrl+Shift+[` ou `Ctrl+Shift+PgDn` |
+
+- **Menu:** um grupo próprio, depois dos links (contribuidor registrado depois do `BoardLinkController`). As
+  ações que não mudariam nada (ex.: "Trazer para frente" com o card já no topo) aparecem **desabilitadas**.
+- **Barra (decisão):** **um botão com popup** (`StackOrderButton`), não quatro botões: a barra já tem dez
+  botões, e as quatro ações são raras. O popup lista as quatro com o atalho ao lado; as que não mudariam
+  nada ficam desabilitadas (`PopupButton.beforeShowPopup`).
+- **Atalhos:** fora da edição de texto (3.16). Colchetes pelo caractere, por causa do ABNT2 (3.16).
+
+### Regras (`Board.reorder`, Java puro, testável)
+
+```
+reorder(cards, movimento)
+  TO_FRONT: os outros na ordem de antes, depois os escolhidos na ordem de antes
+  TO_BACK:  os escolhidos, depois os outros
+  FORWARD:  do topo para baixo, cada escolhido troca de lugar com o vizinho de cima se ele não é escolhido
+  BACKWARD: espelhado (de baixo para cima, com o vizinho de baixo)
+  aplica com cards.sort(posição na nova ordem)  → aviso de PERMUTAÇÃO, não de "saiu e entrou"
+```
+
+- **Vários selecionados mantêm a ordem relativa** entre eles (não importa a ordem em que foram
+  selecionados). Um bloco de selecionados juntos sobe/desce junto, um nível.
+- **Um nível = uma posição na lista** (decisão): troca com o vizinho, mesmo que ele esteja longe na tela
+  e nada mude visualmente. É o comportamento do PowerPoint/Google Slides, previsível e testável; para
+  passar de vários de uma vez, "para o topo"/"para o fundo". (Pular até o próximo card **sobreposto** seria
+  uma evolução possível.)
+- **Limites:** no topo, "para frente" não faz nada; no fundo, "para trás" também. Sem mudança, **nenhum passo**
+  no desfazer (`StackOrderController.reorder` confere `canReorder` antes).
+- Cada ação é **um passo** no desfazer. Card **travado** (3.22) muda de ordem normalmente (a trava protege
+  posição e tamanho, não a pilha).
+
+### O que mais respeita a ordem
+
+| Onde | Como |
+|---|---|
+| Tela | O `BoardView` escuta a lista: numa permutação, chama `toFront()` em cada `CardView` na ordem nova. O JavaFX trata `toFront` como troca de lugar entre irmãos: **o nó não sai da cena**, então foco, seleção, painel aberto e handlers continuam (conferido no roteiro de interface: nenhum `CardView` é recriado) |
+| Desfazer | A foto (`BoardSnapshot`) guarda os cards na ordem; `restore` põe os cards na ordem da foto (permutação, mesmos objetos). Desfazer uma exclusão devolve o card ao **seu lugar** na pilha (antes ia para o topo) |
+| Salvar/abrir | O array `cards` do JSON sempre esteve na ordem da lista; nada mudou no formato |
+| PDF e PNG | O `BoardRenderer` monta os `CardView`s na ordem de `board.getCards()` |
+| Novo card, colar imagem | Entram no **topo** (como antes) |
+| Duplicar (decisão) | As cópias entram no **topo**, entre si na ordem dos originais. Alternativa descartada: "logo acima do original" (mais regras, e a cópia sai deslocada por cima do original de qualquer jeito) |
+| Mover, redimensionar, mudar cor/texto | Não mexem na ordem |
+| Boards aninhados | Cada board tem a sua ordem; `deepCopy` (duplicar card-board) mantém a ordem dos filhos |
+
+## 3.22 Lock de item (card travado)
+
+Um card **travado** fica protegido contra mudanças sem querer (clique errado, arrasto em grupo), no estilo
+do cadeado do Canva. É um booleano no card, `Card.locked`, que percorreu o checklist 5.1 inteiro (cópia,
+foto, arquivo).
+
+| Onde | Como |
+|---|---|
+| **Clique direito** no card | "Travar" (ou "Destravar", se toda a seleção está travada), num grupo próprio no fim do menu |
+| **Botão de cadeado** na barra flutuante | Ao lado do botão Ordem. Aberto = nada travado; fechado e marcado = tudo travado; fechado e **tracejado** = seleção mista (como a cor "mista") |
+| **`Ctrl+L`** | Fora da edição de texto. Não conflita: a letra `L` sozinha é o Losango, e o `Ctrl+L` não era usado |
+
+Com seleção múltipla vale para todos: se **todos** estão travados, destrava; senão (nenhum ou alguns), trava
+todos. Cada travar/destravar é **um passo** no desfazer (o mesmo estado de novo não é passo).
+
+### O que o travado bloqueia e o que permite (decisões)
+
+| Bloqueia | Onde |
+|---|---|
+| Mover (arrastar) | `CardDragController.movableCards`: os travados ficam fora do arrasto. No **arrasto em grupo** os outros se movem e o travado fica; pegar o grupo pelo travado também move os outros. Só travados: o arrasto não move nada e não cria passo |
+| Redimensionar | `CardResizeController`: as alças **não aparecem** |
+| Trocar o formato | `SelectionActionsController.applyShape` pula os travados (o formato muda o tamanho); com só travados, o botão de formato fica desabilitado |
+| Excluir | `SelectionActionsController.delete` exclui só os destravados; os travados **ficam selecionados** e aparece um aviso na barra de status ("Card travado não é excluído: destrave antes...", some em 5 s). Escolhido em vez de excluir mesmo assim (não protegeria) ou de um diálogo de confirmação (interrompe a cada Delete) |
+
+| Permite (continua livre) | Por quê |
+|---|---|
+| Selecionar, Shift+clique, caixa de seleção | Para conseguir destravar e para agir em grupo |
+| Editar o texto, cor, tamanho do texto | Conteúdo e aparência, não posição. (O texto pode fazer o card crescer: o crescimento automático continua) |
+| Setas (criar a partir dele ou até ele), links e seus marcadores, painel, entrar no board | Nada disso move o card |
+| Ordem de empilhamento | A pilha não é posição nem tamanho |
+| **Duplicar** | A **cópia nasce destravada** (para poder ser posicionada); o original continua travado. `Card.copy()` copia tudo, inclusive o `locked`; quem destrava a cópia é o `SelectionActionsController.duplicate` |
+
+Não existe outro gesto que mova cards (não há "mover com as setas do teclado"); o crescimento do card pelo
+texto (3.14) não é um gesto do usuário e continua valendo.
+
+### A aparência
+
+- Pseudo-classe **`:locked`** no `CardView`: o cursor sobre o card deixa de ser o de mover (`app.css`).
+- Um **cadeado pequeno** (16 px, `.card-lock-badge`) no **canto de cima à esquerda**, metade para fora:
+  longe dos marcadores (em cima, à direita no retângulo e no meio da elipse/losango), do botão do painel
+  (embaixo), da alça de conexão (à direita) e da barra flutuante (que fica 10 px acima do card e, sem alças,
+  não desce até ele). Não recebe cliques. Na elipse e no losango ele fica no canto da caixa, fora da
+  silhueta. O acabamento estético fica para depois.
+- **PDF e PNG:** o cadeado **não sai** (`.board-export .card-lock-badge { visibility: hidden; }`): é um estado
+  de edição, não conteúdo.
+
+### Salvar e abrir
+
+`"locked": true` no card do `board.json`, só nos travados (destravado não grava o campo). Saves anteriores
+não têm o campo: abrem destravados. **Sem** novo bump de `version`.
 
 ---
 
@@ -1308,13 +1455,13 @@ Onde o projeto usa cada um e por quê:
 | `BoardView`, press do botão do meio/direito/Espaço | filtro | O pan deve funcionar **mesmo sobre um card**; precisa agir antes do card. |
 | `BoardView`, press esquerdo no fundo | handler | Só interessa se nenhum card tratou o clique. |
 | `BoardView`, drag/release do pan e da caixa | filtro | O drag é entregue ao nó onde o press começou; o filtro no pai pega de qualquer forma. |
-| `CardView`, press (seleção, trazer para frente) | filtro | Deve acontecer até se o clique foi no texto. |
+| `CardView`, press (seleção) | filtro | Deve acontecer até se o clique foi no texto. (Não traz mais para frente: 3.21.) |
 | `CardView`, press da conexão | filtro + consume | Deve **impedir** o `TextArea` de receber o clique. |
 | `body`, press/drag do arrasto | handler | Só se o clique **não** foi no texto (checado com `isTextNode`). |
 | `CardView`, press (seleção e conexão) | filtro | **Ignora** o clique num marcador (`isMarkerNode`): o clipe só abre o link. |
 | `BoardView`, release do botão direito | filtro | Abre o menu do card se não houve movimento (3.19). |
 | `BoardView`, `CONTEXT_MENU_REQUESTED` sobre card | filtro + consume | Impede o menu nativo do `TextArea` por cima do nosso. |
-| `Stage`, teclas | handler | Só teclas não consumidas pelo campo de texto. |
+| `Stage`, teclas | handler | Só teclas não consumidas pelo campo de texto. Os atalhos da ordem comparam por caractere (`KeyCharacterCombination`), não pela `KeyCode` (3.16). |
 | Popup do link, teclas | handler na raiz + consume | Nenhuma tecla digitada no endereço chega aos atalhos da janela. |
 
 **Como saber se o clique foi "no fundo":** `event.getPickResult().getIntersectedNode() == view`.
@@ -1381,7 +1528,8 @@ pseudoClassStateChanged(PseudoClass.getPseudoClass("selected"), true);
 
 Pseudo-classes usadas: `:selected`, `:connection-target`, `:tool-select`, `:tool-rectangle`,
 `:tool-ellipse`, `:tool-diamond`, `:tool-connection`, `:tool-create`, `:panning`, `:space-pan`,
-`:mixed`, `:has-board`, `:has-image`, e as nativas `:hover`, `:pressed`, `:focus-within`.
+`:mixed` (cor e cadeado da seleção mista), `:has-board`, `:has-image`, `:broken`, `:locked` (card
+travado), e as nativas `:hover`, `:pressed`, `:focus-within`, `:disabled`.
 
 ### Formatos com `-fx-shape`
 
@@ -1489,8 +1637,12 @@ irrelevante e a robustez compensa.
 3. Para cada card da foto:
       existe? → aplicar os valores no MESMO objeto Card
       não?    → criar Card com o id da foto e adicionar
-4. Para cada conexão da foto que não existe: recriar ligando aos cards pelos ids
+4. Pôr os cards na ordem da foto (ordem de empilhamento, 3.21), por permutação: mesmos objetos
+5. Para cada conexão da foto que não existe: recriar ligando aos cards pelos ids
 ```
+
+A ordem dos cards faz parte da foto (é uma lista): mudar só a ordem já é uma "mudança" para o
+`perform`, e um card excluído volta ao seu lugar na pilha, não ao topo.
 
 Por que no lugar, e não `boardView.setBoard(boardNovo)`?
 
@@ -1539,6 +1691,7 @@ lugar de referências, que espelham exatamente o JSON.
 | `imageFile` com pasta no nome (`../x.png`) | mantido no card, mas nunca procurado fora de `imagens/` (aviso de imagem não encontrada) |
 | Card sem `link` (saves anteriores) | card sem link, sem novo bump de `version` |
 | `link` que não é `http(s)` válido (`file:`, `javascript:`, caminho, `usuário@site`…) | **descartado** ao abrir: o card fica sem link (aviso no console) — 3.19 |
+| Card sem `locked` (saves anteriores) | card destravado, sem novo bump de `version` — 3.22 |
 
 ### Gravação segura
 
@@ -1604,21 +1757,28 @@ você estava editando.
 É o caso mais sujeito a esquecimentos. **Checklist:**
 
 - [ ] `Card`: campo como propriedade + getter/setter/`xxxProperty()`
-- [ ] `Card.copy()`: copiar o valor (se fizer sentido na duplicação)
+- [ ] `Card.copy()`: copiar o valor. O `copy` é uma cópia **fiel** (o `CardAllPropertiesTest` confere); se a
+  **ação** de duplicar deve mudar algo na cópia (como o `locked`, que nasce `false`), faça isso na ação
+  (`SelectionActionsController.duplicate`), não no `copy`
 - [ ] `BoardSnapshot.CardState`: novo componente + `of()` + `applyTo()` → **senão desfazer ignora a propriedade**
   (exemplo completo: veja como `panelMode`, `detailText` e `listItems` foram adicionados, ou
   `baseWidth`/`baseHeight`/`fontSize`, com valor padrão para arquivos antigos; os mais recentes são
-  `imageFile`, `link` e `boardLink`, que percorreram o checklist inteiro)
+  `imageFile`, `link`, `boardLink` e `locked`, que percorreram o checklist inteiro)
 - [ ] `BoardFileFormat.CardData`: novo componente → **senão não salva**
-- [ ] `BoardStorage.toData` / `fromData`: mapear, com valor padrão para arquivos antigos
+- [ ] `BoardStorage.toData` / `fromData`: mapear, com valor padrão para arquivos antigos (booleano: use
+  `Boolean` no `CardData`, grave `null` quando for o padrão, e leia com `Boolean.TRUE.equals(...)`, como o `locked`)
 - [ ] `CardView`: refletir visualmente (pseudo-classe ou variável CSS), se houver efeito visual; se for um
   **marcador** na borda do card (como o clipe do `link`), use `CardMarkers` (3.19) em vez de posicionar à mão
 - [ ] Valor que vem de fora e vai para o sistema (como o `link`): validar no **setter** do modelo (o `link`
   é só leitura por fora) e de novo antes de usar; nunca confiar no que veio do arquivo
 - [ ] Referência a outra parte da árvore (como o `boardLink`): guarde o **id** (não o objeto nem o nome),
   mantenha o id ao abrir mesmo que o alvo não exista mais, e mostre o estado "quebrado" na tela (3.20)
-- [ ] `app.css`: estilo
+- [ ] `app.css`: estilo (se algo for só de edição, como o cadeado do `locked`, esconda na exportação com
+  `.board-export ... { visibility: hidden; }`)
 - [ ] Controller: quem altera deve usar `history.perform`
+- [ ] Propriedade que **restringe** ações (como o `locked`): a regra fica em cada controller que faz a ação
+  (arrastar, redimensionar, formato, excluir), não no modelo; deixe um método estático testável
+  (`CardDragController.movableCards`, `SelectionActionsController.delete`)
 - [ ] **`CardAllPropertiesTest.fullCard()`**: preencher a propriedade nova com um valor diferente do padrão
 - [ ] Testes: `BoardStorageTest` (salvar/abrir) e `BoardSnapshotTest` (desfazer)
 
@@ -1649,8 +1809,8 @@ a funcionar sem mais nada.
 3. Cursor/estilo em `app.css` usando `:tool-nova`, se preciso.
 
 **Nem toda funcionalidade é uma ferramenta.** Se ela age sobre um card que já existe (ex.: o link
-externo e o link para outro board), o lugar é a barra flutuante (5.4) e/ou o menu de clique direito
-(abaixo), não a barra lateral.
+externo, o link para outro board, a ordem de empilhamento e o travar), o lugar é a barra flutuante (5.4)
+e/ou o menu de clique direito (abaixo), não a barra lateral.
 
 **Ferramenta que é uma ação** (ex.: `Tool.IMAGE`): em vez de esperar um clique no canvas, o controller
 escuta `activeTool` e, quando ela vira a ferramenta, faz a ação e volta para Selecionar — dentro de um
@@ -1660,8 +1820,20 @@ e dica funcionam sem mais nada.
 ## 5.4 Adicionar uma ação na barra flutuante
 
 1. Botão em `SelectionToolbarView` (use `actionButton(tooltip, iconPath)` e um ícone em `Icons`).
-2. Ação em `SelectionActionsController`, operando sobre `selectedCards()` dentro de `history.perform`.
-3. Atalho em `KeyboardController`, se houver.
+2. Ação em `SelectionActionsController` (ou num controller próprio, como `StackOrderController` e
+   `LockController`), operando sobre a seleção dentro de `history.perform`.
+3. Atalho em `KeyboardController`, se houver. Atalho com tecla de pontuação (`[`, `]`, `;`...): use
+   `KeyCharacterCombination`, não a `KeyCode` (no ABNT2 a `KeyCode` é a da posição no teclado americano, 3.16).
+
+**Várias ações num botão só** (como o botão Ordem): estenda `PopupButton` e sobrescreva `beforeShowPopup` para
+habilitar só as opções que mudariam algo agora (`StackOrderButton.setAvailability`).
+
+**Botão de estado com seleção mista** (como o cadeado): pseudo-classes `:selected` (todos) e `:mixed`
+(alguns), atualizadas por um controller que observa a propriedade de cada card selecionado (senão o
+desfazer não atualiza o botão) — ver `LockController.observeSelection` e `SelectionToolbarView.showLock`.
+
+**Aviso curto sem diálogo** (como "card travado não é excluído"): `MainWindow.showStatusMessage`, que o
+`MainController` passa aos controllers como `Consumer<String>` (ver `SelectionActionsController.setNotifier`).
 
 Botão que só faz sentido com **um** card (como o Link e o Link para outro board): esconda com `managed`
 ligado ao `visible` e controle a visibilidade escutando a seleção no controller (ver
@@ -1712,7 +1884,8 @@ derivada da largura, e o canto oposto à alça fica parado.
 
 Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
 **[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9), as
-imagens nos cards (3.17), o PNG (3.18), o link externo (3.19) e o link para outro board (3.20):
+imagens nos cards (3.17), o PNG (3.18), o link externo (3.19), o link para outro board (3.20), a ordem de
+empilhamento (3.21) e o lock de item (3.22):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -1722,10 +1895,9 @@ imagens nos cards (3.17), o PNG (3.18), o link externo (3.19) e o link para outr
 |---|---|---|
 | **Busca global** | `BoardTree.entries` já lista todos os boards com o caminho; buscar também no texto dos cards e ir ao resultado com `NavigationController.jumpTo` (3.20) | Decidir: só nomes de board ou texto dos cards; destacar o card encontrado |
 | **Link para outro arquivo** | Extensão do link para outro board (3.20): guardar a pasta do save além do id | Primeira versão ficou só na mesma árvore |
-| **Ordem de empilhamento** | Itens "Trazer para frente/Enviar para trás" como contribuidor do menu de clique direito; a ordem é a da lista `board.getCards()` (salva no arquivo) | Hoje o "trazer para frente" do clique não é salvo (armadilha 10) |
+| **Frames / seções coloridas** (tarefa 4b) | Um frame é um card (ou um tipo novo) que fica **atrás** dos cards que contém: use `Board.reorder(..., TO_BACK)` ao criar e a trava (`locked`) para não arrastá-lo sem querer (3.21, 3.22). Clicar no frame já não o traz para frente | Decidir: mover o frame leva os cards de dentro? |
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
-| **Lock de item** | Propriedade `locked` (checklist 5.1); `CardDragController` ignora cards travados; pseudo-classe `:locked` | Excluir/duplicar travados? decidir |
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
 | **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem |
 | **Aviso de alterações não salvas** | Comparar `board.snapshot()` com a foto do último salvamento | O snapshot já resolve a detecção |
@@ -1794,6 +1966,17 @@ imagens nos cards (3.17), o PNG (3.18), o link externo (3.19) e o link para outr
 | Voltar depois de um pulo = board de onde saiu; caminho no topo = caminho real do destino | Empilhar o destino em cima da origem (caminho "falso") | O topo sempre mostra onde o board está de verdade, e o voltar ainda leva de volta; clicar no caminho acima do destino esquece a origem (3.11) |
 | Lista de destinos com a árvore inteira, indentada, caminho embaixo | Árvore expansível (`TreeView`) | Boards de um save cabem numa lista curta; o caminho em cada linha tira a ambiguidade de nomes iguais em ramos diferentes |
 | Pilha de navegação numa classe sem tela (`NavigationPath`) | Lógica dentro do `NavigationController` | Testável sem janela (busca, reconstrução da pilha, voltar à origem) |
+| Ordem de empilhamento = posição em `board.getCards()` | Um número `zIndex` em cada card | A lista já era a ordem de desenho, do arquivo e do PDF; nenhum campo novo no JSON nem no `CardState` (3.21) |
+| Clicar não traz para frente | Manter o `toFront` do clique (só na tela) | A ordem agora é dado salvo; o clique mudaria a tela sem mudar o arquivo (armadilha 10 antiga) e jogaria um frame por cima dos cards |
+| Reordenar por permutação (`cards.sort`) | `setAll` com a lista nova | O `setAll` avisa "removidos e adicionados": a tela recriaria os `CardView`s (perderia foco, painel aberto, seleção visual) |
+| Um nível = uma posição na lista | Pular até o próximo card sobreposto | Previsível e testável (como PowerPoint/Slides); "topo"/"fundo" resolvem o resto (3.21) |
+| Botão Ordem com popup de quatro ações | Quatro botões na barra | A barra já é longa e as ações são raras; o popup mostra os atalhos (3.21) |
+| Colchetes por caractere (`KeyCharacterCombination`) + `Ctrl+PgUp/PgDn` | Só `KeyCode` (`Ctrl+]`) ou trocar por outro conjunto | No ABNT2 a `KeyCode` dos colchetes é a da posição americana (trocaria as ações); pelo caractere funciona nos dois layouts, e PgUp/PgDn é o plano B (3.16) |
+| Duplicar põe as cópias no topo | Logo acima do original | Igual a um card novo; menos regras (3.21) |
+| Travado não é excluído; aviso na barra de status | Excluir mesmo assim; diálogo de confirmação | Excluir não protegeria; um diálogo a cada Delete interrompe. O aviso diz como destravar (3.22) |
+| Travado: texto, cor, setas, links, ordem livres; formato bloqueado | Bloquear tudo | A trava protege posição e tamanho (o que um clique errado estraga); o formato muda o tamanho (3.22) |
+| Cópia de travado nasce destravada; `Card.copy` continua fiel | Cópia travada | A cópia precisa ser posicionada; a regra fica na ação de duplicar, e o `copy` segue a rede de segurança do `CardAllPropertiesTest` |
+| Cadeado no canto, só na tela | Marcador do `CardMarkers` (no PDF também) | É estado de edição, não conteúdo; não disputa espaço com o texto nem com os marcadores (3.22) |
 
 ## B. Armadilhas conhecidas
 
@@ -1812,7 +1995,12 @@ imagens nos cards (3.17), o PNG (3.18), o link externo (3.19) e o link para outr
 9. **Ordem de registro de filtros** no mesmo nó importa: o `CardDragController` registra antes do
    `ConnectionController` (ordem do inicializador no `MainController`), então a seleção é ajustada
    antes de uma conexão consumir o evento.
-10. **Z-order não é salvo**: trazer para frente só vale na tela; ao reabrir, vale a ordem da lista.
+10. **A ordem de empilhamento é a ordem da lista `board.getCards()`** (3.21), e a tela precisa acompanhá-la.
+    Nunca mude a ordem só na tela (`cardView.toFront()` direto, como o clique fazia antes da 3.21): o
+    arquivo, o desfazer, o PDF e o PNG não veriam. Mude a lista (`Board.reorder`) e o `BoardView` reposiciona
+    os nós. E mude a lista por **permutação** (`cards.sort`), não com `setAll`/remover+adicionar: senão a tela
+    recria os `CardView`s (perde foco, painel aberto e seleção visual), e quem escuta a lista acha que cards
+    saíram e entraram.
 11. **Setas A→B e B→A** ficam sobrepostas (parecem uma seta de duas pontas).
 12. **Largura/altura × tamanho definido à mão:** para mudar o tamanho "de verdade", use
     `Card.resize`; `setWidth`/`setHeight` sozinhos são desfeitos pelo recálculo do texto (3.14).
@@ -1879,10 +2067,25 @@ imagens nos cards (3.17), o PNG (3.18), o link externo (3.19) e o link para outr
     principalmente com o usuário usando o computador), o clique cai nela. Conferir a janela da frente
     **antes de cada clique**, não só antes de digitar; ou usar o roteiro "dentro da JVM" (C), que não usa o
     mouse e o teclado do sistema.
+34. **`KeyCode` de pontuação depende da posição, não do caractere.** No ABNT2 a tecla `[` chega como
+    `KeyCode.CLOSE_BRACKET` e a `]` como `BACK_SLASH` (3.16). Atalho com pontuação deve usar
+    `KeyCharacterCombination`. Letras e PgUp/PgDn não têm esse problema.
+35. **Card travado continua mudando pelo desfazer e pelo texto.** A trava é regra de interface (arrastar,
+    alças, formato, excluir), não do modelo: `Ctrl+Z` pode mover um card travado de volta (é desfazer), e o
+    texto pode fazê-lo crescer (3.14). Um gesto novo que mova ou exclua cards precisa conferir `isLocked()`
+    no seu controller (não há proteção central).
+36. **O cadeado fica dentro do `CardView`.** Um card por cima, na ordem de empilhamento, cobre o cadeado do
+    card de baixo, como cobre o resto dele. E o cadeado sai 6 px para fora da caixa do card: os
+    `boundsInParent` do `CardView` travado são um pouco maiores que o card (a conta de posição de tudo usa o
+    modelo, não esses limites).
+37. **`ObservableList` só-leitura não compara com `List.of`.** `assertEquals(List.of(a, b), board.getCards())`
+    falha mesmo com os mesmos cards (o `equals` da lista não modificável do JavaFX não é o de `List`); compare
+    com `List.copyOf(board.getCards())`. E o desfazer de uma exclusão recria o card (mesmo id, outro objeto):
+    compare pelos ids.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 235 testes, sem abrir janela
+### Automatizados (`mvn test`) — 270 testes, sem abrir janela
 
 (O `BoardRendererPngTest` liga o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela
 ele é pulado em vez de falhar.)
@@ -1906,7 +2109,7 @@ ele é pulado em vez de falhar.)
 | `ImageCardTest` | card de imagem nasce retângulo do tamanho da imagem, altura da imagem pela proporção, nome em branco = sem imagem, duplicar reutiliza o arquivo, desfazer/refazer a inserção, imagens da árvore inteira e das fotos |
 | `ImageCardControllerTest` | limpeza ao salvar mantém imagens de boards aninhados e do histórico e remove só a órfã; histórico zerado libera a imagem; tamanho inicial (limite, natural, ampliada); redimensionar mantém a proporção em todos os cantos, canto oposto parado, mínimo pelo maior lado |
 | `PngExporterTest` | área com margem e 2 px por unidade, redução pelo lado maior (8.000 px exatos, sem 1 px a mais) e pelo total de pixels, arredondamento, nome sugerido (principal, caminho do aninhado, caracteres proibidos, ponto/espaço no fim, nome reservado, vazio, comprimento), `.png` acrescentado só se faltar, PNG gravado no tamanho previsto e sem `.tmp`, substitui arquivo existente, board vazio recusado sem gravar |
-| `BoardRendererPngTest` | (JavaFX de verdade, CSS do app) clipe desenhado no card com link e ausente no sem link; PNG de board com formatos, cor, seta e card de imagem: tamanho previsto, fundo branco, cor do card, seta entre os cards, imagem do card no lugar certo; a mesma exportação com fundo transparente (canto transparente, card opaco); board de 30.000 unidades reduzido a 8.000 px com os dois extremos desenhados |
+| `BoardRendererPngTest` | (JavaFX de verdade, CSS do app) a exportação segue a ordem de empilhamento (na sobreposição aparece o card de cima, antes e depois de "trazer para o topo"); o cadeado do card travado não sai na imagem (PNG idêntico ao do destravado); clipe desenhado no card com link e ausente no sem link; PNG de board com formatos, cor, seta e card de imagem: tamanho previsto, fundo branco, cor do card, seta entre os cards, imagem do card no lugar certo; a mesma exportação com fundo transparente (canto transparente, card opaco); board de 30.000 unidades reduzido a 8.000 px com os dois extremos desenhados |
 | `WebLinkTest` | aceita `http`/`https`, acrescenta `https://` (inclusive `site:porta` e `//site`), apara e põe o esquema em minúsculas, vazio = sem link; recusa outros esquemas, caminhos e executáveis, espaços e caracteres de controle, usuário antes do site, site sem domínio, porta e `%` inválidos, endereço longo; forma ASCII (site com acento); `Card.setLink` nunca guarda link perigoso |
 | `BoardTreeTest` | caminho de um board por id em vários níveis e em ramos diferentes, caminho da raiz, id inexistente (e raiz/id nulos), excluir um card tira a subárvore da busca, renomear mantém o id e muda o caminho, lista da árvore na ordem do PDF com profundidade e caminho, ids da árvore; `deepCopy` dá ids novos a todos os boards dentro; duplicar um card-board mantém ids únicos e o link copiado aponta para o original; duplicar copia o link; texto em branco = sem link |
 | `NavigationPathTest` | entrar/voltar como antes; pular monta o caminho real do destino; voltar do destino volta à origem (com a visão dela) e depois ao pai; pulo para o principal ainda tem voltar; filho aberto a partir do destino volta ao destino e depois à origem; clicar num nível acima do destino esquece a origem; pulos encadeados; visão mantida nos níveis em comum; pulo para o próprio board e para board excluído não mudam nada; origem excluída → voltar ao pai; origem excluída e trazida pelo desfazer → pilha refeita pelo id; abrir outro board zera tudo |
@@ -1914,7 +2117,11 @@ ele é pulado em vez de falhar.)
 | `BoardLinkStorageTest` | link para board de outro ramo salvo e aberto (caminho conferido), card sem link não grava o campo, save anterior sem o campo abre sem link, link para board inexistente mantido, ids de board repetidos (saves antigos) renovados ao abrir |
 | `CardMarkersTest` | seta do link para outro board sozinha e depois do clipe (mesma fileira); sem link, sem marcador; retângulo: canto de cima à direita, fora das alças; elipse e losango: no meio e dentro da silhueta; losango estreito desce o marcador; vários em fila sem sobrepor; texto abaixo; card minúsculo |
 | `LinkControllerTest` | adicionar, editar e remover são passos de desfazer/refazer; vazio remove; endereço inválido devolve mensagem e não muda nada; o mesmo link de novo não é passo; duplicar copia o link (painel, imagem); excluir e desfazer traz o link |
-| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`, `link` e `boardLink`): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
+| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`, `link`, `boardLink` e `locked`): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
+| `StackOrderTest` | `Board.reorder`: um nível para cima e para baixo, topo, fundo, limites (topo/fundo/vazio/card de outro board não mudam nada), vários selecionados mantêm a ordem relativa, bloco junto sobe junto, card no topo fica e o outro selecionado sobe, aviso de permutação (não remoção), foto vê a ordem, `restore` devolve a ordem com os mesmos objetos, desfazer exclusão volta ao lugar na pilha, restaurar num board vazio, `deepCopy` mantém a ordem dos filhos |
+| `StackOrderControllerTest` | cada movimento é um passo de desfazer/refazer; sem mudança, sem passo; duplicar põe as cópias no topo na ordem dos originais; excluir e desfazer mantém a ordem; mover não mexe na ordem; salvar/abrir mantém a ordem (inclusive num board aninhado) |
+| `LockControllerTest` | travar/destravar são passos de desfazer; o mesmo estado não é passo; botão/Ctrl+L trava todos (nenhum ou alguns travados) ou destrava (todos); foto vê o travado; arrasto em grupo move só os destravados; excluir mantém os travados (e o desfazer devolve os outros); só travados: nada excluído, sem passo; formato não muda no travado e a cor muda; cópia de travado nasce destravada; travado muda de ordem |
+| `LockStorageTest` | travado salvo e aberto (também em board aninhado), destravado não grava o campo, travado grava `"locked": true` sem mudar a versão, save anterior sem o campo abre destravado (e na ordem do arquivo) |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o
 benefício direto da separação em camadas.
@@ -1995,6 +2202,29 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   válidos e quebrados como estavam. **Não validado por esse roteiro:** os seletores nativos de arquivo
   (Salvar/Abrir/Exportar, código não alterado nesta tarefa), o clique físico do mouse (o caminho do evento
   dentro do JavaFX é o mesmo) e o `mvn javafx:run` no module path.
+- **Ordem de empilhamento e lock de item** foram validados por um roteiro do mesmo tipo, **dentro da JVM, sem
+  mouse e teclado do sistema** (115 verificações), rodado com o app no classpath e no **module path** (como o
+  `mvn javafx:run` monta). Ordem: clicar num card não muda a ordem (nem a salva, nem a da tela, nem cria
+  passo) → menu de clique direito (as quatro ações depois dos links; "para trás"/"fundo" desabilitados no
+  fundo) → "Trazer para frente" (tela acompanha, **nenhum `CardView` recriado**, seleção mantida) → botão
+  Ordem da barra (popup, opções desabilitadas no topo, topo e fundo) → `Ctrl+PgUp/PgDn` com e sem Shift
+  (sem mudança, sem passo) → colchetes com as `KeyCode`s que o glass dá às teclas do ABNT2 (`BACK_SLASH` =
+  tecla `]`, `CLOSE_BRACKET` = tecla `[`; `OPEN_BRACKET` = tecla `´` não faz nada) → vários selecionados
+  (ordem relativa) → `Ctrl+Z`/`Ctrl+Y` (ordem e nós preservados) → atalhos ignorados durante a edição de
+  texto → painel aberto e seleção preservados ao mudar a ordem → `Ctrl+D` (cópia no topo) → salvar
+  (`board.json` na ordem), PNG e PDF (na sobreposição aparece o card de cima; no PDF, conferido na imagem da
+  página) → reabrir (mesma ordem na tela). Lock: botão de cadeado (cadeado no card, `:locked`, cursor
+  normal, sem alças, botão marcado, formato desabilitado, cadeado fora da barra flutuante) → arrastar o
+  travado (não move, sem passo; `Ctrl+Z` desfaz o travar e as alças voltam) → arrasto em grupo pelo travado
+  e pelo outro (só o destravado se move; botão "misto") → `Delete` e botão Excluir (o travado fica, com
+  aviso na barra de status; sem passo quando só há travados) → cor, texto (clicando no texto), seta pela
+  ferramenta Conexão e ordem no travado → clipe do link no travado (abre o link; cadeado e clipe não se
+  sobrepõem) → elipse com board aninhado travada (entra no board) → menu Travar/Destravar e `Ctrl+L` (inclusive
+  ignorado durante a edição) → `Ctrl+D` no travado (cópia destravada, que arrasta) → salvar (`locked` só nos
+  travados), PNG sem o cadeado, reabrir (continua travado e sem mover). **Não validado:** a tecla física dos
+  colchetes num teclado ABNT2 de verdade (o roteiro usa as `KeyCode`s que o JavaFX informa para essas teclas
+  neste layout; ver 3.16), o clique físico do mouse, os seletores nativos de arquivo (código não alterado) e
+  o cursor do mouse visto na tela (conferido pela propriedade `cursor` do nó).
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
@@ -2020,6 +2250,9 @@ para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
 | **Record** | Classe Java imutável com `equals` por valor. |
 | **Marquee** | Caixa de seleção desenhada arrastando. |
 | **Popup** | Janela pequena sem moldura (paleta de cores, seletor de formato). |
+| **Ordem de empilhamento (z-order)** | Quem fica por cima de quem quando cards se sobrepõem; aqui, a posição na lista de cards (3.21). |
+| **Permutação** | Mudança de uma lista observável em que só a ordem muda (nada entra nem sai). |
+| **Card travado (lock)** | Card protegido contra mover, redimensionar, trocar o formato e excluir (3.22). |
 
 ## E. Comandos úteis
 

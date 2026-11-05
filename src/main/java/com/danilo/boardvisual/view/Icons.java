@@ -38,6 +38,14 @@ final class Icons {
      * ícone do link para outro board, diferente do clipe do link externo.
      */
     static final String BOARD_LINK = "M5 20 V14.5 A6.5 6.5 0 0 1 11.5 8 H19.5 M15.5 4 L19.5 8 L15.5 12";
+    /** Cadeado fechado: "travado". */
+    static final String LOCK = "M8 11 V8 A4 4 0 0 1 16 8 V11 M5.5 11 H18.5 V20.5 H5.5 Z M12 14.5 V17";
+    /** Cadeado aberto (a alça solta de um lado): "destravado". */
+    static final String UNLOCK = "M8 11 V8 A4 4 0 0 1 15.9 7.2 M5.5 11 H18.5 V20.5 H5.5 Z M12 14.5 V17";
+
+    /** Três camadas empilhadas: "ordem de empilhamento". */
+    static final String LAYERS = "M12 4 L20 8.5 L12 13 L4 8.5 Z M4 12.5 L12 17 L20 12.5 M4 16.5 L12 21 L20 16.5";
+
     /** Traço em diagonal por cima de um ícone: "não existe mais". */
     static final String STRIKE = " M3.5 3.5 L20.5 20.5";
 

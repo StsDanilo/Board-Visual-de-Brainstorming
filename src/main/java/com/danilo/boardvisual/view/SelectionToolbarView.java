@@ -13,7 +13,7 @@ import javafx.scene.layout.HBox;
  * Barra flutuante que aparece logo acima do card selecionado (estilo Canva).
  *
  * O posicionamento é feito pelo {@link BoardView}; as ações, pelo controller.
- * Novas ações (bloquear...) entram como mais botões aqui.
+ * Novas ações entram como mais botões aqui.
  *
  * Os botões de modo (Texto | Lista) só aparecem quando todos os selecionados
  * são painéis flutuantes; os botões Link (clipe) e Link para outro board
@@ -22,10 +22,16 @@ import javafx.scene.layout.HBox;
 public class SelectionToolbarView extends HBox {
 
     private static final PseudoClass SELECTED = PseudoClass.getPseudoClass("selected");
+    private static final PseudoClass MIXED = PseudoClass.getPseudoClass("mixed");
 
     private final ColorPickerButton colorButton = new ColorPickerButton("Cor do card", Side.BOTTOM);
     private final ShapePickerButton shapeButton = new ShapePickerButton("Formato do card", Side.BOTTOM);
     private final FontSizePickerButton fontSizeButton = new FontSizePickerButton("Tamanho do texto", Side.BOTTOM);
+    /** Ordem de empilhamento (trazer para frente, enviar para trás...). */
+    private final StackOrderButton stackOrderButton = new StackOrderButton(
+            "Ordem: trazer para frente ou enviar para trás", Side.BOTTOM);
+    /** Travar / destravar a seleção (cadeado). */
+    private final Button lockButton = actionButton("Travar  (Ctrl+L)", Icons.UNLOCK);
     private final Button duplicateButton = actionButton("Duplicar  (Ctrl+D)", Icons.DUPLICATE);
     private final Button deleteButton = actionButton("Excluir  (Delete)", Icons.DELETE);
     private final Button textModeButton = actionButton("Painel: texto", Icons.PANEL_TEXT);
@@ -63,8 +69,37 @@ public class SelectionToolbarView extends HBox {
         boardLinkButton.setFocusTraversable(false);
         boardLinkButton.managedProperty().bind(boardLinkButton.visibleProperty());
 
+        lockButton.getStyleClass().add("lock-button");
+
         getChildren().addAll(colorButton, shapeButton, fontSizeButton, panelModeGroup, linkButton, boardLinkButton,
-                new Separator(Orientation.VERTICAL), duplicateButton, deleteButton);
+                new Separator(Orientation.VERTICAL), stackOrderButton, lockButton, duplicateButton, deleteButton);
+    }
+
+    public StackOrderButton getStackOrderButton() {
+        return stackOrderButton;
+    }
+
+    /** Estado de travamento da seleção, mostrado pelo botão de cadeado. */
+    public enum LockState { UNLOCKED, LOCKED, MIXED }
+
+    /**
+     * Botão de cadeado: aberto (nenhum travado), fechado e marcado (todos
+     * travados) ou fechado e tracejado (seleção mista, como a cor "mista").
+     */
+    public void showLock(LockState state) {
+        lockButton.setGraphic(Icons.create(state == LockState.UNLOCKED ? Icons.UNLOCK : Icons.LOCK));
+        lockButton.pseudoClassStateChanged(SELECTED, state == LockState.LOCKED);
+        lockButton.pseudoClassStateChanged(MIXED, state == LockState.MIXED);
+        lockButton.getTooltip().setText(switch (state) {
+            case UNLOCKED -> "Travar  (Ctrl+L): o card não se move, não muda de tamanho nem de formato "
+                    + "e não é excluído por engano";
+            case LOCKED -> "Destravar  (Ctrl+L)";
+            case MIXED -> "Alguns cards estão travados: clique para travar todos  (Ctrl+L)";
+        });
+    }
+
+    public Button getLockButton() {
+        return lockButton;
     }
 
     /**

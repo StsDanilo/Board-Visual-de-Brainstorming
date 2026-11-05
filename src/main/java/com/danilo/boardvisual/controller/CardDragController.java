@@ -14,6 +14,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,7 +25,11 @@ import java.util.Set;
  * Selecionar e arrastar cards (ferramenta Selecionar).
  *
  * - Clique: seleciona só o card. Shift+clique: inclui/retira da seleção.
- * - Arrastar um card selecionado move todos os selecionados juntos.
+ * - Arrastar um card selecionado move todos os selecionados juntos, menos os
+ *   travados ({@link Card#isLocked()}), que ficam parados (e servem de
+ *   referência para o alinhamento dos que se movem).
+ * - Clicar não traz o card para frente: a ordem de empilhamento só muda pelas
+ *   ações explícitas ({@link StackOrderController}), e é salva.
  *
  * Só altera x/y dos cards no modelo; views e setas acompanham por binding.
  * Trabalha em coordenadas de mundo, então funciona em qualquer nível de zoom.
@@ -53,15 +58,15 @@ public class CardDragController {
         Card card = cardView.getCard();
         DragState state = new DragState();
 
-        // Qualquer clique no card (inclusive no texto) o traz para frente e ajusta a seleção.
+        // Qualquer clique no card (inclusive no texto) ajusta a seleção. Não muda a
+        // ordem de empilhamento: isso é só pelas ações explícitas (StackOrderController).
         cardView.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
             state.selectOnlyOnRelease = false;
             // Clicar num marcador (ex.: o clipe do link) só aciona o marcador:
-            // não seleciona, não traz para frente, não arrasta.
+            // não seleciona, não arrasta.
             if (cardView.isMarkerNode(e.getPickResult().getIntersectedNode())) {
                 return;
             }
-            cardView.toFront();
             if (activeTool.get() != Tool.SELECT || e.getButton() != MouseButton.PRIMARY) {
                 return;
             }
@@ -93,9 +98,15 @@ public class CardDragController {
                 return;
             }
             view.requestFocus(); // sai da edição de texto, liberando os atalhos de teclado
+            e.consume();
+            // Travados ficam parados; o resto da seleção se move normalmente.
+            List<Card> moving = movableCards(view.getSelection());
+            if (moving.isEmpty()) {
+                return;
+            }
             state.start = view.sceneToWorld(e.getSceneX(), e.getSceneY());
             state.startPositions.clear();
-            view.getSelection().forEach(c -> state.startPositions.put(c, new Point2D(c.getX(), c.getY())));
+            moving.forEach(c -> state.startPositions.put(c, new Point2D(c.getX(), c.getY())));
             // Referências do alinhamento: os cards que não estão sendo movidos (não mudam durante o arrasto).
             state.startBox = null;
             state.others.clear();
@@ -107,7 +118,6 @@ public class CardDragController {
                 }
             }
             state.before = history.capture();
-            e.consume();
         });
         cardView.getBody().addEventHandler(MouseEvent.MOUSE_DRAGGED, e -> {
             if (state.start == null) {
@@ -142,6 +152,15 @@ public class CardDragController {
             state.before = null;
             state.startPositions.clear();
         });
+    }
+
+    /**
+     * Os cards que um arrasto da seleção move: todos, menos os travados (o
+     * arrasto em grupo leva os outros e deixa o travado onde está). Vazio = o
+     * arrasto não move nada (só cards travados).
+     */
+    static List<Card> movableCards(Collection<Card> selection) {
+        return selection.stream().filter(card -> !card.isLocked()).toList();
     }
 
     private static final class DragState {

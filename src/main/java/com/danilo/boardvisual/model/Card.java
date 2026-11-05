@@ -1,9 +1,11 @@
 package com.danilo.boardvisual.model;
 
+import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.ReadOnlyStringProperty;
 import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -36,6 +38,9 @@ import java.util.UUID;
  * Qualquer card pode ter ainda um endereço web ({@link #getLink()}), aberto
  * no navegador pelo marcador de clipe, e um atalho para outro board da árvore
  * ({@link #getBoardLink()}), aberto pelo marcador de seta curva.
+ *
+ * E pode estar travado ({@link #isLocked()}): não se move nem se exclui por
+ * engano (as regras ficam nos controllers).
  *
  * Tamanho: {@link #getBaseWidth()}/{@link #getBaseHeight()} guardam o tamanho
  * definido à mão (ao criar ou redimensionar); {@link #getWidth()}/{@link #getHeight()}
@@ -83,6 +88,9 @@ public class Card {
 
     /** Id do board de destino do atalho para outro board, ou {@code null}. */
     private final StringProperty boardLink = new SimpleStringProperty(this, "boardLink");
+
+    /** Travado: protegido contra mover, redimensionar, trocar o formato e excluir sem querer. */
+    private final BooleanProperty locked = new SimpleBooleanProperty(this, "locked", false);
 
     public Card(double x, double y) {
         this(UUID.randomUUID().toString(), x, y);
@@ -323,6 +331,18 @@ public class Card {
         return getBoardLink() != null;
     }
 
+    // ---------------------------------------------------------------- travado
+
+    /**
+     * Card travado (cadeado): proteção contra clique errado. O que isso impede
+     * (mover, redimensionar, trocar o formato, excluir) é decidido pelos
+     * controllers; o modelo só guarda o estado. Texto, cor, setas, links e
+     * painéis continuam livres.
+     */
+    public BooleanProperty lockedProperty() { return locked; }
+    public boolean isLocked() { return locked.get(); }
+    public void setLocked(boolean value) { locked.set(value); }
+
     // ---------------------------------------------------------------- formato
 
     /**
@@ -366,6 +386,8 @@ public class Card {
         copy.setLink(getLink());
         // Mesmo destino: a cópia leva ao mesmo board que o original.
         copy.setBoardLink(getBoardLink());
+        // Cópia fiel (inclusive travado); o "Duplicar" da tela destrava a cópia para ela poder ser posicionada.
+        copy.setLocked(isLocked());
         if (hasChildBoard()) {
             copy.setChildBoard(getChildBoard().deepCopy());
         }

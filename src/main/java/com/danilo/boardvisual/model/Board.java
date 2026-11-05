@@ -5,6 +5,12 @@ import javafx.beans.property.StringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +86,87 @@ public class Board {
 
     public Optional<Card> findCard(String cardId) {
         return cards.stream().filter(c -> c.getId().equals(cardId)).findFirst();
+    }
+
+    // ------------------------------------------------- ordem de empilhamento
+
+    /**
+     * Muda a ordem de empilhamento dos cards informados (cards fora do board são
+     * ignorados). A ordem é a da lista {@link #getCards()}: o primeiro fica no
+     * fundo, o último no topo; é ela que a tela, o PDF e o PNG desenham e que o
+     * arquivo salva.
+     *
+     * Vários cards de uma vez mantêm a ordem relativa entre eles. Um nível
+     * ({@link StackMove#FORWARD}/{@link StackMove#BACKWARD}) = uma posição na
+     * lista: cada card troca de lugar com o vizinho que não está sendo movido
+     * (um card já no topo, ou logo abaixo de outro movido que está no topo,
+     * fica onde está).
+     *
+     * A lista muda por <b>permutação</b>: quem escuta recebe um aviso de "mudou
+     * a ordem", não de "saiu e entrou" (a tela reposiciona os nós sem recriá-los).
+     *
+     * @return se a ordem mudou
+     */
+    public boolean reorder(Collection<Card> moving, StackMove move) {
+        List<Card> order = reorderedCards(moving, move);
+        if (order.equals(cards)) {
+            return false;
+        }
+        applyOrder(order);
+        return true;
+    }
+
+    /** Se {@link #reorder} mudaria alguma coisa (ex.: para desabilitar "Trazer para frente" no topo). */
+    public boolean canReorder(Collection<Card> moving, StackMove move) {
+        return !reorderedCards(moving, move).equals(cards);
+    }
+
+    /** A ordem que {@link #reorder} produziria, sem alterar o board. */
+    public List<Card> reorderedCards(Collection<Card> moving, StackMove move) {
+        Set<Card> selected = new HashSet<>(moving);
+        selected.retainAll(cards);
+        List<Card> order = new ArrayList<>(cards);
+        if (selected.isEmpty()) {
+            return order;
+        }
+        switch (move) {
+            case TO_FRONT, TO_BACK -> {
+                List<Card> others = order.stream().filter(c -> !selected.contains(c)).toList();
+                List<Card> chosen = order.stream().filter(selected::contains).toList();
+                order.clear();
+                order.addAll(move == StackMove.TO_FRONT ? others : chosen);
+                order.addAll(move == StackMove.TO_FRONT ? chosen : others);
+            }
+            // Do topo para baixo: um bloco de selecionados sobe junto, um nível só.
+            case FORWARD -> {
+                for (int i = order.size() - 2; i >= 0; i--) {
+                    if (selected.contains(order.get(i)) && !selected.contains(order.get(i + 1))) {
+                        Collections.swap(order, i, i + 1);
+                    }
+                }
+            }
+            case BACKWARD -> {
+                for (int i = 1; i < order.size(); i++) {
+                    if (selected.contains(order.get(i)) && !selected.contains(order.get(i - 1))) {
+                        Collections.swap(order, i, i - 1);
+                    }
+                }
+            }
+        }
+        return order;
+    }
+
+    /**
+     * Põe os cards (os mesmos objetos, em outra ordem) na ordem informada,
+     * avisando como permutação. Ordenar a lista observável é o que gera esse
+     * aviso; um {@code setAll} avisaria "removidos e adicionados".
+     */
+    private void applyOrder(List<Card> order) {
+        Map<Card, Integer> position = new HashMap<>();
+        for (int i = 0; i < order.size(); i++) {
+            position.put(order.get(i), i);
+        }
+        cards.sort(Comparator.comparingInt(position::get));
     }
 
     /**
@@ -182,6 +269,13 @@ public class Board {
             if (existing.isEmpty()) {
                 cards.add(card);
             }
+        }
+
+        // A ordem de empilhamento também faz parte da foto: desfazer um "trazer
+        // para frente" (ou uma exclusão) devolve cada card ao seu lugar na pilha.
+        List<Card> order = cardStates.keySet().stream().map(id -> findCard(id).orElseThrow()).toList();
+        if (!order.equals(cards)) {
+            applyOrder(order);
         }
 
         for (BoardSnapshot.ConnectionState state : snapshot.connections()) {

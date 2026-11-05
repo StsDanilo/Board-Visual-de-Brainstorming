@@ -47,12 +47,18 @@ final class BoardFileFormat {
      * boardLink (id do board de destino do atalho para outro board, null =
      * sem atalho) veio com o link para outro board, também sem bump. Um id que
      * não existe mais na árvore é mantido (o marcador aparece "quebrado").
+     *
+     * locked (card travado) veio com o lock de item, também sem bump: só é
+     * gravado quando o card está travado ({@code true}); ausente = destravado.
+     *
+     * A ordem de {@code cards} é a ordem de empilhamento (o primeiro fica no
+     * fundo, o último por cima), desde sempre.
      */
     record CardData(String id, double x, double y, double width, double height,
                     Double baseWidth, Double baseHeight, Double fontSize,
                     String text, String color, String shape,
                     String panelMode, String detailText, List<String> listItems,
-                    String imageFile, String link, String boardLink, BoardData childBoard) {
+                    String imageFile, String link, String boardLink, Boolean locked, BoardData childBoard) {
     }
 
     record ConnectionData(String id, String sourceId, String targetId) {

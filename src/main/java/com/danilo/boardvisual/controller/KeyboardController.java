@@ -1,5 +1,6 @@
 package com.danilo.boardvisual.controller;
 
+import com.danilo.boardvisual.model.StackMove;
 import com.danilo.boardvisual.view.BoardView;
 import com.danilo.boardvisual.view.Tool;
 import javafx.beans.property.ObjectProperty;
@@ -9,13 +10,19 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.stage.Stage;
 
+import java.util.Optional;
+
 /**
  * Atalhos de teclado do canvas.
  *
  * - Letra de cada ferramenta (definida em {@link Tool}): ativa a ferramenta.
- * - Delete / Backspace: exclui a seleção.
+ * - Delete / Backspace: exclui a seleção (menos os cards travados).
+ * - Ctrl+L: trava / destrava a seleção ({@link LockController}).
  * - Ctrl+D: duplica a seleção.
  * - Ctrl+V: cola a imagem da área de transferência do sistema como card.
+ * - Ctrl+] / Ctrl+[ (ou Ctrl+PgUp / Ctrl+PgDn): trazer para frente / enviar
+ *   para trás um nível; com Shift, para o topo / para o fundo
+ *   ({@link StackOrderController}).
  * - Ctrl+Shift+Z: refaz (alternativa ao Ctrl+Y do menu).
  * - Espaço (segurado): arrastar move a visão.
  * - Alt+←: volta ao board anterior (boards aninhados; depois de um link para
@@ -38,12 +45,16 @@ public class KeyboardController {
     private final PanelController panels;
     private final NavigationController navigation;
     private final ImageController images;
+    private final StackOrderController stackOrder;
+    private final LockController locks;
 
     public KeyboardController(Stage stage, BoardView view, ObjectProperty<Tool> activeTool,
                               SelectionActionsController selectionActions, CanvasController canvas,
                               PanelController panels, NavigationController navigation, ImageController images,
-                              MainController main) {
+                              StackOrderController stackOrder, LockController locks, MainController main) {
         this.stage = stage;
+        this.stackOrder = stackOrder;
+        this.locks = locks;
         this.view = view;
         this.activeTool = activeTool;
         this.selectionActions = selectionActions;
@@ -88,8 +99,17 @@ public class KeyboardController {
         }
 
         if (shortcutDown) {
+            Optional<StackMove> move = StackOrderController.moveFor(e);
+            if (move.isPresent()) {
+                stackOrder.reorderSelection(move.get());
+                e.consume();
+                return;
+            }
             if (e.getCode() == KeyCode.D && !e.isShiftDown()) {
                 selectionActions.duplicateSelection();
+                e.consume();
+            } else if (e.getCode() == KeyCode.L && !e.isShiftDown()) {
+                locks.toggleSelection();
                 e.consume();
             } else if (e.getCode() == KeyCode.Z && e.isShiftDown()) {
                 main.redo();

@@ -1,5 +1,6 @@
 package com.danilo.boardvisual.view;
 
+import javafx.animation.PauseTransition;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -16,6 +17,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.util.Duration;
 
 /**
  * Layout da janela: menu no topo, canvas no centro com o caminho do board no
@@ -28,6 +30,9 @@ public class MainWindow extends BorderPane {
     private final ToolBarView toolBar = new ToolBarView();
     private final SelectionToolbarView selectionToolbar = new SelectionToolbarView();
     private final BreadcrumbView breadcrumb = new BreadcrumbView();
+    /** Aviso curto e passageiro na barra de status ({@link #showStatusMessage}). */
+    private final Label statusMessage = new Label();
+    private final PauseTransition statusMessageTimer = new PauseTransition(Duration.seconds(5));
 
     private final MenuItem newItem = new MenuItem("Novo board");
     private final MenuItem openItem = new MenuItem("Abrir...");
@@ -76,21 +81,43 @@ public class MainWindow extends BorderPane {
         setBottom(createStatusBar());
     }
 
+    /**
+     * Mostra um aviso curto na barra de status, que some sozinho depois de uns
+     * segundos (ex.: "card travado não foi excluído"). Não interrompe o usuário
+     * como uma caixa de diálogo.
+     */
+    public void showStatusMessage(String text) {
+        statusMessage.setText(text);
+        statusMessageTimer.playFromStart();
+    }
+
+    /** O aviso da barra de status ("" quando não há). */
+    public String getStatusMessage() {
+        return statusMessage.getText();
+    }
+
     private HBox createStatusBar() {
         Label hint = new Label();
         hint.getStyleClass().add("status-hint");
         hint.textProperty().bind(Bindings.createStringBinding(
                 () -> toolBar.getActiveTool().getHint(), toolBar.activeToolProperty()));
 
+        statusMessage.getStyleClass().add("status-message");
+        // O aviso aparece inteiro; quem encolhe (com "...") é a dica da ferramenta.
+        statusMessage.setMinWidth(Region.USE_PREF_SIZE);
+        hint.setMinWidth(0);
+        statusMessageTimer.setOnFinished(e -> statusMessage.setText(""));
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         Label zoomLabel = new Label();
         zoomLabel.getStyleClass().add("status-zoom");
+        zoomLabel.setMinWidth(Region.USE_PREF_SIZE);
         zoomLabel.textProperty().bind(Bindings.createStringBinding(
                 () -> Math.round(boardView.zoomProperty().get() * 100) + "%", boardView.zoomProperty()));
 
-        HBox statusBar = new HBox(hint, spacer, zoomLabel);
+        HBox statusBar = new HBox(hint, statusMessage, spacer, zoomLabel);
         statusBar.getStyleClass().add("status-bar");
         return statusBar;
     }

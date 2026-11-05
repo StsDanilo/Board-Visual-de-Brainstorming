@@ -175,6 +175,73 @@ class BoardRendererPngTest {
                 "o card sem link não tem clipe");
     }
 
+    /**
+     * A exportação desenha na ordem de empilhamento ({@code board.getCards()}):
+     * onde dois cards se sobrepõem, aparece a cor do que está por cima. O PDF
+     * usa a mesma imagem do BoardRenderer.
+     */
+    @Test
+    void exportFollowsTheStackOrder(@TempDir Path folder) throws Exception {
+        Board board = new Board("Ordem");
+        Card red = new Card(0, 0);
+        red.setColor("#FF0000");
+        Card blue = new Card(100, 60); // cobre o canto de baixo à direita do vermelho
+        blue.setColor("#0000FF");
+        board.addCard(red);
+        board.addCard(blue);
+        Path blueOnTop = folder.resolve("azul-por-cima.png");
+        Path redOnTop = folder.resolve("vermelho-por-cima.png");
+
+        onFxThread(() -> {
+            String css = BoardRendererPngTest.class
+                    .getResource("/com/danilo/boardvisual/styles/app.css").toExternalForm();
+            BoardRenderer renderer = new BoardRenderer(List.of(css));
+            PngExporter exporter = new PngExporter((b, bounds, scale, bg) -> renderer.render(b, bounds, scale, false));
+            exporter.export(board, blueOnTop, PngExporter.Background.WHITE);
+            board.reorder(List.of(red), com.danilo.boardvisual.model.StackMove.TO_FRONT);
+            exporter.export(board, redOnTop, PngExporter.Background.WHITE);
+            return null;
+        });
+
+        PngExporter.Plan plan = PngExporter.plan(board);
+        int[] overlap = pixel(plan, 150, 90);
+        assertEquals(0x0000FF, rgb(ImageIO.read(blueOnTop.toFile()), overlap), "azul adicionado depois: por cima");
+        assertEquals(0xFF0000, rgb(ImageIO.read(redOnTop.toFile()), overlap), "vermelho trazido para o topo");
+    }
+
+    /** O cadeado do card travado é só de edição: a imagem exportada é igual à do card destravado. */
+    @Test
+    void lockBadgeIsNotExported(@TempDir Path folder) throws Exception {
+        Board board = new Board("Trava");
+        Card card = new Card(0, 0);
+        card.setText("Fixo");
+        card.setColor("#FFD8A8");
+        board.addCard(card);
+        Path unlocked = folder.resolve("destravado.png");
+        Path locked = folder.resolve("travado.png");
+
+        onFxThread(() -> {
+            String css = BoardRendererPngTest.class
+                    .getResource("/com/danilo/boardvisual/styles/app.css").toExternalForm();
+            BoardRenderer renderer = new BoardRenderer(List.of(css));
+            PngExporter exporter = new PngExporter((b, bounds, scale, bg) -> renderer.render(b, bounds, scale, false));
+            exporter.export(board, unlocked, PngExporter.Background.WHITE);
+            card.setLocked(true);
+            exporter.export(board, locked, PngExporter.Background.WHITE);
+            return null;
+        });
+
+        BufferedImage a = ImageIO.read(unlocked.toFile());
+        BufferedImage b = ImageIO.read(locked.toFile());
+        assertEquals(a.getWidth(), b.getWidth());
+        assertEquals(a.getHeight(), b.getHeight());
+        for (int y = 0; y < a.getHeight(); y++) {
+            for (int x = 0; x < a.getWidth(); x++) {
+                assertEquals(a.getRGB(x, y), b.getRGB(x, y), "pixel " + x + "," + y);
+            }
+        }
+    }
+
     /** Algum pixel azulado (a cor de destaque do clipe) no quadrado do marcador. */
     private static boolean hasBluish(BufferedImage image, PngExporter.Plan plan, double x, double y, double size) {
         int[] from = pixel(plan, x, y);

@@ -28,6 +28,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.SVGPath;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -52,7 +53,8 @@ import java.util.Map;
  *  ├─ boardButton             entra no board filho (só em cards com board aninhado)
  *  ├─ marcadores              botõezinhos na borda de cima (clipe do link, seta do link para outro board),
  *  │                          ver {@link CardMarkers}
- *  └─ connectorHandle         alça para criar conexões
+ *  ├─ connectorHandle         alça para criar conexões
+ *  └─ lockBadge               cadeado no canto de cima à esquerda (só com o card travado, só na tela)
  * </pre>
  */
 public class CardView extends Region {
@@ -63,6 +65,10 @@ public class CardView extends Region {
     private static final PseudoClass HAS_BOARD = PseudoClass.getPseudoClass("has-board");
     private static final PseudoClass HAS_IMAGE = PseudoClass.getPseudoClass("has-image");
     private static final PseudoClass BROKEN = PseudoClass.getPseudoClass("broken");
+    private static final PseudoClass LOCKED = PseudoClass.getPseudoClass("locked");
+    /** Selo do cadeado (card travado): tamanho e quanto ele sai para fora do canto de cima à esquerda. */
+    private static final double LOCK_BADGE_SIZE = 16;
+    private static final double LOCK_BADGE_OUTSIDE = 6;
     private static final String SHAPE_CLASS_PREFIX = "shape-";
     /** Texto de exemplo do card vazio (também usado para ajustar a fonte automática). */
     public static final String PROMPT_TEXT = "Escreva uma ideia...";
@@ -91,6 +97,8 @@ public class CardView extends Region {
     private final Map<CardMarkers.Kind, Button> markers = new EnumMap<>(CardMarkers.Kind.class);
     /** Dica do marcador do link para outro board (o controller põe o caminho do destino). */
     private final StringProperty boardLinkDescription = new SimpleStringProperty("Ir para o board de destino");
+    /** Cadeado pequeno no canto de cima à esquerda, só na tela, enquanto o card está travado. */
+    private final StackPane lockBadge = new StackPane();
 
     public CardView(Card card) {
         this(card, CardImageLoader.NONE);
@@ -166,10 +174,11 @@ public class CardView extends Region {
         card.childBoardProperty().addListener((obs, old, child) -> pseudoClassStateChanged(HAS_BOARD, child != null));
 
         setUpMarkers();
+        setUpLock();
 
         getChildren().addAll(body, panelButton, boardButton);
         getChildren().addAll(markers.values());
-        getChildren().add(connectorHandle);
+        getChildren().addAll(connectorHandle, lockBadge);
 
         layoutXProperty().bind(card.xProperty());
         layoutYProperty().bind(card.yProperty());
@@ -275,6 +284,37 @@ public class CardView extends Region {
             marker.resize(spot.size(), spot.size());
             marker.relocate(spot.x(), spot.y());
         }
+        lockBadge.resize(LOCK_BADGE_SIZE, LOCK_BADGE_SIZE);
+        lockBadge.relocate(-LOCK_BADGE_OUTSIDE, -LOCK_BADGE_OUTSIDE);
+    }
+
+    /**
+     * Card travado: pseudo-classe {@code :locked} (o CSS troca o cursor de mover
+     * pelo normal) e um cadeado pequeno no canto de cima à esquerda, metade para
+     * fora, longe dos marcadores (em cima, à direita ou no meio), do botão do
+     * painel (embaixo) e da alça de conexão (à direita). Não recebe cliques e
+     * não aparece no PDF nem no PNG ({@code .board-export} no app.css).
+     */
+    private void setUpLock() {
+        lockBadge.getStyleClass().add("card-lock-badge");
+        lockBadge.setMouseTransparent(true);
+        lockBadge.setManaged(false);
+        SVGPath icon = Icons.create(Icons.LOCK);
+        icon.setScaleX(0.55);
+        icon.setScaleY(0.55);
+        lockBadge.getChildren().add(icon);
+        applyLocked(card.isLocked());
+        card.lockedProperty().addListener((obs, was, locked) -> applyLocked(locked));
+    }
+
+    private void applyLocked(boolean locked) {
+        pseudoClassStateChanged(LOCKED, locked);
+        lockBadge.setVisible(locked);
+    }
+
+    /** Se o cadeado aparece no card (para os roteiros de teste de interface). */
+    public boolean isLockBadgeVisible() {
+        return lockBadge.isVisible();
     }
 
     /**

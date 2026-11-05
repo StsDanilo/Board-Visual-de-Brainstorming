@@ -36,7 +36,8 @@ import java.util.List;
  * - Cada gesto é um passo no desfazer. Setas, painel e barra flutuante
  *   acompanham sozinhos, porque dependem da largura/altura do modelo.
  *
- * As alças aparecem só com exatamente um card selecionado e a ferramenta Selecionar.
+ * As alças aparecem só com exatamente um card selecionado, não travado, e a
+ * ferramenta Selecionar.
  */
 public class CardResizeController {
 
@@ -50,7 +51,10 @@ public class CardResizeController {
     private final ObjectProperty<Tool> activeTool;
     private final EditHistory history;
 
+    /** Card com as alças (nulo se não há, ou se o único selecionado está travado). */
     private Card target;
+    /** Único card selecionado, observado (formato e travado) mesmo sem alças. */
+    private Card observed;
     private final InvalidationListener shapeListener = obs -> refresh();
 
     /** Estado do gesto em andamento; {@code start == null} fora dele. */
@@ -122,20 +126,27 @@ public class CardResizeController {
         });
     }
 
-    /** Alças só com um card selecionado e na ferramenta Selecionar. */
+    /**
+     * Alças só com um card selecionado, destravado, e na ferramenta Selecionar.
+     * O card único selecionado é observado mesmo travado: destravar (ou o
+     * desfazer) faz as alças aparecerem na hora.
+     */
     private void refresh() {
-        Card newTarget = activeTool.get() == Tool.SELECT && view.getSelection().size() == 1
+        Card single = activeTool.get() == Tool.SELECT && view.getSelection().size() == 1
                 ? view.getSelection().iterator().next()
                 : null;
-        if (target != newTarget) {
-            if (target != null) {
-                target.shapeProperty().removeListener(shapeListener);
+        if (observed != single) {
+            if (observed != null) {
+                observed.shapeProperty().removeListener(shapeListener);
+                observed.lockedProperty().removeListener(shapeListener);
             }
-            target = newTarget;
-            if (target != null) {
-                target.shapeProperty().addListener(shapeListener);
+            observed = single;
+            if (observed != null) {
+                observed.shapeProperty().addListener(shapeListener);
+                observed.lockedProperty().addListener(shapeListener);
             }
         }
+        target = single != null && !single.isLocked() ? single : null;
         view.setResizeTarget(target, target != null && (target.getShape() != CardShape.RECTANGLE || target.hasImage()));
     }
 

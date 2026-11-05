@@ -46,7 +46,7 @@ import java.util.function.Consumer;
  * BoardView (viewport, recortado ao tamanho visível)
  *  └─ world (recebe pan + zoom)
  *      ├─ connectionLayer  (setas, ficam atrás dos cards)
- *      ├─ cardLayer        (cards)
+ *      ├─ cardLayer        (cards, na ordem de board.getCards(): o último fica por cima)
  *      └─ overlayLayer     (prévia da seta sendo criada)
  *  ├─ marquee          (caixa de seleção, em pixels de tela)
  *  ├─ guideLayer       (linhas guia do alinhamento, em pixels de tela)
@@ -100,9 +100,13 @@ public class BoardView extends Pane {
 
     private final ListChangeListener<Card> cardsListener = change -> {
         while (change.next()) {
+            if (change.wasPermutated()) {
+                continue; // só mudou a ordem: os nós ficam, só trocam de lugar (abaixo)
+            }
             change.getRemoved().forEach(this::removeCardView);
             change.getAddedSubList().forEach(this::addCardView);
         }
+        syncCardOrder();
     };
     private final ListChangeListener<Connection> connectionsListener = change -> {
         while (change.next()) {
@@ -251,6 +255,30 @@ public class BoardView extends Pane {
         cardViews.put(card, cardView);
         cardLayer.getChildren().add(cardView);
         cardViewInitializer.accept(cardView);
+    }
+
+    /**
+     * Deixa os {@link CardView}s na mesma ordem de {@code board.getCards()} (a
+     * ordem de empilhamento: o último fica por cima). Usa {@code toFront}, que o
+     * JavaFX trata como troca de lugar entre irmãos: o nó não sai da cena, então
+     * foco, seleção, painel aberto e handlers continuam como estavam.
+     */
+    private void syncCardOrder() {
+        List<Node> children = cardLayer.getChildren();
+        List<Card> cards = board.getCards();
+        boolean inOrder = children.size() == cards.size();
+        for (int i = 0; inOrder && i < cards.size(); i++) {
+            inOrder = children.get(i) == cardViews.get(cards.get(i));
+        }
+        if (inOrder) {
+            return;
+        }
+        for (Card card : cards) {
+            CardView cardView = cardViews.get(card);
+            if (cardView != null) {
+                cardView.toFront();
+            }
+        }
     }
 
     private void removeCardView(Card card) {

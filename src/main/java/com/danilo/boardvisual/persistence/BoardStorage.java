@@ -178,6 +178,7 @@ public class BoardStorage {
                         c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts(), c.getImageFile(),
                         c.hasLink() ? c.getLink() : null,
                         c.getBoardLink(),
+                        c.isLocked() ? Boolean.TRUE : null, // destravado não grava o campo
                         c.hasChildBoard() ? toData(c.getChildBoard()) : null))
                 .toList();
         List<ConnectionData> connections = board.getConnections().stream()
@@ -230,6 +231,8 @@ public class BoardStorage {
                 // Mantido mesmo se o board de destino não existir mais: o marcador
                 // aparece "quebrado", e o dado não se perde.
                 card.setBoardLink(cd.boardLink());
+                // Saves anteriores ao lock não têm o campo: card destravado.
+                card.setLocked(Boolean.TRUE.equals(cd.locked()));
                 if (cd.childBoard() != null) {
                     card.setChildBoard(fromData(cd.childBoard(), seenBoardIds));
                 }

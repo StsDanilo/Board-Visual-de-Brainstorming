@@ -369,6 +369,38 @@
     visibility: hidden;
 }
 
+/* O cadeado do card travado é só de edição: não vai para o PDF nem para o PNG. */
+.board-export .card-lock-badge {
+    visibility: hidden;
+}
+
+/*
+ * Card travado (lock): cursor normal em vez do de mover (ele não se move) e um
+ * cadeado pequeno no canto de cima à esquerda. O tamanho do selo é fixado no
+ * código (CardView), como o dos marcadores.
+ */
+.card-view:locked .card {
+    -fx-cursor: default;
+}
+
+.card-lock-badge {
+    -fx-background-color: -bv-border-strong, -bv-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 8, 7;
+}
+
+.card-lock-badge .tool-icon {
+    -fx-stroke: -bv-text-muted;
+    -fx-stroke-width: 2.6;
+}
+
+/* Botão de cadeado da barra flutuante: marcado com tudo travado, tracejado com seleção mista. */
+.lock-button:mixed {
+    -fx-border-color: -bv-border-strong;
+    -fx-border-style: dashed;
+    -fx-border-radius: 6;
+}
+
 /* Alça de conexão: aparece ao passar o mouse sobre o card. */
 .connector-handle {
     -fx-fill: -bv-surface;
@@ -529,6 +561,37 @@
     -fx-stroke: -bv-danger;
 }
 
+/* Botão "Ordem" (ordem de empilhamento): lista de ações, cada uma com o atalho à direita. */
+.stack-order-options {
+    -fx-spacing: 1;
+    -fx-min-width: 330;
+}
+
+.stack-order-option {
+    -fx-padding: 6 8 6 8;
+    -fx-min-height: 0;
+    -fx-alignment: center-left;
+}
+
+.stack-order-row {
+    -fx-spacing: 16;
+    -fx-alignment: center-left;
+}
+
+.stack-order-name {
+    -fx-text-fill: -bv-text;
+    -fx-font-size: 13px;
+}
+
+.stack-order-shortcut {
+    -fx-text-fill: -bv-text-muted;
+    -fx-font-size: 11px;
+}
+
+.stack-order-option:disabled {
+    -fx-opacity: 0.45;
+}
+
 /* ------------------------------------------------------ barra de status */
 
 .status-bar {
@@ -543,6 +606,11 @@
 .status-bar .label {
     -fx-text-fill: -bv-text-muted;
     -fx-font-size: 12px;
+}
+
+/* Aviso passageiro (ex.: card travado não excluído): em destaque, ao lado da dica da ferramenta. */
+.status-bar .status-message {
+    -fx-text-fill: -bv-danger;
 }
 
 /* ------------------------------------------------------ seletor de formato */

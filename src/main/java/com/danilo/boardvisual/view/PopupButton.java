@@ -50,10 +50,20 @@ abstract class PopupButton extends Button {
         popup.hide();
     }
 
+    /** Chamado logo antes de o painel abrir (ex.: para habilitar só as opções que fazem sentido agora). */
+    void beforeShowPopup() {
+    }
+
+    /** Se o painel está aberto. */
+    public boolean isPopupShowing() {
+        return popup.isShowing();
+    }
+
     private void showPopup() {
         if (getScene() == null) {
             return;
         }
+        beforeShowPopup();
         popupContent.getStylesheets().setAll(getScene().getStylesheets());
         Bounds bounds = localToScreen(getLayoutBounds());
         if (popupSide == Side.RIGHT) {
