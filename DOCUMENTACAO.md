@@ -6,7 +6,8 @@
 > as imagens nos cards (colar, arrastar, ferramenta Imagem), a exportação do board atual para PNG
 > o link externo nos cards (marcador de clipe, menu de clique direito), o link para outro board
 > (atalho para qualquer board da árvore, com volta ao board de origem), a ordem de empilhamento salva
-> (trazer para frente / enviar para trás) e o lock de item (card travado, com cadeado).
+> (trazer para frente / enviar para trás), o lock de item (card travado, com cadeado) e as seções
+> (frames: área colorida com título, atrás dos cards, que leva junto o que está dentro dela).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -35,7 +36,8 @@ clipe no card abre o endereço no navegador). Cards podem abrir um **painel flut
 ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade), e qualquer card
 pode ser um **atalho para outro board** da árvore, mesmo em outro ramo (seta curva no card).
 Você escolhe quais cards ficam **por cima** de quais (a ordem é salva) e pode **travar** um card
-(cadeado) para não movê-lo nem excluí-lo sem querer.
+(cadeado) para não movê-lo nem excluí-lo sem querer. **Seções** (frames) são áreas coloridas com título,
+sempre atrás dos cards, que organizam o board por tema: arrastar a seção leva junto o que está dentro dela.
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
 pode virar uma **imagem PNG** (fundo branco ou transparente).
 Não há servidor nem banco de dados.
@@ -108,14 +110,15 @@ sem tocar no modelo.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato, imagem (nome do arquivo), link (endereço web), link para outro board (id do board de destino), travado (`locked`). Tudo como propriedade observável. |
+| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato, imagem (nome do arquivo), link (endereço web), link para outro board (id do board de destino), travado (`locked`). Tudo como propriedade observável. `isFrame()`: o card é uma seção (formato `FRAME`). |
 | `StackMove` | Enum dos movimentos na ordem de empilhamento: `FORWARD`, `BACKWARD` (um nível), `TO_FRONT`, `TO_BACK` (3.21). |
 | `BoardTree` | Consultas na árvore de boards (Java puro): caminho do principal até um board pelo id, lista de todos os boards com o caminho de cada um (indentada), ids da árvore. Usada pela navegação, pela lista de destinos, pelo marcador quebrado e pelo PDF. |
 | `WebLink` | Regras do endereço web do card (Java puro): aceita só `http`/`https`, normaliza (`exemplo.com` → `https://exemplo.com`), recusa o resto com mensagem; forma ASCII entregue ao navegador e ao PDF. |
 | `CardMarkers` | Marcadores na borda de cima do card (clipe do link externo, seta curva do link para outro board): quais o card tem e onde ficam em cada formato. A mesma conta serve à tela, ao espaço do texto e ao PDF. |
-| `CardShape` | Enum dos formatos (`RECTANGLE`, `ELLIPSE`, `DIAMOND`) com o tamanho padrão de cada um. |
+| `CardShape` | Enum dos formatos (`RECTANGLE`, `ELLIPSE`, `DIAMOND`) com o tamanho padrão de cada um, e `FRAME`, a **seção** (3.23): não é um formato do seletor, só a ferramenta Seção cria. |
+| `Frames` | Regras das seções (Java puro): conteúdo por geometria (centro dentro da área), o que um arrasto de seções leva junto (`carriedBy`, sem repetir card, seção dentro de seção), caixa de seleção (seção só inteira) e as camadas (`layered`: seções antes dos cards). Altura da faixa do título. |
 | `Connection` | Uma seta: id, card de origem, card de destino. Imutável. |
-| `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada). A ordem da lista de cards é a **ordem de empilhamento** (o último fica por cima); `reorder` a muda por permutação (3.21). |
+| `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada, sem seta de/para seção). A ordem da lista de cards é a **ordem de empilhamento** (o último fica por cima); `reorder` a muda por permutação (3.21). As seções ficam sempre no começo da lista (atrás dos cards): `addCard`, `reorder` e `restore` mantêm isso (3.23). |
 | `BoardSnapshot` | "Foto" imutável do board, usada pelo desfazer/refazer. |
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
@@ -130,13 +133,13 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | Arquivo | Responsabilidade |
 |---|---|
 | `MainWindow` | Layout da janela: menu, área do canvas (com a barra de ferramentas por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). |
-| `BoardView` | O canvas: pan/zoom, camadas, cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção, posição da barra flutuante. |
-| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). |
+| `BoardView` | O canvas: pan/zoom, camadas (seções numa camada atrás das setas), cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção (seção só inteira), posição da barra flutuante. |
+| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). Seção: fundo translúcido sem clique, anel da borda e faixa do título que pegam o clique, título de uma linha com reticências (`:frame`, 3.23); `hitsScenePoint` diz se um ponto pega o card. |
 | `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
 | `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards. |
 | `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato; recuo do texto dentro do formato. |
-| `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). |
-| `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica. |
+| `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). Seção: fonte fixa do título, nunca cresce. |
+| `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica (inclusive `FRAME`, a Seção, tecla `S`). |
 | `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. |
 | `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens; desabilitado se todos estão travados), tamanho do texto, modo do painel (Texto/Lista), link e link para outro board (só com um card), ordem (camadas), cadeado (travar/destravar, com estado misto), duplicar, excluir. |
 | `StackOrderButton` | Botão "Ordem" (camadas) da barra flutuante: popup com as quatro ações da ordem de empilhamento e os atalhos; as que não mudariam nada aparecem desabilitadas. |
@@ -145,7 +148,7 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar (a dica diz para onde ele leva). |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
-| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente; links para boards que não existem mais saem com o marcador quebrado. |
+| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente; links para boards que não existem mais saem com o marcador quebrado; seções atrás das setas, como na tela. |
 | `PopupButton` | Base de "botão que abre um painelzinho" (`beforeShowPopup`: atualizar as opções logo antes de abrir). |
 | `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
@@ -158,15 +161,15 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 |---|---|
 | `MainController` | Monta e conecta tudo (recebe de fora quem abre links no navegador); ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF, exportar PNG do board atual); desfazer/refazer do menu. |
 | `ImageController` | Imagens: inserir (ferramenta Imagem, `Ctrl+V`, arrastar arquivo), pasta de trabalho das imagens ainda não salvas, carregar a imagem de cada card (com cache). |
-| `CanvasController` | Mouse no fundo: pan, zoom, caixa de seleção, criar card. |
-| `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo; travados ficam parados), com alinhamento. Clicar não muda a ordem de empilhamento. |
-| `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas (card de imagem: proporção da imagem). Card travado não ganha alças. |
+| `CanvasController` | Mouse no fundo (inclusive o meio vazio de uma seção): pan, zoom, caixa de seleção, criar card (e seção). |
+| `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo; travados ficam parados), com alinhamento. Clicar não muda a ordem de empilhamento. Arrastar uma seção leva os cards de dentro (`draggedCards`); as seções só são referência de alinhamento quando o gesto envolve uma seção (`alignmentReferences`). |
+| `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas (card de imagem: proporção da imagem; seção: 8 alças, mínimo fixo, sem mexer no conteúdo). Card travado não ganha alças. |
 | `CardTextFitController` | Reaplica a fonte e o crescimento de cada card quando o texto, a fonte ou o tamanho mudam. |
-| `ConnectionController` | Criar setas arrastando de um card a outro. |
-| `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção (travados: sem formato, sem excluir, com aviso na barra de status; cópia de travado nasce destravada; cópias entram no topo da pilha). |
+| `ConnectionController` | Criar setas arrastando de um card a outro (seções ficam de fora: não começam nem recebem setas). |
+| `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção (travados: sem formato, sem excluir, com aviso na barra de status; cópia de travado nasce destravada; cópias entram no topo da pilha; seção: sem formato nem tamanho do texto, duplicar/excluir só a seção). |
 | `StackOrderController` | Ordem de empilhamento: botão Ordem, quatro itens no menu de clique direito, atalhos (`moveFor`); cada mudança é um passo no desfazer (3.21). |
 | `LockController` | Travar/destravar a seleção: botão de cadeado (com estado misto), item "Travar"/"Destravar" no menu, `Ctrl+L`; um passo no desfazer (3.22). |
-| `TextEditController` | Registra a edição de texto no histórico (sessões de edição); duplo clique num card de imagem abre a legenda. |
+| `TextEditController` | Registra a edição de texto no histórico (sessões de edição); duplo clique num card de imagem abre a legenda, e no título de uma seção abre o título (`Enter` termina). |
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
 | `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`); guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. |
 | `NavigationPath` | A pilha de níveis da navegação, sem tela (testável): entrar, voltar, ir a um nível, pular (`jumpTo` reconstrói o caminho real do destino e guarda a pilha de origem para o voltar). |
@@ -205,7 +208,7 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `PdfExporter` | Monta o PDF: páginas na ordem da árvore, caminho no topo, links (entre páginas e para sites), páginas de detalhes, marcadores. |
+| `PdfExporter` | Monta o PDF: páginas na ordem da árvore, caminho no topo, links (entre páginas e para sites), páginas de detalhes, marcadores. Seção: texto invisível só na faixa do título, links só nos marcadores (não cobrem os cards de dentro). |
 | `PdfText` | Fonte padrão do PDF (Helvetica), medida e quebra de linha, troca de caracteres sem suporte. |
 | `PngExporter` | PNG de um board: área e escala (com os limites de tamanho), nome sugerido do arquivo, gravação segura. Sem JavaFX (3.18). |
 
@@ -307,8 +310,12 @@ o grupo por qualquer card, até pelo travado), e o travado serve de referência 
 
 **Clicar não traz para frente.** Até a ordem de empilhamento (3.21), o filtro do clique chamava
 `cardView.toFront()`, que mudava só a tela (ao reabrir, valia a ordem da lista). Isso foi retirado: a
-ordem agora é um dado salvo e só muda pelas ações explícitas, e um frame (tarefa futura) precisa
-continuar atrás dos cards ao ser clicado.
+ordem agora é um dado salvo e só muda pelas ações explícitas, e uma seção (3.23) precisa continuar
+atrás dos cards ao ser clicada.
+
+**Seção (3.23):** no press, além dos selecionados não travados, entra no arrasto o que está dentro de
+cada seção movida (`CardDragController.draggedCards` → `Frames.carriedBy`), calculado **uma vez**, no
+início. O conteúdo não entra na seleção visível; o bloco que alinha é só o que foi pego.
 
 ## 3.3 Criar uma conexão
 
@@ -344,7 +351,9 @@ A seleção mora no `BoardView` como um `ObservableSet<Card>`. Formas de alterá
 | Esc (sem edição, sem painel aberto, na ferramenta Selecionar) | `KeyboardController` — limpa |
 
 **Caixa de seleção:** no press, guarda o ponto inicial e (se Shift) a seleção atual. A cada
-arrasto: desenha o retângulo e define `seleção = seleçãoInicial ∪ cardsQueTocamORetângulo`.
+arrasto: desenha o retângulo e define `seleção = seleçãoInicial ∪ cardsQueTocamORetângulo`. Uma
+**seção** só entra se estiver **inteira** dentro do retângulo (`Frames.marqueeSelects`): uma caixa
+começada no meio vazio de uma seção pega os cards dela, não a seção.
 Recalcular do zero a cada movimento (em vez de ir somando) faz a seleção **encolher** quando você
 volta com o mouse — igual aos editores gráficos.
 
@@ -837,7 +846,8 @@ Divisão de responsabilidades:
 |---|---|---|
 | Ctrl+N/O/S/Shift+S, Ctrl+E, Ctrl+Shift+E, Ctrl+0 | aceleradores de menu | aparecem no menu |
 | Ctrl+Z, Ctrl+Y, Ctrl+A | aceleradores de menu | idem; e só disparam se o texto não usar a tecla |
-| V R E L P B I C, Delete, Ctrl+D, Ctrl+V, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional |
+| V R E L P B S I C, Delete, Ctrl+D, Ctrl+V, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional (`S` = Seção, 3.23) |
+| Enter no título de uma seção | `TextEditController` | termina a edição do título (que é de uma linha) |
 | Ctrl+] / Ctrl+[ e Ctrl+PgUp / Ctrl+PgDn (com Shift: topo / fundo) | `KeyboardController` → `StackOrderController.moveFor` | ordem de empilhamento (3.21) |
 | Ctrl+L | `KeyboardController` → `LockController` | travar / destravar (3.22); a letra L sozinha continua sendo o Losango |
 
@@ -1234,7 +1244,10 @@ ela é **salva**.
 
 > **Mudança de comportamento:** clicar num card **não o traz mais para frente**. Antes o clique fazia
 > `toFront()` só na tela (ao reabrir, voltava a ordem da lista: era a armadilha 10). Agora a ordem muda
-> só pelas ações abaixo. Um frame (tarefa futura) precisa continuar atrás dos cards ao ser clicado.
+> só pelas ações abaixo. Uma seção (3.23) precisa continuar atrás dos cards ao ser clicada.
+>
+> **Seções (3.23):** formam uma camada própria, sempre abaixo dos cards comuns; as ações abaixo movem
+> cada seção só entre as seções (e cada card só entre os cards).
 
 | Ação | Menu de clique direito | Barra flutuante | Atalho |
 |---|---|---|---|
@@ -1336,6 +1349,131 @@ texto (3.14) não é um gesto do usuário e continua valendo.
 `"locked": true` no card do `board.json`, só nos travados (destravado não grava o campo). Saves anteriores
 não têm o campo: abrem destravados. **Sem** novo bump de `version`.
 
+## 3.23 Seções (frames coloridos)
+
+Uma **seção** é uma área colorida, com título no topo, que fica **atrás dos cards** e os organiza por tema
+(como os frames do Miro e as colunas do Milanote). Na interface ela se chama **Seção**; no código, frame.
+
+**Decisão de modelo (a mais simples):** a seção é um **card** com o formato `CardShape.FRAME`, e não uma
+propriedade nova. Assim ela ganha de graça posição, tamanho, texto (o título), cor, link, link para outro
+board, travado, desfazer, salvar/abrir (o `"shape": "FRAME"` já cabe no campo `shape` do JSON: **nenhum campo
+novo e nenhuma mudança de `version`**) e cópia. O `switch` exaustivo do `CardShape` apontou cada lugar que
+precisava decidir algo (5.2). `Card.isFrame()` é o atalho para `getShape() == FRAME`.
+
+### Criar
+
+Ferramenta **Seção** na barra lateral (ícone de moldura com a faixa do título), tecla **`S`** (estava livre;
+`Ctrl+S` continua sendo Salvar). Clicar no canvas cria uma seção de 480 × 320 centrada no clique, com a cor
+atual da barra, já editando o título (como um card novo). A seção nova entra no **topo das seções**, logo
+abaixo de todos os cards comuns (ver "Camadas").
+
+### O título
+
+- É o **texto do card**. Fora da edição aparece num rótulo (`frameTitle`) de **uma linha**, em fonte fixa
+  (15 px, negrito; `CardTextFit.FRAME_TITLE_FONT_SIZE`), cortado com reticências se for longo; quebras de
+  linha viram espaço. Seção sem título mostra "Seção" esmaecido (só na tela; no PDF/PNG fica em branco).
+- **Duplo clique** no título (ou na borda) abre a edição: aparece o campo de texto, na mesma faixa;
+  **`Enter` termina** (o título é de uma linha), como o `Esc`. Toda a edição é um passo no desfazer (4.7).
+- **Nunca faz a seção crescer:** o `CardTextFit` devolve sempre o tamanho definido à mão para `FRAME`, e o
+  botão de tamanho do texto some da barra quando só há seções selecionadas.
+- A faixa do título tem `Frames.TITLE_HEIGHT` (34) de altura. Os marcadores (clipe, seta curva) ficam nela,
+  à direita, e o título termina antes deles (`CardGeometry.frameTitleInsets`); o cadeado fica no canto de
+  cima à esquerda, e o título começa 16 px para dentro, sem encostar nele.
+
+### Onde a seção pega o clique (picking, 4.4)
+
+| Onde | O que acontece |
+|---|---|
+| **Borda** (anel de 10 px, metade para fora) ou **faixa do título** | É a seção: selecionar, Shift+clique, arrastar, clique direito (menu), duplo clique (título) |
+| **Meio vazio** | É o **fundo do canvas**: caixa de seleção, clicar com uma ferramenta de criação cria o card ali (dentro da seção), arrastar com outra ferramenta faz pan, clique limpa a seleção |
+| Cards dentro dela | Clicáveis normalmente (estão por cima) |
+
+O `CanvasController` não sabe de seções: o clique no meio vazio já chega a ele como clique no fundo
+(`isBackground`), porque o JavaFX não acha nenhum nó ali (detalhes em 4.4).
+
+### Mover leva o que está dentro (só geometria)
+
+- Um card está **dentro** de uma seção quando o **centro** dele cai na área dela, bordas incluídas
+  (`Frames.contains`). **Não há vínculo guardado:** soltar um card por cima de uma seção já o coloca nela, e
+  tirá-lo de cima já o tira.
+- Arrastar uma seção (pela borda ou pelo título) move junto o que está dentro dela **no início do arrasto**
+  (`Frames.carriedBy`, chamado uma vez no press). O conteúdo **não** entra na seleção visível.
+- **Sem mover em dobro:** um card dentro de duas seções arrastadas juntas, ou selecionado junto com a seção
+  dele, anda uma vez só (o conjunto é um `Set`).
+- **Seção dentro de seção** (na geometria): a de fora leva a de dentro e, por consequência, o que está
+  dentro da de dentro (mesmo que esse card esteja fora da de fora). A de dentro sozinha só leva o dela.
+- **Redimensionar não mexe no conteúdo:** as alças mudam só a seção (8 alças, como o retângulo; mínimo de
+  120 × 80, sem depender do título). Um card que fica fora da área nova simplesmente deixa de pertencer.
+- Cada gesto é **um passo** no desfazer (o arrasto inteiro, com o conteúdo).
+
+### Travado (3.22) — decisões
+
+- **Seção travada** não se move, então **não leva nada** (os cards de dentro continuam livres para serem
+  arrastados um a um). Também não mostra alças e não é excluída.
+- **Card travado dentro de uma seção que se move: vai junto.** A trava protege contra arrastar *o card*
+  (clique errado, arrasto em grupo pegando-o sem querer). Mover a seção é organizar o tema inteiro: se o
+  travado ficasse para trás, a seção perderia a organização e o card ficaria "solto" fora dela. Sozinho ele
+  continua parado. (Mesma regra para uma seção travada dentro de outra seção que se move.)
+
+### Camadas e ordem de empilhamento (3.21) — invariante
+
+**As seções ficam sempre abaixo de todos os cards comuns.** Na lista `board.getCards()` elas vêm primeiro
+(`Frames.layered`); o `Board` mantém isso:
+
+| Onde | Como |
+|---|---|
+| Criar (`addCard`) | Seção entra no **topo das seções** (logo abaixo do primeiro card comum); card comum, no topo da pilha |
+| Ordem (`reorder`/`canReorder`) | Seções e cards são **duas camadas**: cada grupo se reordena só dentro da sua. "Trazer para o topo" numa seção a leva ao topo das seções, nunca por cima de um card; "Enviar para o fundo" num card o leva ao fundo dos cards, logo acima das seções. As ações que não mudariam nada aparecem desabilitadas, como antes |
+| Desfazer (`restore`) | A ordem da foto, com as seções na frente (uma foto do próprio board já vem assim) |
+| Abrir | Cada card entra pelo `addCard`: um arquivo editado à mão com uma seção depois de um card abre com a seção atrás. Saves sem seções abrem exatamente como antes |
+| Duplicar | A cópia da seção vai para o topo das seções |
+
+**Decisão:** seção nova no **topo das seções**, não no fundo de tudo. As duas respeitam o invariante, mas
+com o topo uma seção pequena criada dentro de uma maior fica por cima dela (dá para ver e pegar a borda da
+pequena). Para mandá-la ao fundo, "Enviar para o fundo".
+
+Na **tela** as seções ficam numa **camada própria** do `BoardView` (`frameLayer`), **atrás das setas**: uma
+seta entre dois cards de dentro passa por cima do fundo da seção (antes da camada própria ela ficava por
+baixo do fundo translúcido). O `BoardRenderer` (PDF e PNG) faz o mesmo.
+
+### Setas, alinhamento, duplicar, excluir, formato
+
+- **Setas:** seções não participam. A ferramenta Conexão não começa seta numa seção, soltar a seta numa
+  seção não liga, a alça de conexão não aparece nela, e o `Board` recusa uma seta de ou para uma seção
+  (inclusive vinda de um arquivo, que é ignorada ao abrir).
+- **Alinhamento (linhas guia, 3.12):** ao arrastar ou redimensionar **cards comuns**, as seções **não**
+  servem de referência (não poluem com guias da borda de uma seção enorme). Ao arrastar ou redimensionar
+  **uma seção**, ela alinha com todos os outros (seções e cards) normalmente
+  (`CardDragController.alignmentReferences`).
+- **Duplicar** uma seção duplica **só a seção** (o conteúdo não é dela, é geometria). A cópia, deslocada
+  24 px, já "contém" por geometria o que estiver sob ela.
+- **Excluir** uma seção exclui **só a seção**; os cards de dentro ficam onde estão. O desfazer a devolve ao
+  seu lugar na pilha.
+- **Formato:** a seção não tem seletor de formato (o botão some quando só há seções; o `applyShape` pula
+  seções) e nunca vira outro formato; nenhum formato vira seção. Também não tem painel flutuante nem board
+  aninhado (a ferramenta Seção não cria). **Cor**, **link**, **link para outro board** e **cadeado** funcionam
+  como em qualquer card.
+
+### Aparência
+
+- `.card.shape-frame` no `app.css`: o `body` **não tem fundo** (`-fx-background-color: null`) nem sombra,
+  só a borda (cor da seção escurecida, `derive`). O fundo é o `.frame-fill`: a cor do card com
+  `-fx-opacity: 0.45` (tom claro e translúcido, deixa ver os cards e o fundo do canvas). Selecionada, a borda
+  ganha o destaque azul como os cards.
+- Acabamento estético (tamanho do título, cores mais suaves, cantos) fica para a lista de melhorias.
+
+### PDF e PNG
+
+- A seção sai **atrás**, como no board (mesmo `CardView`, camada de seções atrás das setas).
+- **Texto invisível** (busca/cópia) só sobre a **faixa do título** (`PdfExporter.textRect`).
+- **Links:** a seção nunca ganha uma área clicável do tamanho dela. Se ela tem link (site ou outro board),
+  ele fica **só no marcador**; os cards de dentro mantêm os links deles inteiros (a anotação da seção vem
+  antes, e não cobre os cards).
+
+### Fora do escopo
+
+"Agrupar elementos" (3.21/5.6), setas com texto, copiar/colar entre boards, estilos de seta.
+
 ---
 
 # Nível 4 — Aprofundamento técnico
@@ -1387,6 +1525,7 @@ Scene
      ├─ center: StackPane
      │   ├─ BoardView (Pane) ─────────────────────── recortado (clip) ao tamanho visível
      │   │   ├─ world (Group) ── transforms: [Translate pan, Scale zoom]
+     │   │   │   ├─ frameLayer (Group)       → CardView das seções (3.23)
      │   │   │   ├─ connectionLayer (Group)  → ConnectionView...
      │   │   │   ├─ cardLayer (Group)        → CardView...
      │   │   │   └─ overlayLayer (Group)     → linha de prévia da conexão
@@ -1396,7 +1535,8 @@ Scene
      └─ bottom: barra de status
 ```
 
-As setas ficam numa camada **abaixo** dos cards, por isso passam "por trás" deles.
+As setas ficam numa camada **abaixo** dos cards, por isso passam "por trás" deles, e **acima** das seções,
+por isso passam por cima do fundo delas (3.23).
 
 ### Quatro sistemas de coordenadas
 
@@ -1487,8 +1627,31 @@ content.setPickOnBounds(false);  // a área de texto ocupa o card todo; sem isso
 O segundo foi um bug real encontrado nos testes: o `body` já respeitava a silhueta, mas o `content`
 (que o `StackPane` estica até o tamanho do card) aceitava clique no retângulo inteiro.
 
-`BoardView.cardViewAt` (usado para saber sobre qual card uma seta foi solta) usa
-`body.contains(ponto)`, que também respeita a silhueta.
+`BoardView.cardViewAt` (usado para saber sobre qual card uma seta foi solta e qual card recebe o menu de
+clique direito) usa `CardView.hitsScenePoint`, que também respeita a silhueta.
+
+### Seção: o meio vazio não é dela
+
+Uma seção (3.23) precisa pegar o clique só na **borda** e no **título**; no meio vazio o clique tem que
+cair no fundo do canvas. Como um `Region` com `pickOnBounds = false` decide o clique (`Region.contains`):
+
+1. se tem **fundo** (`Background` com algum preenchimento, **mesmo transparente**), o retângulo do fundo conta;
+2. senão, só o **anel das bordas** (`BorderStroke`: entre o lado de fora e a largura da borda) conta.
+
+A cor não importa: um fundo `transparent` ainda pega o clique. Por isso, na seção:
+
+```
+body (.card.shape-frame)  -fx-background-color: null  → sem fundo: só a borda de 1,5 px conta
+ ├─ frameFill   fundo translúcido, mouseTransparent    → desenha sem pegar clique
+ ├─ frameGrip   sem fundo, borda TRANSPARENTE de 10 px com insets -5 → o anel em volta pega o clique
+ ├─ frameTitle  Label com pickOnBounds = true           → a faixa inteira do título pega o clique
+ └─ content/textArea  mouseTransparent fora da edição   → não rouba o clique da faixa do título
+```
+
+O `frameGrip` e o `frameTitle` são filhos do `body`, então o evento sobe até ele e os handlers de sempre
+(selecionar, arrastar, menu) funcionam sem saber de seções. No meio vazio o JavaFX não acha nó nenhum da
+seção, então o alvo é o `BoardView` (`isBackground` verdadeiro). Conferido com o picking **real** da cena no
+roteiro de interface (C) e no `FrameViewTest`.
 
 ## 4.5 CSS: como a aparência fica fora do Java
 
@@ -1779,6 +1942,8 @@ você estava editando.
 - [ ] Propriedade que **restringe** ações (como o `locked`): a regra fica em cada controller que faz a ação
   (arrastar, redimensionar, formato, excluir), não no modelo; deixe um método estático testável
   (`CardDragController.movableCards`, `SelectionActionsController.delete`)
+- [ ] Propriedade **derivada** com getter público (`is*`/`has*`, como o `isFrame()` da seção): a rede de segurança
+  também a vê; o `fullCard()` precisa deixá-la diferente do padrão (por isso ele usa o formato `FRAME`)
 - [ ] **`CardAllPropertiesTest.fullCard()`**: preencher a propriedade nova com um valor diferente do padrão
 - [ ] Testes: `BoardStorageTest` (salvar/abrir) e `BoardSnapshotTest` (desfazer)
 
@@ -1788,25 +1953,42 @@ você estava editando.
 > na comparação sozinha. O primeiro teste falha enquanto você não a preencher em `fullCard()`; os
 > demais falham apontando o lugar esquecido (`copy`, `CardState` ou `toData`/`fromData`).
 > Propriedades que o `Card` expõe só por outro caminho (sem getter com esses prefixos) não são vistas.
+>
+> **Antes de criar uma propriedade, veja se não é um formato.** A seção (3.23) foi feita como o formato
+> `CardShape.FRAME`, sem propriedade nova: o checklist inteiro (cópia, foto, arquivo) já estava coberto pelo
+> `shape`. Uma propriedade só compensa quando o valor é independente do resto (como o `locked`).
 
 ## 5.2 Adicionar um formato (ex.: hexágono)
 
 1. `CardShape`: `HEXAGON(largura, altura)`.
-2. `CardGeometry.borderPoint`: `case HEXAGON -> ...` (o `switch` é exaustivo: **o compilador acusa se esquecer**).
-3. `CardGeometry.contentInsets`: `case HEXAGON -> ...` (idem).
+2. `CardGeometry.borderPoint`, `shapeInsets` e `panelButtonCenter`: `case HEXAGON -> ...` (os `switch` são
+   exaustivos: **o compilador acusa se esquecer**).
+3. `CardMarkers.layout`: onde ficam os marcadores no formato (idem).
 4. `Icons.shape`: `case HEXAGON -> "path..."` (idem).
 5. `Tool`: `HEXAGON("Hexágono", KeyCode.H, CardShape.HEXAGON, Icons.shape(CardShape.HEXAGON), "dica")`.
 6. `app.css`: `.card.shape-hexagon { -fx-shape: "..."; }` e incluir na regra de seleção de formatos não retangulares.
-7. Teste em `CardGeometryTest`.
+7. `CardResizeController.freeAspect`: se o formato muda largura e altura livremente (senão mantém a proporção).
+8. Teste em `CardGeometryTest`; o `switch` do `CardMarkersTest.inside` também precisa do caso novo.
 
 A barra de ferramentas, o seletor de formato da barra flutuante, o atalho e a persistência passam
 a funcionar sem mais nada.
 
+**Formato especial (como a seção, `FRAME`, 3.23):** algo que é "um card com outro comportamento" pode ser um
+formato. Além dos passos acima, foi preciso: tirá-lo do seletor (`Tool.isPlainShapeTool`), o `CardTextFit`
+(fonte fixa, sem crescer), o `CardGeometry.contentInsets` (texto só na faixa do título), as regras no `Board`
+(camada, setas) e em cada controller que age sobre cards (arrastar, redimensionar, setas, formato, tamanho
+do texto), o `PdfExporter` (texto e links) e o picking no `CardView`. Procure por `isFrame()` para ver todos.
+
 ## 5.3 Adicionar uma ferramenta
 
-1. Constante em `Tool` (nome, tecla, formato ou `null`, ícone em `Icons`, dica).
+1. Constante em `Tool` (nome, tecla, formato ou `null`, ícone em `Icons`, dica). Confira a tecla na tabela de
+   atalhos (3.16) e no README: letras já usadas são V R E L P B S I C.
 2. Comportamento no controller adequado, checando `activeTool.get() == Tool.NOVA`.
 3. Cursor/estilo em `app.css` usando `:tool-nova`, se preciso.
+
+**Ferramenta que cria um card de formato próprio** (ex.: `Tool.FRAME`, a Seção): basta dar o formato à
+constante; o `CanvasController.createCardAt` cria o card no clique, seleciona e abre o texto, e o
+`Board.addCard` o põe na camada certa. O que a ferramenta tem de especial fica nas regras do formato (5.2).
 
 **Nem toda funcionalidade é uma ferramenta.** Se ela age sobre um card que já existe (ex.: o link
 externo, o link para outro board, a ordem de empilhamento e o travar), o lugar é a barra flutuante (5.4)
@@ -1885,7 +2067,7 @@ derivada da largura, e o canto oposto à alça fica parado.
 Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
 **[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9), as
 imagens nos cards (3.17), o PNG (3.18), o link externo (3.19), o link para outro board (3.20), a ordem de
-empilhamento (3.21) e o lock de item (3.22):
+empilhamento (3.21), o lock de item (3.22) e as seções (3.23):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -1895,11 +2077,11 @@ empilhamento (3.21) e o lock de item (3.22):
 |---|---|---|
 | **Busca global** | `BoardTree.entries` já lista todos os boards com o caminho; buscar também no texto dos cards e ir ao resultado com `NavigationController.jumpTo` (3.20) | Decidir: só nomes de board ou texto dos cards; destacar o card encontrado |
 | **Link para outro arquivo** | Extensão do link para outro board (3.20): guardar a pasta do save além do id | Primeira versão ficou só na mesma árvore |
-| **Frames / seções coloridas** (tarefa 4b) | Um frame é um card (ou um tipo novo) que fica **atrás** dos cards que contém: use `Board.reorder(..., TO_BACK)` ao criar e a trava (`locked`) para não arrastá-lo sem querer (3.21, 3.22). Clicar no frame já não o traz para frente | Decidir: mover o frame leva os cards de dentro? |
+| ~~Frames / seções coloridas~~ (tarefa 4b) | **Feito** (3.23): formato `FRAME`, camada própria atrás dos cards e das setas, conteúdo por geometria | — |
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
 | **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
-| **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem |
+| **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem. **Recomendação (depois da 4b):** manter separado das seções e fazer pequeno. A seção já resolve "juntar por tema e mover junto" pelo espaço; o que ela não resolve é juntar cards **espalhados** ou **sem área visível** (ex.: dois cards em cantos opostos que devem andar juntos). Se esse caso não aparecer no uso, descartar o card. Se aparecer, `groupId` no card (5.1) + `CardDragController.draggedCards` incluindo os do mesmo grupo (o mesmo ponto em que a seção soma o conteúdo). Não reaproveitar a seção para isso: ela é geometria, o grupo seria vínculo salvo |
 | **Aviso de alterações não salvas** | Comparar `board.snapshot()` com a foto do último salvamento | O snapshot já resolve a detecção |
 | **Exportar SVG** (tarefa 8) | Item ao lado dos de PNG no menu `Arquivo`; pode reaproveitar `PngExporter.Background` e `suggestedFileName` | Vetorial: não dá para usar o snapshot; desenhar formatos e setas à mão |
 | **PNG só da seleção / de todos os boards** | Seleção: `BoardRenderer` com só os cards selecionados e as setas entre eles. Todos: percorrer a árvore como o `PdfExporter.BoardNode`, um arquivo por board nomeado pelo caminho | Decisões em 3.18 |
@@ -1977,6 +2159,17 @@ empilhamento (3.21) e o lock de item (3.22):
 | Travado: texto, cor, setas, links, ordem livres; formato bloqueado | Bloquear tudo | A trava protege posição e tamanho (o que um clique errado estraga); o formato muda o tamanho (3.22) |
 | Cópia de travado nasce destravada; `Card.copy` continua fiel | Cópia travada | A cópia precisa ser posicionada; a regra fica na ação de duplicar, e o `copy` segue a rede de segurança do `CardAllPropertiesTest` |
 | Cadeado no canto, só na tela | Marcador do `CardMarkers` (no PDF também) | É estado de edição, não conteúdo; não disputa espaço com o texto nem com os marcadores (3.22) |
+| Seção = card com formato `FRAME` | Propriedade `frame` no card; tipo novo de nó | Posição, tamanho, título, cor, link, cadeado, desfazer e arquivo vêm prontos; nenhum campo novo no JSON nem mudança de versão; o `switch` exaustivo aponta o que decidir (3.23) |
+| Conteúdo da seção por geometria (centro dentro), calculado no início do arrasto | Vínculo salvo (lista de cards da seção) | Soltar por cima já coloca; nada a manter em sincronia nem a corrigir ao excluir; o centro decide sem ambiguidade quando o card cruza a borda |
+| Seções sempre abaixo dos cards, reordenando só entre si | Ordem livre (seção pode cobrir card) | Uma seção por cima esconderia os cards por engano; com duas camadas as quatro ações continuam valendo (3.23) |
+| Seção nova no topo das seções | No fundo de tudo | Uma seção pequena criada dentro de uma grande fica visível e pegável; as duas respeitam o invariante |
+| Seções numa camada atrás das setas | Na mesma camada dos cards | Seta entre cards de dentro passa por cima do fundo translúcido, não por baixo |
+| Meio vazio da seção = fundo do canvas | A seção inteira pega o clique | Caixa de seleção, criar card e clicar entre os cards de dentro continuam naturais; a seção é pega pela borda e pelo título |
+| Card travado dentro de uma seção movida vai junto | Fica para trás | A trava protege contra arrastar o card sozinho; a seção é a organização do tema (3.23) |
+| Seções não são referência de alinhamento ao arrastar cards | Sempre referência | As bordas de uma seção grande puxariam cards a toda hora e poluiriam as guias; ao mover a seção ela alinha com tudo |
+| Duplicar/excluir a seção age só nela | Levar o conteúdo junto | O conteúdo não é dela (geometria); excluir sem querer não apaga os cards |
+| Link da seção no PDF só no marcador | Área inteira clicável | A área cobriria os cards de dentro e competiria com os links deles |
+| Título da seção: rótulo de uma linha com reticências; campo só na edição | `TextArea` sempre visível | Título longo fica legível sem rolagem nem crescer; a faixa do título pega o clique para arrastar |
 
 ## B. Armadilhas conhecidas
 
@@ -2082,13 +2275,24 @@ empilhamento (3.21) e o lock de item (3.22):
     falha mesmo com os mesmos cards (o `equals` da lista não modificável do JavaFX não é o de `List`); compare
     com `List.copyOf(board.getCards())`. E o desfazer de uma exclusão recria o card (mesmo id, outro objeto):
     compare pelos ids.
+38. **Fundo transparente ainda pega clique.** Um `Region` com `pickOnBounds = false` aceita clique em qualquer
+    `BackgroundFill`, mesmo `transparent` (a cor não importa). Para um nó que deve pegar clique só na borda
+    (a seção), o fundo tem que ser `null` e o desenho do fundo vai para outro nó `mouseTransparent` (4.4).
+39. **Estilos de estado sobrescrevem a borda da seção.** Regras como `.card-view:selected .card` têm mais
+    especificidade que `.card.shape-frame`. Uma regra nova de borda/fundo para cards precisa considerar a
+    seção (por isso o anel que pega o clique fica no `frameGrip`, não na borda do `body`).
+40. **Card que vira seção (ou deixa de ser) não muda de camada.** O `BoardView` escolhe a camada do
+    `CardView` ao criá-lo. Nenhum gesto troca o formato de/para `FRAME`; se um dia trocar, recrie o `CardView`.
+41. **A barra flutuante cobre o título de uma seção logo acima do card selecionado.** É o comportamento
+    normal da barra (fica acima da seleção); clicar fora ou no outro lado do título resolve. Um roteiro de
+    interface com picking real precisa escolher o ponto (o do 4b clica no título à direita).
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 270 testes, sem abrir janela
+### Automatizados (`mvn test`) — 321 testes, sem abrir janela
 
-(O `BoardRendererPngTest` liga o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela
-ele é pulado em vez de falhar.)
+(O `BoardRendererPngTest` e o `FrameViewTest` ligam o JavaFX, sem janela, para desenhar de verdade; num
+ambiente sem tela eles são pulados em vez de falhar.)
 
 | Classe | Cobre |
 |---|---|
@@ -2098,11 +2302,11 @@ ele é pulado em vez de falhar.)
 | `AlignmentGuidesTest` | grudar borda/centro, candidato mais próximo, limite, guias atravessando várias caixas, redimensionar (só bordas puxadas) |
 | `BoxResizerTest` | cada tipo de alça, lado oposto parado, tamanho mínimo, proporção, grude só nas bordas puxadas, Alt (limite 0) |
 | `BoardSnapshotTest` | foto/restauração: mudança de propriedades, fonte e tamanho definido à mão, card excluído com setas, card novo |
-| `CardTextFitTest` | espaço do clipe reservado em cima (fonte menor ou card maior), losango sem mudança; fonte máxima/menor/mínima, palavra nunca quebrada no meio, retângulo cresce só na altura, elipse mantém proporção, volta ao tamanho à mão, fonte manual, card vazio, espaço do botão; card de imagem: sem legenda não cresce, legenda cresce embaixo sem distorcer a imagem, fonte da legenda, imagem maior (com medidor falso, sem JavaFX) |
+| `CardTextFitTest` | seção: título com fonte fixa nunca faz crescer (nem com fonte manual ou link), texto só na faixa do título e antes dos marcadores; espaço do clipe reservado em cima (fonte menor ou card maior), losango sem mudança; fonte máxima/menor/mínima, palavra nunca quebrada no meio, retângulo cresce só na altura, elipse mantém proporção, volta ao tamanho à mão, fonte manual, card vazio, espaço do botão; card de imagem: sem legenda não cresce, legenda cresce embaixo sem distorcer a imagem, fonte da legenda, imagem maior (com medidor falso, sem JavaFX) |
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
 | `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
-| `PdfExporterTest` | link para outro board: o card todo leva à página do destino em outro ramo; card que já leva a uma página vai ao destino só pelo marcador (por cima); card com os dois links e sem página própria (card todo → board, clipe → site); destino excluído sem área clicável; marcadores lado a lado; link externo: card todo com ação URI (endereço ASCII), card de board aninhado mantém o link da página e ganha o do site só no clipe (por cima), área do clipe acompanha a escala, cards sem link sem URI; ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
+| `PdfExporterTest` | seção: texto invisível só na faixa do título; título buscável, link da seção só no marcador, cards de dentro com os links inteiros (card com site e card-board), nenhuma área clicável do tamanho da seção; link para outro board: o card todo leva à página do destino em outro ramo; card que já leva a uma página vai ao destino só pelo marcador (por cima); card com os dois links e sem página própria (card todo → board, clipe → site); destino excluído sem área clicável; marcadores lado a lado; link externo: card todo com ação URI (endereço ASCII), card de board aninhado mantém o link da página e ganha o do site só no clipe (por cima), área do clipe acompanha a escala, cards sem link sem URI; ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
 | `BoardStorageTest` | link salvo e aberto (card comum, de imagem e de board), card sem link não grava o campo, save anterior sem o campo abre sem link, links maliciosos no arquivo (`javascript:`, `file:`, caminho, rede, `usuário@site`) descartados; salvar/abrir em pasta (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), abrir pela pasta ou pelo `board.json`, `.json` antigo (abre, salva no formato novo sem alterar o antigo, versão decide e não o nome), JSON inválido, pasta incompleta, `board.json` vazio, versão futura, `version` 2 com outro nome, "salvar como" copiando `imagens/`, imagens copiadas antes do JSON (falha na gravação não deixa JSON solto), falha mantém o `board.json` anterior, destino livre × save existente × ocupado; card de imagem salvo e aberto com o arquivo, card sem imagem não grava o campo, save anterior sem o campo abre, imagem faltando (e nome com `../`) não quebra e mantém a referência, imagens de várias origens |
 | `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada; achar o arquivo na ordem das pastas, nomes com pasta recusados |
 | `ImageImporterTest` | (imagens reais geradas no teste) PNG e JPG pequenos copiados byte a byte com nome novo, grande reduzido a 2000 px mantendo a proporção (JPG continua JPG, PNG mantém transparência), GIF e BMP viram PNG, formato pelo conteúdo e não pela extensão, arquivo quebrado/não imagem/inexistente recusado sem sobras, imagem em memória vira PNG, extensões aceitas |
@@ -2115,13 +2319,18 @@ ele é pulado em vez de falhar.)
 | `NavigationPathTest` | entrar/voltar como antes; pular monta o caminho real do destino; voltar do destino volta à origem (com a visão dela) e depois ao pai; pulo para o principal ainda tem voltar; filho aberto a partir do destino volta ao destino e depois à origem; clicar num nível acima do destino esquece a origem; pulos encadeados; visão mantida nos níveis em comum; pulo para o próprio board e para board excluído não mudam nada; origem excluída → voltar ao pai; origem excluída e trazida pelo desfazer → pilha refeita pelo id; abrir outro board zera tudo |
 | `BoardLinkControllerTest` | adicionar, trocar e remover são passos de desfazer/refazer; o mesmo destino de novo não é passo; excluir o destino mantém o link (quebrado) e o desfazer o traz de volta; excluir o card com o link e desfazer; duplicar copia o link; duplicar o destino mantém o link no original |
 | `BoardLinkStorageTest` | link para board de outro ramo salvo e aberto (caminho conferido), card sem link não grava o campo, save anterior sem o campo abre sem link, link para board inexistente mantido, ids de board repetidos (saves antigos) renovados ao abrir |
-| `CardMarkersTest` | seta do link para outro board sozinha e depois do clipe (mesma fileira); sem link, sem marcador; retângulo: canto de cima à direita, fora das alças; elipse e losango: no meio e dentro da silhueta; losango estreito desce o marcador; vários em fila sem sobrepor; texto abaixo; card minúsculo |
+| `CardMarkersTest` | seta do link para outro board sozinha e depois do clipe (mesma fileira); sem link, sem marcador; retângulo: canto de cima à direita, fora das alças; elipse e losango: no meio e dentro da silhueta; losango estreito desce o marcador; seção: na faixa do título, à direita, sem empurrar o título; vários em fila sem sobrepor; texto abaixo; card minúsculo |
 | `LinkControllerTest` | adicionar, editar e remover são passos de desfazer/refazer; vazio remove; endereço inválido devolve mensagem e não muda nada; o mesmo link de novo não é passo; duplicar copia o link (painel, imagem); excluir e desfazer traz o link |
-| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`, `link`, `boardLink` e `locked`): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
+| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`, `link`, `boardLink`, `locked` e o formato `FRAME`, que deixa `isFrame()` fora do padrão): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
 | `StackOrderTest` | `Board.reorder`: um nível para cima e para baixo, topo, fundo, limites (topo/fundo/vazio/card de outro board não mudam nada), vários selecionados mantêm a ordem relativa, bloco junto sobe junto, card no topo fica e o outro selecionado sobe, aviso de permutação (não remoção), foto vê a ordem, `restore` devolve a ordem com os mesmos objetos, desfazer exclusão volta ao lugar na pilha, restaurar num board vazio, `deepCopy` mantém a ordem dos filhos |
 | `StackOrderControllerTest` | cada movimento é um passo de desfazer/refazer; sem mudança, sem passo; duplicar põe as cópias no topo na ordem dos originais; excluir e desfazer mantém a ordem; mover não mexe na ordem; salvar/abrir mantém a ordem (inclusive num board aninhado) |
 | `LockControllerTest` | travar/destravar são passos de desfazer; o mesmo estado não é passo; botão/Ctrl+L trava todos (nenhum ou alguns travados) ou destrava (todos); foto vê o travado; arrasto em grupo move só os destravados; excluir mantém os travados (e o desfazer devolve os outros); só travados: nada excluído, sem passo; formato não muda no travado e a cor muda; cópia de travado nasce destravada; travado muda de ordem |
 | `LockStorageTest` | travado salvo e aberto (também em board aninhado), destravado não grava o campo, travado grava `"locked": true` sem mudar a versão, save anterior sem o campo abre destravado (e na ordem do arquivo) |
+| `FramesTest` | seção: card dentro pelo centro (metade para fora conta, maior parte em cima não), bordas incluídas, card maior que a seção, seção não está dentro dela mesma, conteúdo na ordem da lista; o que um arrasto leva: card em duas seções uma vez só, seções movidas não entram, seção dentro de seção leva o conteúdo dela, cards comuns não levam nada, travado dentro vai; caixa de seleção (card por toque, seção só inteira); camadas |
+| `FrameLayersTest` | seção nova no topo das seções e abaixo dos cards; tamanho padrão; "trazer para o topo" para abaixo dos cards; card "para o fundo" para acima das seções; um nível entre seções; seleção mista (cada grupo na sua camada); desfazer devolve camadas e ordem; desfazer exclusão de seção; foto com seção por cima de card é corrigida; seção sem setas; excluir seção mantém os cards |
+| `FrameControllerTest` | arrastar a seção leva só o que está dentro; seção + card de dentro selecionados: anda uma vez; card em duas seções arrastadas: uma vez; seção travada não move nem leva; travado dentro acompanha (sozinho não); card solto em cima passa a pertencer; conteúdo pego no início; o arrasto é um passo (desfazer/refazer); referências de alinhamento (seções só quando é seção); redimensionar não mexe no conteúdo; duplicar copia só a seção (destravada, no topo das seções); excluir só a seção (desfazer volta atrás dos cards); seção travada não é excluída; formato nunca muda a seção; ordem com o invariante e desfazer |
+| `FrameStorageTest` | seção salva e aberta (`"FRAME"`, título, cor, tamanho, travado, link), sem campo novo e com a versão 2; arquivo com seção depois de um card abre com ela atrás, seta para seção ignorada; save sem seções abre igual |
+| `FrameViewTest` | (JavaFX de verdade, CSS do app) só a borda e o título pegam o clique, o meio vazio não (corpo sem fundo); card comum continua pegando no meio; seção sem título mostra "Seção", título longo numa linha sem crescer; PNG: seção atrás do card e translúcida; seta desenhada por cima da seção |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o
 benefício direto da separação em camadas.
@@ -2226,6 +2435,30 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   neste layout; ver 3.16), o clique físico do mouse, os seletores nativos de arquivo (código não alterado) e
   o cursor do mouse visto na tela (conferido pela propriedade `cursor` do nó).
 
+- **Seções (frames)** foram validadas por um roteiro do mesmo tipo, **dentro da JVM, sem mouse e teclado do
+  sistema** (100 verificações, no classpath e no **module path**). Diferença em relação aos anteriores: o
+  alvo de cada evento de mouse vem do **picking real** da cena (`Scene.pick`, por reflexão), não de um nó
+  escolhido pelo roteiro; assim o clique no meio vazio da seção chega mesmo ao fundo do canvas, como chegaria
+  com o mouse. Roteiro: tecla `S` (botão Seção marcado) → clique no fundo cria a seção, já editando o título →
+  digitar e `Enter` → ferramenta Retângulo e clique no **meio** da seção (o picking dá o fundo) cria o card
+  dentro → card de fora arrastado e solto por cima da seção → clique no título e na borda selecionam (sem
+  formato nem tamanho do texto, com cor, 8 alças, sem alça de conexão); clique no meio vazio limpa a seleção;
+  caixa de seleção começando no meio pega o card e não a seção; card de dentro clicável e arrastável sozinho →
+  cor Azul pela barra (fundo translúcido conferido no pixel da tela) → alça da direita (largura 600, cards
+  parados; desfazer) e de baixo (mínimo 80) → arrastar pelo título leva A e C, deixa B, conteúdo fora da
+  seleção, um passo; desfazer → seção + card de dentro selecionados (anda uma vez) → seção gruda no topo de B
+  (guia) → card travado dentro acompanha a seção; sozinho não se move → seção travada (cadeado, sem alças) não
+  se move nem leva → duplo clique no título, texto longo, `Enter` (uma linha, sem crescer) → ferramenta
+  Conexão: a seção não começa seta, soltar no título não liga, A→B liga → segunda seção (`S`): topo das
+  seções; clique direito no título (menu com a ordem, "trazer" desabilitado), "Enviar para o fundo",
+  `Ctrl+Shift+PgUp` (topo das seções, ainda atrás dos cards), card "para o fundo" fica acima das seções;
+  camadas da tela iguais ao modelo (seções atrás das setas) → `Ctrl+D` (só a seção), `Delete` (só a seção,
+  cards ficam), `Ctrl+Z` (volta ao lugar) → salvar (`FRAME`, versão 2), PNG (fundo da seção azul claro, card de
+  dentro por cima), PDF (títulos buscáveis) → reabrir (seções no fundo, título na tela, arrastar ainda leva o
+  card de dentro). **Não validado:** o clique e as teclas físicas (o caminho do evento dentro do JavaFX é o
+  mesmo, e o alvo agora vem do picking real), os seletores nativos de arquivo (código não alterado) e o
+  `mvn javafx:run` aberto à mão (o roteiro rodou no module path equivalente).
+
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
 
@@ -2253,6 +2486,7 @@ para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
 | **Ordem de empilhamento (z-order)** | Quem fica por cima de quem quando cards se sobrepõem; aqui, a posição na lista de cards (3.21). |
 | **Permutação** | Mudança de uma lista observável em que só a ordem muda (nada entra nem sai). |
 | **Card travado (lock)** | Card protegido contra mover, redimensionar, trocar o formato e excluir (3.22). |
+| **Seção (frame)** | Área colorida com título, sempre atrás dos cards; arrastá-la leva o que tem o centro dentro dela (3.23). |
 
 ## E. Comandos úteis
 

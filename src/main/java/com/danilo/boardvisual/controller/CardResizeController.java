@@ -24,7 +24,9 @@ import java.util.List;
 /**
  * Redimensionar o card selecionado pelas alças.
  *
- * - Retângulo: 8 alças, largura e altura livres; Shift num canto mantém a proporção.
+ * - Retângulo e seção (frame): 8 alças, largura e altura livres; Shift num canto
+ *   mantém a proporção. Redimensionar a seção não mexe nos cards de dentro, e o
+ *   título nunca a faz crescer (o mínimo é fixo).
  * - Elipse e losango: só os 4 cantos, sempre mantendo a proporção.
  * - Card de imagem: só os 4 cantos, sempre com a proporção da imagem (a
  *   legenda, se houver, acompanha embaixo).
@@ -46,6 +48,9 @@ public class CardResizeController {
     static final double MIN_HEIGHT = 40;
     /** Menor tamanho do maior lado de uma imagem. */
     static final double MIN_IMAGE_SIDE = 40;
+    /** Menor seção: cabe a faixa do título e um pouco de área. */
+    static final double MIN_FRAME_WIDTH = 120;
+    static final double MIN_FRAME_HEIGHT = 80;
 
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;
@@ -87,8 +92,9 @@ public class CardResizeController {
             start = view.sceneToWorld(e.getSceneX(), e.getSceneY());
             startBox = boxOf(target);
             others.clear();
-            view.getBoard().getCards().stream().filter(c -> c != target).map(CardResizeController::boxOf)
-                    .forEach(others::add);
+            // Mesmas referências do mover: as seções só contam quando é uma seção que muda.
+            others.addAll(CardDragController.alignmentReferences(view.getBoard().getCards(), List.of(target),
+                    target.isFrame()));
             // Card de imagem: a proporção é a da imagem (o tamanho definido à mão), não a do card com legenda.
             startImageRatio = target.hasImage() && target.getBaseHeight() > 0
                     ? target.getBaseWidth() / target.getBaseHeight() : 0;
@@ -106,9 +112,10 @@ public class CardResizeController {
                 e.consume();
                 return;
             }
-            boolean keepAspect = target.getShape() != CardShape.RECTANGLE || (e.isShiftDown() && handle.isCorner());
+            boolean keepAspect = !freeAspect(target) || (e.isShiftDown() && handle.isCorner());
             BoxResizer.Result result = BoxResizer.resize(startBox, handle, p.getX() - start.getX(), p.getY() - start.getY(),
-                    MIN_WIDTH, MIN_HEIGHT, keepAspect, others, threshold);
+                    target.isFrame() ? MIN_FRAME_WIDTH : MIN_WIDTH, target.isFrame() ? MIN_FRAME_HEIGHT : MIN_HEIGHT,
+                    keepAspect, others, threshold);
             Box box = fitText(target, handle, result.box());
             apply(target, box);
             view.showGuides(box.equals(result.box()) ? result.guides() : List.of());
@@ -147,7 +154,12 @@ public class CardResizeController {
             }
         }
         target = single != null && !single.isLocked() ? single : null;
-        view.setResizeTarget(target, target != null && (target.getShape() != CardShape.RECTANGLE || target.hasImage()));
+        view.setResizeTarget(target, target != null && (!freeAspect(target) || target.hasImage()));
+    }
+
+    /** Retângulo e seção mudam largura e altura livremente; elipse e losango mantêm a proporção. */
+    private static boolean freeAspect(Card card) {
+        return card.getShape() == CardShape.RECTANGLE || card.getShape() == CardShape.FRAME;
     }
 
     /**

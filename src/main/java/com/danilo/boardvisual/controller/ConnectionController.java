@@ -12,7 +12,8 @@ import javafx.scene.input.MouseEvent;
 import java.util.Optional;
 
 /**
- * Criação de conexões arrastando de um card até outro. Começa de dois jeitos:
+ * Criação de conexões arrastando de um card até outro. Seções (frames) ficam de
+ * fora: não começam nem recebem setas ({@link Card#isFrame()}). Começa de dois jeitos:
  *
  * - Ferramenta Conexão: pressionar em qualquer ponto do card (inclusive no
  *   texto, que nesse modo não é editado). A ferramenta continua ativa para
@@ -45,6 +46,9 @@ public class ConnectionController {
                 return; // o marcador (clipe do link) age em qualquer ferramenta
             }
             Card card = cardView.getCard();
+            if (card.isFrame()) {
+                return; // seção não tem setas
+            }
             boolean onHandle = e.getPickResult().getIntersectedNode() == cardView.getConnectorHandle();
             if (activeTool.get() == Tool.CONNECTION) {
                 begin(cardView, card.getCenterX(), card.getCenterY());
@@ -85,7 +89,8 @@ public class ConnectionController {
     }
 
     private Optional<CardView> targetAt(MouseEvent e) {
-        return view.cardViewAt(e.getSceneX(), e.getSceneY()).filter(target -> target != source);
+        return view.cardViewAt(e.getSceneX(), e.getSceneY())
+                .filter(target -> target != source && !target.getCard().isFrame());
     }
 
     private void highlight(CardView target) {

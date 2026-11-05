@@ -29,6 +29,73 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PdfExporterTest {
 
+    // ------------------------------------------------------------ seção (frame)
+
+    private static Card frame(double x, double y, String title) {
+        Card frame = new Card(x, y);
+        frame.setShape(com.danilo.boardvisual.model.CardShape.FRAME);
+        frame.resize(600, 400);
+        frame.setText(title);
+        return frame;
+    }
+
+    @Test
+    void invisibleTextOfAFrameCoversOnlyTheTitleStrip() {
+        Card section = frame(0, 0, "Pesquisa");
+        PDRectangle rect = new PDRectangle(10, 50, 600, 400);
+
+        PDRectangle title = PdfExporter.textRect(section, rect, 1);
+
+        assertEquals(450, title.getUpperRightY(), 1e-3, "no topo da seção");
+        assertEquals(com.danilo.boardvisual.model.Frames.TITLE_HEIGHT, title.getHeight(), 1e-3);
+        assertEquals(600, title.getWidth(), 1e-3);
+    }
+
+    @Test
+    void frameTitleIsSearchableAndCardsInsideKeepTheirLinks() throws IOException {
+        Board root = new Board("Seções");
+        Card section = frame(0, 0, "Pesquisa de mercado");
+        section.setLink("https://secao.example.com");
+        Card inside = new Card(100, 120);
+        inside.setText("Concorrentes");
+        inside.setLink("https://card.example.com");
+        Card insideBoard = new Card(350, 120);
+        insideBoard.setText("Detalhes");
+        insideBoard.setChildBoard(new Board(""));
+        root.addCard(inside);
+        root.addCard(insideBoard);
+        root.addCard(section); // vai para trás dos cards
+
+        try (PDDocument document = exporter.build(root)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setStartPage(1);
+            stripper.setEndPage(1);
+            String text = stripper.getText(document);
+            assertTrue(text.contains("Pesquisa de mercado"), text);
+            assertTrue(text.contains("Concorrentes"), text);
+
+            PDPage page = document.getPage(0);
+            List<PDAnnotationLink> uris = uriLinks(page);
+            assertEquals(2, uris.size());
+            PDAnnotationLink sectionLink = uris.stream()
+                    .filter(l -> uriOf(l).contains("secao")).findFirst().orElseThrow();
+            PDAnnotationLink cardLink = uris.stream()
+                    .filter(l -> uriOf(l).contains("card")).findFirst().orElseThrow();
+            assertEquals(CardMarkers.SIZE, sectionLink.getRectangle().getWidth(), 1e-3,
+                    "link da seção só no marcador");
+            assertEquals(inside.getWidth(), cardLink.getRectangle().getWidth(), 1e-3, "o card de dentro, inteiro");
+            assertTrue(page.getAnnotations().indexOf(sectionLink) < page.getAnnotations().indexOf(cardLink),
+                    "a seção vem antes (atrás) dos cards");
+            for (PDAnnotationLink link : links(page)) {
+                PDRectangle r = link.getRectangle();
+                assertTrue(r.getWidth() < section.getWidth() && r.getHeight() < section.getHeight(),
+                        "nenhuma área clicável do tamanho da seção");
+            }
+            // O card-board de dentro continua levando à página dele.
+            assertEquals(1, links(page).size() - uris.size(), "um link interno: o do card-board");
+        }
+    }
+
     @Test
     void invisibleTextOfAnImageCardGoesBelowTheImage() {
         Card photo = Card.createImage("foto.png", 0, 0, 320, 180);

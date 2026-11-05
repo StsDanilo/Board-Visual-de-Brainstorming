@@ -5,6 +5,7 @@ import com.danilo.boardvisual.alignment.Box;
 import com.danilo.boardvisual.alignment.SnapResult;
 import com.danilo.boardvisual.model.BoardSnapshot;
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.Frames;
 import com.danilo.boardvisual.view.BoardView;
 import com.danilo.boardvisual.view.CardView;
 import com.danilo.boardvisual.view.Tool;
@@ -30,6 +31,11 @@ import java.util.Set;
  *   referência para o alinhamento dos que se movem).
  * - Clicar não traz o card para frente: a ordem de empilhamento só muda pelas
  *   ações explícitas ({@link StackOrderController}), e é salva.
+ * - Arrastar uma seção (frame) leva junto os cards que estão dentro dela no
+ *   início do arrasto ({@link Frames#carriedBy}: centro dentro da área), mesmo
+ *   travados, sem que eles entrem na seleção. Seção travada não se move e não
+ *   leva nada. Cada card se move uma vez só, mesmo dentro de duas seções
+ *   arrastadas juntas ou selecionado junto com a seção dele.
  *
  * Só altera x/y dos cards no modelo; views e setas acompanham por binding.
  * Trabalha em coordenadas de mundo, então funciona em qualquer nível de zoom.
@@ -37,7 +43,10 @@ import java.util.Set;
  *
  * Alinhamento: ao arrastar, bordas e centros dos cards movidos (como um bloco,
  * se forem vários) grudam nos dos outros cards quando ficam perto, com linhas
- * guia. Segurar Alt desliga, para posicionar livremente.
+ * guia. Segurar Alt desliga, para posicionar livremente. As seções só servem de
+ * referência quando o que se arrasta inclui uma seção ({@link #alignmentReferences}):
+ * arrastando cards comuns, elas não aparecem nas guias (não poluem); o bloco
+ * que alinha é o que foi pego (a seleção), não o conteúdo levado junto.
  */
 public class CardDragController {
 
@@ -99,24 +108,26 @@ public class CardDragController {
             }
             view.requestFocus(); // sai da edição de texto, liberando os atalhos de teclado
             e.consume();
-            // Travados ficam parados; o resto da seleção se move normalmente.
-            List<Card> moving = movableCards(view.getSelection());
-            if (moving.isEmpty()) {
+            // Travados ficam parados; o resto da seleção se move normalmente, e cada seção
+            // leva o que está dentro dela agora (calculado uma vez, aqui no início).
+            List<Card> grabbed = movableCards(view.getSelection());
+            if (grabbed.isEmpty()) {
                 return;
             }
+            List<Card> all = view.getBoard().getCards();
+            List<Card> moving = draggedCards(view.getSelection(), all);
             state.start = view.sceneToWorld(e.getSceneX(), e.getSceneY());
             state.startPositions.clear();
             moving.forEach(c -> state.startPositions.put(c, new Point2D(c.getX(), c.getY())));
-            // Referências do alinhamento: os cards que não estão sendo movidos (não mudam durante o arrasto).
+            // O bloco que alinha é o que foi pego; as referências não mudam durante o arrasto.
             state.startBox = null;
-            state.others.clear();
-            for (Card c : view.getBoard().getCards()) {
-                if (state.startPositions.containsKey(c)) {
+            for (Card c : all) {
+                if (grabbed.contains(c)) {
                     state.startBox = state.startBox == null ? boxOf(c) : state.startBox.union(boxOf(c));
-                } else {
-                    state.others.add(boxOf(c));
                 }
             }
+            state.others.clear();
+            state.others.addAll(alignmentReferences(all, moving, grabbed.stream().anyMatch(Card::isFrame)));
             state.before = history.capture();
         });
         cardView.getBody().addEventHandler(MouseEvent.MOUSE_DRAGGED, e -> {
@@ -163,6 +174,33 @@ public class CardDragController {
         return selection.stream().filter(card -> !card.isLocked()).toList();
     }
 
+    /**
+     * Tudo o que um arrasto da seleção move: os {@link #movableCards} e o que
+     * está dentro das seções entre eles ({@link Frames#carriedBy}, inclusive
+     * travados e seções dentro de seções), cada card uma vez só.
+     */
+    static List<Card> draggedCards(Collection<Card> selection, Collection<Card> boardCards) {
+        List<Card> movable = movableCards(selection);
+        Set<Card> dragged = new LinkedHashSet<>(movable);
+        dragged.addAll(Frames.carriedBy(movable, boardCards));
+        return List.copyOf(dragged);
+    }
+
+    /**
+     * Caixas de referência do alinhamento: os cards que não se movem. As seções
+     * só entram se o gesto envolve uma seção ({@code framesToo}): ao arrastar ou
+     * redimensionar cards comuns, as bordas das seções não puxam (nem desenham guias).
+     */
+    static List<Box> alignmentReferences(Collection<Card> boardCards, Collection<Card> moving, boolean framesToo) {
+        List<Box> references = new ArrayList<>();
+        for (Card card : boardCards) {
+            if (!moving.contains(card) && (framesToo || !card.isFrame())) {
+                references.add(boxOf(card));
+            }
+        }
+        return references;
+    }
+
     private static final class DragState {
         /** Ponto inicial do arrasto em coordenadas de mundo; {@code null} fora de um arrasto. */
         Point2D start;
@@ -174,7 +212,7 @@ public class CardDragController {
         final List<Box> others = new ArrayList<>();
     }
 
-    private static Box boxOf(Card card) {
+    static Box boxOf(Card card) {
         return new Box(card.getX(), card.getY(), card.getWidth(), card.getHeight());
     }
 }

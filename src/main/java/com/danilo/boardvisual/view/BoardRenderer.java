@@ -72,6 +72,8 @@ public final class BoardRenderer {
         for (Connection connection : board.getConnections()) {
             connections.getChildren().add(new ConnectionView(connection));
         }
+        // Como na tela: seções atrás das setas, cards comuns na frente (BoardView).
+        Group frames = new Group();
         Group cards = new Group();
         for (Card card : board.getCards()) {
             CardView view = new CardView(card, imageLoader);
@@ -79,9 +81,9 @@ public final class BoardRenderer {
             if (card.hasBoardLink()) {
                 view.setMarkerBroken(CardMarkers.Kind.BOARD_LINK, !boardExists.test(card.getBoardLink()));
             }
-            cards.getChildren().add(view);
+            (card.isFrame() ? frames : cards).getChildren().add(view);
         }
-        Group content = new Group(connections, cards);
+        Group content = new Group(frames, connections, cards);
         Group root = new Group(content);
         root.getStyleClass().add("board-export");
         Scene scene = new Scene(root);

@@ -3,6 +3,7 @@ package com.danilo.boardvisual.view;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
+import com.danilo.boardvisual.model.Frames;
 import com.danilo.boardvisual.model.PanelMode;
 import javafx.application.Platform;
 import javafx.beans.Observable;
@@ -12,6 +13,7 @@ import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.css.PseudoClass;
+import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -46,7 +48,10 @@ import java.util.Map;
  * <pre>
  * CardView
  *  ├─ body (.card)            fundo e borda; o CSS dá a silhueta de cada formato
+ *  │   ├─ frameFill           só na seção: o fundo translúcido (não recebe clique)
+ *  │   ├─ frameGrip           só na seção: anel invisível na borda, que recebe o clique
  *  │   ├─ imageBox            imagem no topo (só em cards de imagem), ou o aviso de que ela falta
+ *  │   ├─ frameTitle          só na seção: o título (faixa do topo), fora da edição
  *  │   └─ content             área do texto, recuada para caber no formato (e abaixo da imagem)
  *  │       └─ textArea
  *  ├─ panelButton             abre o painel flutuante (só em cards com painel)
@@ -56,6 +61,15 @@ import java.util.Map;
  *  ├─ connectorHandle         alça para criar conexões
  *  └─ lockBadge               cadeado no canto de cima à esquerda (só com o card travado, só na tela)
  * </pre>
+ *
+ * <b>Seção (frame, {@link Card#isFrame()}):</b> o {@code body} não tem fundo
+ * (o fundo é o {@code frameFill}, que não recebe clique), então o meio vazio da
+ * seção não pertence a ela: o clique cai no que está atrás (o fundo do canvas,
+ * com caixa de seleção, criar card, pan...). Só a borda ({@code frameGrip}, um
+ * anel de 10 px) e o título ({@code frameTitle}) pegam o clique, e o evento
+ * sobe até o {@code body} como em qualquer card (selecionar, arrastar, menu).
+ * O título é o texto do card: fora da edição aparece num rótulo de uma linha,
+ * cortado com reticências; na edição (duplo clique) aparece o campo de texto.
  */
 public class CardView extends Region {
 
@@ -66,6 +80,12 @@ public class CardView extends Region {
     private static final PseudoClass HAS_IMAGE = PseudoClass.getPseudoClass("has-image");
     private static final PseudoClass BROKEN = PseudoClass.getPseudoClass("broken");
     private static final PseudoClass LOCKED = PseudoClass.getPseudoClass("locked");
+    private static final PseudoClass FRAME = PseudoClass.getPseudoClass("frame");
+    private static final PseudoClass PLACEHOLDER = PseudoClass.getPseudoClass("placeholder");
+    /** Título exibido de uma seção sem título (só na tela; no PDF/PNG fica em branco). */
+    public static final String FRAME_PLACEHOLDER = "Seção";
+    /** Texto de exemplo do título de uma seção, durante a edição. */
+    public static final String FRAME_PROMPT_TEXT = "Título da seção";
     /** Selo do cadeado (card travado): tamanho e quanto ele sai para fora do canto de cima à esquerda. */
     private static final double LOCK_BADGE_SIZE = 16;
     private static final double LOCK_BADGE_OUTSIDE = 6;
@@ -99,6 +119,12 @@ public class CardView extends Region {
     private final StringProperty boardLinkDescription = new SimpleStringProperty("Ir para o board de destino");
     /** Cadeado pequeno no canto de cima à esquerda, só na tela, enquanto o card está travado. */
     private final StackPane lockBadge = new StackPane();
+    /** Seção: fundo translúcido (o body da seção não tem fundo, para o meio não pegar clique). */
+    private final Region frameFill = new Region();
+    /** Seção: anel invisível em volta da borda, a área que recebe o clique. */
+    private final Region frameGrip = new Region();
+    /** Seção: o título fora da edição (uma linha, cortada com reticências). */
+    private final Label frameTitle = new Label();
 
     public CardView(Card card) {
         this(card, CardImageLoader.NONE);
@@ -113,7 +139,8 @@ public class CardView extends Region {
         textArea.getStyleClass().add("card-text");
         textArea.setWrapText(true);
         textArea.promptTextProperty().bind(Bindings.createStringBinding(
-                () -> card.hasImage() ? CAPTION_PROMPT_TEXT : PROMPT_TEXT, card.imageFileProperty()));
+                () -> card.isFrame() ? FRAME_PROMPT_TEXT : card.hasImage() ? CAPTION_PROMPT_TEXT : PROMPT_TEXT,
+                card.imageFileProperty(), card.shapeProperty()));
         textArea.setPrefRowCount(1);
         textArea.setPrefColumnCount(1);
         textArea.setMinSize(0, 0);
@@ -139,9 +166,10 @@ public class CardView extends Region {
         content.setPickOnBounds(false);
 
         setUpImage();
+        setUpFrame();
 
         body.getStyleClass().add("card");
-        body.getChildren().addAll(imageBox, content);
+        body.getChildren().addAll(frameFill, frameGrip, imageBox, frameTitle, content);
         body.prefWidthProperty().bind(card.widthProperty());
         body.prefHeightProperty().bind(card.heightProperty());
         body.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
@@ -238,6 +266,52 @@ public class CardView extends Region {
             }
         }
         return false;
+    }
+
+    /**
+     * Encerra a edição do texto devolvendo o foco ao canvas (os atalhos voltam a
+     * funcionar). Usado pelo Enter no título de uma seção, que é de uma linha.
+     */
+    public void endTextEdit() {
+        for (Node n = getParent(); n != null; n = n.getParent()) {
+            if (n instanceof BoardView boardView) {
+                boardView.requestFocus();
+                return;
+            }
+        }
+        requestFocus();
+    }
+
+    /**
+     * Se o ponto (coordenadas de cena) pega este card, respeitando a silhueta.
+     * Numa seção, só a borda (o anel) e a faixa do título contam: o meio vazio
+     * não é dela (o mesmo que o clique de verdade decide, ver a descrição da classe).
+     */
+    public boolean hitsScenePoint(double sceneX, double sceneY) {
+        if (!card.isFrame()) {
+            Point2D local = body.sceneToLocal(sceneX, sceneY);
+            return local != null && body.contains(local);
+        }
+        for (Node part : List.of(frameGrip, frameTitle, textArea)) {
+            if (!part.isVisible() || part.isMouseTransparent()) {
+                continue;
+            }
+            Point2D local = part.sceneToLocal(sceneX, sceneY);
+            if (local != null && (part == frameGrip ? part.contains(local) : part.getBoundsInLocal().contains(local))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** O título de uma seção fora da edição (para o roteiro de interface e os testes). */
+    public Label getFrameTitle() {
+        return frameTitle;
+    }
+
+    /** O anel da borda de uma seção, que recebe o clique (para os testes de picking). */
+    public Region getFrameGrip() {
+        return frameGrip;
     }
 
     /** Verdadeiro enquanto o texto do card está sendo editado. */
@@ -376,6 +450,59 @@ public class CardView extends Region {
         List<CardMarkers.Kind> shown = CardMarkers.of(card);
         markers.forEach((kind, marker) -> marker.setVisible(shown.contains(kind)));
         requestLayout();
+    }
+
+    /**
+     * Seção (frame): fundo translúcido num nó à parte que não recebe clique,
+     * anel da borda que recebe, e o título em uma linha. Tudo só aparece se o
+     * card é uma seção; nos outros cards esses nós ficam escondidos.
+     */
+    private void setUpFrame() {
+        frameFill.getStyleClass().add("frame-fill");
+        frameFill.setMouseTransparent(true);
+        frameFill.setMinSize(0, 0);
+
+        frameGrip.getStyleClass().add("frame-grip");
+        // Só o anel da borda (CSS: borda transparente de 10 px) conta para o clique.
+        frameGrip.setPickOnBounds(false);
+        frameGrip.setMinSize(0, 0);
+
+        frameTitle.getStyleClass().add("frame-title");
+        frameTitle.setPickOnBounds(true); // a faixa inteira do título pega o clique
+        frameTitle.setMinSize(0, 0);
+        frameTitle.setMaxWidth(Double.MAX_VALUE);
+        frameTitle.setPrefHeight(Frames.TITLE_HEIGHT);
+        frameTitle.setMaxHeight(Frames.TITLE_HEIGHT);
+        frameTitle.setAlignment(Pos.CENTER_LEFT);
+        frameTitle.setWrapText(false);
+        StackPane.setAlignment(frameTitle, Pos.TOP_LEFT);
+        // Mesmo recuo lateral do campo de texto (que já desconta os marcadores).
+        frameTitle.paddingProperty().bind(Bindings.createObjectBinding(
+                () -> new Insets(0, content.getPadding().getRight(), 0, content.getPadding().getLeft()),
+                content.paddingProperty()));
+        frameTitle.textProperty().bind(Bindings.createStringBinding(() -> {
+            String title = card.getText().replaceAll("\\s*\\R\\s*", " ").strip();
+            return title.isEmpty() ? FRAME_PLACEHOLDER : title;
+        }, card.textProperty()));
+        card.textProperty().addListener(obs -> applyFrame());
+        card.shapeProperty().addListener(obs -> applyFrame());
+        textArea.focusedProperty().addListener(obs -> applyFrame());
+        applyFrame();
+    }
+
+    private void applyFrame() {
+        boolean frame = card.isFrame();
+        boolean editing = textArea.isFocused();
+        pseudoClassStateChanged(FRAME, frame);
+        frameFill.setVisible(frame);
+        frameGrip.setVisible(frame);
+        frameTitle.setVisible(frame && !editing);
+        frameTitle.pseudoClassStateChanged(PLACEHOLDER, card.getText().isBlank());
+        // Fora da edição o campo do título fica invisível e sem clique: o clique
+        // na faixa do título seleciona e arrasta a seção (o duplo clique edita).
+        textArea.setMouseTransparent(frame && !editing);
+        textArea.setOpacity(frame && !editing ? 0 : 1);
+        textArea.setWrapText(!frame);
     }
 
     /**

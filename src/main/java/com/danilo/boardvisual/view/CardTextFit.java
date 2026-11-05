@@ -38,6 +38,11 @@ public final class CardTextFit {
      * tamanho fixo de legenda.
      */
     public static final double CAPTION_FONT_SIZE = 14;
+    /**
+     * Fonte do título de uma seção (frame): fixa. O título nunca faz a seção
+     * crescer nem muda de fonte; título longo é cortado com reticências na tela.
+     */
+    public static final double FRAME_TITLE_FONT_SIZE = 15;
     /** Tamanhos oferecidos na escolha manual. */
     public static final List<Integer> MANUAL_FONT_SIZES = List.of(10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48);
 
@@ -120,6 +125,10 @@ public final class CardTextFit {
      */
     public Fit fit(CardShape shape, double width, double height, boolean hasButton, double imageRatio,
                    int markers, String text, double fontSize) {
+        if (shape == CardShape.FRAME) {
+            // Seção: o tamanho é sempre o definido à mão; o título não a faz crescer.
+            return new Fit(FRAME_TITLE_FONT_SIZE, width, height);
+        }
         Frame frame = new Frame(shape, hasButton, imageRatio, markers);
         boolean empty = text == null || text.isEmpty();
         if (imageRatio > 0) {

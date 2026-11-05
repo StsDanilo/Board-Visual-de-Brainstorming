@@ -5,6 +5,7 @@ import com.danilo.boardvisual.alignment.Guide;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.Connection;
+import com.danilo.boardvisual.model.Frames;
 import javafx.beans.InvalidationListener;
 import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.beans.property.ReadOnlyDoubleWrapper;
@@ -45,6 +46,7 @@ import java.util.function.Consumer;
  * <pre>
  * BoardView (viewport, recortado ao tamanho visível)
  *  └─ world (recebe pan + zoom)
+ *      ├─ frameLayer       (seções, atrás de tudo: as setas passam por cima delas)
  *      ├─ connectionLayer  (setas, ficam atrás dos cards)
  *      ├─ cardLayer        (cards, na ordem de board.getCards(): o último fica por cima)
  *      └─ overlayLayer     (prévia da seta sendo criada)
@@ -75,6 +77,8 @@ public class BoardView extends Pane {
     private static final double RESIZE_HANDLE_CLEARANCE = 14;
 
     private final Group world = new Group();
+    /** Seções (frames): sempre atrás dos cards comuns e das setas ({@link Card#isFrame()}). */
+    private final Group frameLayer = new Group();
     private final Group connectionLayer = new Group();
     private final Group cardLayer = new Group();
     private final Group overlayLayer = new Group();
@@ -146,7 +150,7 @@ public class BoardView extends Pane {
         overlayLayer.getChildren().add(connectionPreview);
         overlayLayer.setMouseTransparent(true);
 
-        world.getChildren().addAll(connectionLayer, cardLayer, overlayLayer);
+        world.getChildren().addAll(frameLayer, connectionLayer, cardLayer, overlayLayer);
 
         marquee.getStyleClass().add("selection-marquee");
         marquee.setManaged(false);
@@ -203,6 +207,7 @@ public class BoardView extends Pane {
             board.getConnections().removeListener(connectionsListener);
         }
         selection.clear();
+        frameLayer.getChildren().clear();
         cardLayer.getChildren().clear();
         connectionLayer.getChildren().clear();
         cardViews.clear();
@@ -235,14 +240,16 @@ public class BoardView extends Pane {
         return Optional.ofNullable(cardViews.get(card));
     }
 
-    /** Card visualmente mais à frente sob o ponto (coordenadas de cena). */
+    /**
+     * Card visualmente mais à frente sob o ponto (coordenadas de cena). Respeita
+     * a silhueta do formato (cantos da elipse não contam) e, numa seção, só a
+     * borda e o título contam ({@link CardView#hitsScenePoint}).
+     */
     public Optional<CardView> cardViewAt(double sceneX, double sceneY) {
-        List<Node> children = cardLayer.getChildren();
-        for (int i = children.size() - 1; i >= 0; i--) {
-            if (children.get(i) instanceof CardView cardView) {
-                Point2D local = cardView.getBody().sceneToLocal(sceneX, sceneY);
-                // contains() respeita a silhueta do formato (cantos da elipse não contam).
-                if (local != null && cardView.getBody().contains(local)) {
+        for (Group layer : List.of(cardLayer, frameLayer)) {
+            List<Node> children = layer.getChildren();
+            for (int i = children.size() - 1; i >= 0; i--) {
+                if (children.get(i) instanceof CardView cardView && cardView.hitsScenePoint(sceneX, sceneY)) {
                     return Optional.of(cardView);
                 }
             }
@@ -250,33 +257,41 @@ public class BoardView extends Pane {
         return Optional.empty();
     }
 
+    /** A camada do card: seções numa só delas, atrás das setas; os outros cards na de cima. */
+    private Group layerOf(Card card) {
+        return card.isFrame() ? frameLayer : cardLayer;
+    }
+
     private void addCardView(Card card) {
         CardView cardView = new CardView(card, imageLoader);
         cardViews.put(card, cardView);
-        cardLayer.getChildren().add(cardView);
+        layerOf(card).getChildren().add(cardView);
         cardViewInitializer.accept(cardView);
     }
 
     /**
      * Deixa os {@link CardView}s na mesma ordem de {@code board.getCards()} (a
-     * ordem de empilhamento: o último fica por cima). Usa {@code toFront}, que o
-     * JavaFX trata como troca de lugar entre irmãos: o nó não sai da cena, então
-     * foco, seleção, painel aberto e handlers continuam como estavam.
+     * ordem de empilhamento: o último fica por cima), cada um na sua camada (as
+     * seções vêm antes na lista e ficam na camada de baixo). Usa {@code toFront},
+     * que o JavaFX trata como troca de lugar entre irmãos: o nó não sai da cena,
+     * então foco, seleção, painel aberto e handlers continuam como estavam.
      */
     private void syncCardOrder() {
-        List<Node> children = cardLayer.getChildren();
-        List<Card> cards = board.getCards();
-        boolean inOrder = children.size() == cards.size();
-        for (int i = 0; inOrder && i < cards.size(); i++) {
-            inOrder = children.get(i) == cardViews.get(cards.get(i));
-        }
-        if (inOrder) {
-            return;
-        }
-        for (Card card : cards) {
-            CardView cardView = cardViews.get(card);
-            if (cardView != null) {
-                cardView.toFront();
+        for (Group layer : List.of(frameLayer, cardLayer)) {
+            List<Node> children = layer.getChildren();
+            List<Card> cards = board.getCards().stream().filter(card -> layerOf(card) == layer).toList();
+            boolean inOrder = children.size() == cards.size();
+            for (int i = 0; inOrder && i < cards.size(); i++) {
+                inOrder = children.get(i) == cardViews.get(cards.get(i));
+            }
+            if (inOrder) {
+                continue;
+            }
+            for (Card card : cards) {
+                CardView cardView = cardViews.get(card);
+                if (cardView != null && cardView.getParent() == layer) {
+                    cardView.toFront();
+                }
             }
         }
     }
@@ -291,6 +306,7 @@ public class BoardView extends Pane {
         }
         CardView cardView = cardViews.remove(card);
         if (cardView != null) {
+            frameLayer.getChildren().remove(cardView);
             cardLayer.getChildren().remove(cardView);
         }
     }
@@ -579,18 +595,22 @@ public class BoardView extends Pane {
         }
     }
 
-    /** Cards que tocam o retângulo entre dois pontos (coordenadas de cena). */
+    /**
+     * Cards que a caixa de seleção entre dois pontos (coordenadas de cena) pega:
+     * os que tocam o retângulo; as seções, só se estiverem inteiras dentro dele
+     * ({@link Frames#marqueeSelects}).
+     */
     public List<Card> cardsInSceneRect(double sceneX1, double sceneY1, double sceneX2, double sceneY2) {
         if (board == null) {
             return List.of();
         }
         Point2D a = sceneToWorld(sceneX1, sceneY1);
         Point2D b = sceneToWorld(sceneX2, sceneY2);
-        Bounds area = new BoundingBox(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()),
-                Math.abs(a.getX() - b.getX()), Math.abs(a.getY() - b.getY()));
-        return board.getCards().stream()
-                .filter(c -> area.intersects(c.getX(), c.getY(), c.getWidth(), c.getHeight()))
-                .toList();
+        double x = Math.min(a.getX(), b.getX());
+        double y = Math.min(a.getY(), b.getY());
+        double w = Math.abs(a.getX() - b.getX());
+        double h = Math.abs(a.getY() - b.getY());
+        return board.getCards().stream().filter(c -> Frames.marqueeSelects(c, x, y, w, h)).toList();
     }
 
     // ------------------------------------------------ estado visual da interação

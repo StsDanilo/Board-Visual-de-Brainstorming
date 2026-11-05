@@ -95,6 +95,16 @@ class CardMarkersTest {
     }
 
     @Test
+    void frameMarkerSitsInTheTitleStripAtTheRight() {
+        CardMarkers.Spot spot = CardMarkers.layout(CardShape.FRAME, 480, 320, ONE).get(0);
+
+        assertTrue(spot.y() + spot.size() <= Frames.TITLE_HEIGHT, "dentro da faixa do título");
+        assertTrue(spot.x() > 480 - 40, "à direita");
+        assertTrue(inside(CardShape.FRAME, 480, 320, spot.centerX(), spot.centerY()));
+        assertEquals(0, CardMarkers.reservedTop(CardShape.FRAME, 480, 320, 1), "não empurra o título para baixo");
+    }
+
+    @Test
     void tinyCardKeepsTheMarkerAboveTheMiddle() {
         CardMarkers.Spot spot = CardMarkers.layout(CardShape.DIAMOND, 40, 30, ONE).get(0);
 
@@ -106,7 +116,7 @@ class CardMarkersTest {
         double dx = Math.abs(x - w / 2) / (w / 2);
         double dy = Math.abs(y - h / 2) / (h / 2);
         return switch (shape) {
-            case RECTANGLE -> dx <= 1 && dy <= 1;
+            case RECTANGLE, FRAME -> dx <= 1 && dy <= 1;
             case ELLIPSE -> dx * dx + dy * dy <= 1;
             case DIAMOND -> dx + dy <= 1;
         };

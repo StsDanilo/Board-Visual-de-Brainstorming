@@ -168,6 +168,15 @@ public class Card {
     public CardShape getShape() { return shape.get(); }
     public void setShape(CardShape value) { shape.set(value == null ? CardShape.RECTANGLE : value); }
 
+    /**
+     * Se o card é uma seção (frame, {@link CardShape#FRAME}): área com título que
+     * fica atrás dos cards comuns e leva junto, ao ser arrastada, os cards que
+     * estão dentro dela ({@link Frames}). O texto do card é o título.
+     */
+    public boolean isFrame() {
+        return getShape() == CardShape.FRAME;
+    }
+
     // ------------------------------------------------------ painel flutuante
 
     public ObjectProperty<PanelMode> panelModeProperty() { return panelMode; }

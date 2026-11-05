@@ -39,7 +39,8 @@ class CardAllPropertiesTest {
     /** Um card com cada propriedade diferente do padrão. Ao criar uma propriedade nova, preencha-a aqui. */
     static Card fullCard() {
         Card card = new Card(CARD_ID, 123.5, -45.25);
-        card.setShape(CardShape.DIAMOND);
+        // FRAME (seção) e não um formato comum: assim isFrame() também sai do padrão.
+        card.setShape(CardShape.FRAME);
         card.setWidth(333);
         card.setHeight(222);
         card.setBaseWidth(310);

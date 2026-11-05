@@ -5,11 +5,17 @@ package com.danilo.boardvisual.model;
  *
  * Elipse e losango são maiores que o retângulo porque a área útil para texto
  * dentro deles é menor.
+ *
+ * {@link #FRAME} não é um formato de card comum: é a <b>seção</b> (frame), uma
+ * área colorida com título no topo que fica sempre atrás dos cards e os
+ * organiza por tema ({@link Frames}). Não aparece no seletor de formato; só a
+ * ferramenta Seção cria, e um card nunca vira nem deixa de ser seção.
  */
 public enum CardShape {
     RECTANGLE(200, 120),
     ELLIPSE(230, 150),
-    DIAMOND(260, 170);
+    DIAMOND(260, 170),
+    FRAME(480, 320);
 
     private final double defaultWidth;
     private final double defaultHeight;

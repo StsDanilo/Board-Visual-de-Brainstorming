@@ -30,6 +30,11 @@ public enum Tool {
     NESTED_BOARD("Board aninhado", KeyCode.B, CardShape.RECTANGLE, PanelMode.NONE, true, Icons.NESTED_BOARD,
             "Clique no canvas para criar um board aninhado  ·  O botão no card entra no board  ·  "
                     + "Alt+← ou o caminho no topo voltam"),
+    /** Seção (frame): área colorida com título, sempre atrás dos cards ({@link CardShape#FRAME}). */
+    FRAME("Seção", KeyCode.S, CardShape.FRAME, PanelMode.NONE, Icons.shape(CardShape.FRAME),
+            "Clique no canvas para criar uma seção (área com título, atrás dos cards)  ·  "
+                    + "Arraste pela borda ou pelo título: os cards de dentro vão junto  ·  "
+                    + "Duplo clique no título para renomear"),
     /**
      * Não fica ativa: ao ser escolhida, abre o seletor de arquivo, insere as
      * imagens no centro da tela e volta para Selecionar (ImageController).
@@ -89,9 +94,9 @@ public enum Tool {
         return createsChildBoard;
     }
 
-    /** Ferramentas que criam cards comuns de um formato (as opções do seletor de formato). */
+    /** Ferramentas que criam cards comuns de um formato (as opções do seletor de formato; a Seção não entra). */
     boolean isPlainShapeTool() {
-        return shape != null && panelMode == PanelMode.NONE && !createsChildBoard;
+        return shape != null && shape != CardShape.FRAME && panelMode == PanelMode.NONE && !createsChildBoard;
     }
 
     /** Texto de ajuda mostrado na barra de status enquanto a ferramenta está ativa. */

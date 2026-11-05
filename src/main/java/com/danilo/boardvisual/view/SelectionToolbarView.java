@@ -53,8 +53,10 @@ public class SelectionToolbarView extends HBox {
         // Invisível também não ocupa espaço na barra.
         panelModeGroup.managedProperty().bind(panelModeGroup.visibleProperty());
         panelModeGroup.setVisible(false);
-        // O formato some quando só há cards de imagem selecionados (eles são sempre retângulos).
+        // O formato some quando só há cards de imagem ou seções selecionados (não têm formato a escolher),
+        // e o tamanho do texto, quando só há seções (o título tem fonte fixa).
         shapeButton.managedProperty().bind(shapeButton.visibleProperty());
+        fontSizeButton.managedProperty().bind(fontSizeButton.visibleProperty());
 
         linkButton.getStyleClass().addAll("tool-button", "link-button");
         linkButton.setGraphic(Icons.link());

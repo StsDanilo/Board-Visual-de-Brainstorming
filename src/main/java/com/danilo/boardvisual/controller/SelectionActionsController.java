@@ -81,12 +81,14 @@ public class SelectionActionsController {
                 .forEach(card -> card.changeShape(shape)));
     }
 
+    /** Imagem é sempre retângulo, seção é sempre seção, travado não muda de tamanho. */
     private static boolean canChangeShape(Card card) {
-        return !card.hasImage() && !card.isLocked();
+        return !card.hasImage() && !card.isFrame() && !card.isLocked();
     }
 
     private void applyFontSize(double size) {
-        history.perform(() -> selectedCards().forEach(card -> card.setFontSize(size)));
+        history.perform(() -> selectedCards().stream().filter(card -> !card.isFrame())
+                .forEach(card -> card.setFontSize(size)));
     }
 
     public void duplicateSelection() {
@@ -104,6 +106,10 @@ public class SelectionActionsController {
      * ordem de empilhamento (como um card novo), deslocadas, e entre si na mesma
      * ordem dos originais (a ordem da seleção não importa). A cópia de um card
      * travado nasce <b>destravada</b>, para poder ser posicionada.
+     *
+     * Seção (frame): duplica só a seção, não os cards de dentro (eles não são
+     * dela, é só geometria); a cópia vai para o topo das seções, ainda atrás de
+     * todos os cards comuns ({@link Board#addCard}).
      */
     static List<Card> duplicate(EditHistory history, Board board, Collection<Card> cards) {
         List<Card> originals = inStackOrder(board, cards);
@@ -147,7 +153,7 @@ public class SelectionActionsController {
 
     /**
      * Exclui os cards não travados num passo do desfazer (nenhum passo se todos
-     * estão travados).
+     * estão travados). Excluir uma seção exclui só ela: os cards de dentro ficam.
      *
      * @return quantos ficaram por estarem travados
      */
@@ -189,16 +195,18 @@ public class SelectionActionsController {
                 .collect(Collectors.toSet());
         selectionToolbar.getColorButton().setColor(colors.size() == 1 ? colors.iterator().next() : null);
 
-        Set<CardShape> shapes = view.getSelection().stream().filter(card -> !card.hasImage())
-                .map(Card::getShape).collect(Collectors.toSet());
+        // Imagens (sempre retângulo) e seções (sempre seção) não têm formato a escolher.
+        List<Card> shaped = view.getSelection().stream().filter(card -> !card.hasImage() && !card.isFrame()).toList();
+        Set<CardShape> shapes = shaped.stream().map(Card::getShape).collect(Collectors.toSet());
         selectionToolbar.getShapeButton().setShape(shapes.size() == 1 ? shapes.iterator().next() : null);
-        // Só imagens selecionadas: não há formato a escolher.
         selectionToolbar.getShapeButton().setVisible(!shapes.isEmpty() || view.getSelection().isEmpty());
         // Todos os que poderiam trocar de formato estão travados: o botão fica desabilitado.
-        selectionToolbar.getShapeButton().setDisable(!shapes.isEmpty()
-                && view.getSelection().stream().filter(card -> !card.hasImage()).allMatch(Card::isLocked));
+        selectionToolbar.getShapeButton().setDisable(!shaped.isEmpty() && shaped.stream().allMatch(Card::isLocked));
 
-        Set<Double> fontSizes = view.getSelection().stream().map(Card::getFontSize).collect(Collectors.toSet());
+        // O título da seção tem fonte fixa: só seções selecionadas, sem botão de tamanho do texto.
+        List<Card> texts = view.getSelection().stream().filter(card -> !card.isFrame()).toList();
+        selectionToolbar.getFontSizeButton().setVisible(!texts.isEmpty() || view.getSelection().isEmpty());
+        Set<Double> fontSizes = texts.stream().map(Card::getFontSize).collect(Collectors.toSet());
         selectionToolbar.getFontSizeButton().setFontSize(fontSizes.size() == 1 ? fontSizes.iterator().next() : Double.NaN);
     }
 }

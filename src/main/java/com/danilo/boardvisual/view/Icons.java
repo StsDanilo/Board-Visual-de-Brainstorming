@@ -89,6 +89,8 @@ final class Icons {
             case RECTANGLE -> "M3.5 6.5 H20.5 V17.5 H3.5 Z";
             case ELLIPSE -> "M2.5 12 A9.5 6.5 0 1 0 21.5 12 A9.5 6.5 0 1 0 2.5 12 Z";
             case DIAMOND -> "M12 3 L21.5 12 L12 21 L2.5 12 Z";
+            // Moldura com a faixa do título em cima: "seção".
+            case FRAME -> "M3.5 4.5 H20.5 V19.5 H3.5 Z M3.5 9 H20.5 M6.5 6.75 H12";
         };
     }
 

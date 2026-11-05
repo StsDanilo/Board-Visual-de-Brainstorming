@@ -61,6 +61,34 @@ class CardTextFitTest {
         return card;
     }
 
+    // ------------------------------------------------------------ seção (frame)
+
+    @Test
+    void frameTitleNeverGrowsTheFrameAndHasAFixedFont() {
+        Card frame = Card.create(CardShape.FRAME, 240, 160); // 480 × 320
+        frame.setText(LONG_TEXT);
+        frame.setFontSize(40); // ignorado: o título tem fonte fixa
+        frame.setLink("exemplo.com");
+
+        CardTextFit.Fit result = fit.fit(frame);
+
+        assertEquals(CardTextFit.FRAME_TITLE_FONT_SIZE, result.fontSize());
+        assertEquals(480, result.width());
+        assertEquals(320, result.height());
+        assertEquals(150, fit.fit(frame, 150, 90).width(), "redimensionar: o mínimo não vem do título");
+    }
+
+    @Test
+    void frameTitleUsesOnlyTheTopStripBesideTheMarkers() {
+        javafx.geometry.Insets plain = CardGeometry.contentInsets(CardShape.FRAME, 480, 320, false, 0, 0);
+        javafx.geometry.Insets withMarkers = CardGeometry.contentInsets(CardShape.FRAME, 480, 320, false, 0, 2);
+
+        assertEquals(320 - com.danilo.boardvisual.model.Frames.TITLE_HEIGHT, plain.getBottom(), 1e-9,
+                "o texto fica só na faixa do título");
+        assertTrue(withMarkers.getRight() > plain.getRight() + 2 * 18, "o título termina antes dos marcadores");
+        assertEquals(plain.getTop(), withMarkers.getTop(), "marcadores ao lado, não em cima");
+    }
+
     // ------------------------------------------------------------ card de imagem
 
     private static Card image(String caption) {

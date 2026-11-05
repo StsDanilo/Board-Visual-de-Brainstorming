@@ -103,7 +103,6 @@
 .card-view:hover .card {
     -fx-border-color: -bv-border-strong;
 }
-
 .card-view:focus-within .card {
     -fx-border-color: -bv-accent;
 }
@@ -145,6 +144,64 @@
     -fx-border-width: 1.5;
     -fx-border-insets: 0;
     -fx-effect: dropshadow(gaussian, rgba(79, 124, 255, 0.40), 12, 0.25, 0, 0);
+}
+
+/*
+ * Seção (frame): área com título, atrás dos cards. O body não tem fundo: assim o
+ * meio vazio não pega o clique (vai para o fundo do canvas). O fundo é o
+ * .frame-fill (translúcido, sem clique) e o clique fica só no anel da borda
+ * (.frame-grip, borda transparente de 10 px, metade para fora) e no título.
+ */
+.card.shape-frame {
+    -fx-background-color: null;
+    -fx-border-color: derive(-card-color, -30%);
+    -fx-border-width: 1.5;
+    -fx-effect: null;
+}
+
+.frame-fill {
+    -fx-background-color: -card-color;
+    -fx-background-radius: 7;
+    -fx-opacity: 0.45;
+}
+
+.frame-grip {
+    -fx-border-color: transparent;
+    -fx-border-width: 10;
+    -fx-border-insets: -5;
+}
+
+.frame-title {
+    -fx-text-fill: -bv-text;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-cursor: move;
+}
+
+/* Seção sem título: "Seção" esmaecido na tela; no PDF e no PNG não aparece. */
+.frame-title:placeholder {
+    -fx-text-fill: -bv-text-muted;
+    -fx-font-weight: normal;
+}
+
+.board-export .frame-title:placeholder {
+    visibility: hidden;
+}
+
+.card-view:locked .frame-title {
+    -fx-cursor: default;
+}
+
+/* Seção não tem setas: sem alça de conexão. */
+.card-view:frame .connector-handle {
+    visibility: hidden;
+}
+
+/* Título em edição: uma linha, sem barras de rolagem aparecendo. */
+.card-view:frame .card .card-text .scroll-bar {
+    -fx-opacity: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
 }
 
 /* Campo de texto "invisível": parece parte do card, não um input. */

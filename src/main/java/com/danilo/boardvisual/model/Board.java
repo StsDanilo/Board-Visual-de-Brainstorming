@@ -64,13 +64,22 @@ public class Board {
         return readOnlyConnections;
     }
 
-    /** Adiciona o card. Retorna false se já existir um card com o mesmo id. */
+    /**
+     * Adiciona o card no topo da camada dele: um card comum vai para o topo da
+     * pilha; uma seção ({@link Card#isFrame()}) vai para o topo das seções, logo
+     * abaixo de todos os cards comuns (seção nunca cobre card, {@link Frames#layered}).
+     * Retorna false se já existir um card com o mesmo id.
+     */
     public boolean addCard(Card card) {
         Objects.requireNonNull(card, "card");
         if (findCard(card.getId()).isPresent()) {
             return false;
         }
-        cards.add(card);
+        if (card.isFrame()) {
+            cards.add((int) cards.stream().filter(Card::isFrame).count(), card);
+        } else {
+            cards.add(card);
+        }
         return true;
     }
 
@@ -95,6 +104,12 @@ public class Board {
      * ignorados). A ordem é a da lista {@link #getCards()}: o primeiro fica no
      * fundo, o último no topo; é ela que a tela, o PDF e o PNG desenham e que o
      * arquivo salva.
+     *
+     * Seções ({@link Card#isFrame()}) e cards comuns são <b>duas camadas</b>: as
+     * seções só mudam de lugar entre si e ficam sempre abaixo de todos os cards
+     * comuns ({@link Frames#layered}). "Trazer para o topo" numa seção a leva ao
+     * topo das seções, não por cima dos cards; com seções e cards selecionados
+     * juntos, cada grupo se move dentro da sua camada.
      *
      * Vários cards de uma vez mantêm a ordem relativa entre eles. Um nível
      * ({@link StackMove#FORWARD}/{@link StackMove#BACKWARD}) = uma posição na
@@ -125,10 +140,19 @@ public class Board {
     public List<Card> reorderedCards(Collection<Card> moving, StackMove move) {
         Set<Card> selected = new HashSet<>(moving);
         selected.retainAll(cards);
-        List<Card> order = new ArrayList<>(cards);
+        List<Card> layered = Frames.layered(cards);
         if (selected.isEmpty()) {
-            return order;
+            return layered;
         }
+        // Cada camada (seções, depois cards comuns) se reordena sozinha.
+        List<Card> order = new ArrayList<>();
+        order.addAll(reorderLayer(layered.stream().filter(Card::isFrame).toList(), selected, move));
+        order.addAll(reorderLayer(layered.stream().filter(c -> !c.isFrame()).toList(), selected, move));
+        return order;
+    }
+
+    private static List<Card> reorderLayer(List<Card> layer, Set<Card> selected, StackMove move) {
+        List<Card> order = new ArrayList<>(layer);
         switch (move) {
             case TO_FRONT, TO_BACK -> {
                 List<Card> others = order.stream().filter(c -> !selected.contains(c)).toList();
@@ -171,19 +195,24 @@ public class Board {
 
     /**
      * Cria uma conexão de {@code source} para {@code target}.
-     * Retorna vazio se a conexão for inválida (mesmo card, card fora do board
-     * ou conexão repetida).
+     * Retorna vazio se a conexão for inválida (mesmo card, card fora do board,
+     * seção ou conexão repetida).
      */
     public Optional<Connection> connect(Card source, Card target) {
         Connection connection = new Connection(source, target);
         return addConnection(connection) ? Optional.of(connection) : Optional.empty();
     }
 
-    /** Adiciona uma conexão já existente (usado ao carregar do arquivo). */
+    /**
+     * Adiciona uma conexão já existente (usado ao carregar do arquivo). Seções
+     * não têm setas (nem de nem para elas): uma seta assim é recusada.
+     */
     public boolean addConnection(Connection connection) {
         Card source = connection.getSource();
         Card target = connection.getTarget();
         if (source == target
+                || source.isFrame()
+                || target.isFrame()
                 || !cards.contains(source)
                 || !cards.contains(target)
                 || isConnected(source, target)) {
@@ -273,7 +302,9 @@ public class Board {
 
         // A ordem de empilhamento também faz parte da foto: desfazer um "trazer
         // para frente" (ou uma exclusão) devolve cada card ao seu lugar na pilha.
-        List<Card> order = cardStates.keySet().stream().map(id -> findCard(id).orElseThrow()).toList();
+        // As seções ficam sempre embaixo (uma foto do próprio board já vem assim).
+        List<Card> order = Frames.layered(
+                cardStates.keySet().stream().map(id -> findCard(id).orElseThrow()).toList());
         if (!order.equals(cards)) {
             applyOrder(order);
         }

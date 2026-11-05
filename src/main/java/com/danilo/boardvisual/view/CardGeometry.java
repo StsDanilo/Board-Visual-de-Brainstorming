@@ -3,6 +3,7 @@ package com.danilo.boardvisual.view;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
+import com.danilo.boardvisual.model.Frames;
 import javafx.beans.Observable;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
@@ -33,7 +34,8 @@ final class CardGeometry {
         double a = card.getWidth() / 2;
         double b = card.getHeight() / 2;
         double t = switch (card.getShape()) {
-            case RECTANGLE -> Math.min(
+            // Seções não têm setas; a conta é a do retângulo, por completude.
+            case RECTANGLE, FRAME -> Math.min(
                     dx == 0 ? Double.POSITIVE_INFINITY : a / Math.abs(dx),
                     dy == 0 ? Double.POSITIVE_INFINITY : b / Math.abs(dy));
             // (x/a)² + (y/b)² = 1
@@ -75,6 +77,9 @@ final class CardGeometry {
      */
     static Insets contentInsets(CardShape shape, double width, double height, boolean panel, double imageHeight,
                                 int markers) {
+        if (shape == CardShape.FRAME) {
+            return frameTitleInsets(width, height, markers);
+        }
         Insets insets = shapeInsets(shape, width, height, panel);
         double top = insets.getTop();
         if (imageHeight > 0) {
@@ -87,9 +92,28 @@ final class CardGeometry {
         return new Insets(top, insets.getRight(), insets.getBottom(), insets.getLeft());
     }
 
+    /** Recuo do título da seção à esquerda: livra o cadeado do canto (card travado). */
+    static final double FRAME_TITLE_LEFT = 16;
+    /** Recuo do título da seção à direita, sem marcadores. */
+    static final double FRAME_TITLE_RIGHT = 12;
+
+    /**
+     * Seção (frame): o texto é o título, numa faixa de altura fixa no topo
+     * ({@link Frames#TITLE_HEIGHT}); o resto da seção fica livre para os cards.
+     * Os marcadores ficam na mesma faixa, à direita, e o título termina antes deles.
+     */
+    private static Insets frameTitleInsets(double width, double height, int markers) {
+        double right = FRAME_TITLE_RIGHT;
+        if (markers > 0) {
+            right = CardMarkers.RIGHT + markers * CardMarkers.SIZE + (markers - 1) * CardMarkers.SPACING + 6;
+        }
+        double bottom = Math.max(0, height - Frames.TITLE_HEIGHT);
+        return new Insets(6, right, bottom, FRAME_TITLE_LEFT);
+    }
+
     private static Insets shapeInsets(CardShape shape, double width, double height, boolean panel) {
         Insets base = switch (shape) {
-            case RECTANGLE -> new Insets(12, 10, 10, 10);
+            case RECTANGLE, FRAME -> new Insets(12, 10, 10, 10);
             // Retângulo inscrito na elipse: lados a·√2 e b·√2.
             case ELLIPSE -> symmetric(width * (1 - Math.sqrt(0.5)) / 2 + 4, height * (1 - Math.sqrt(0.5)) / 2 + 2);
             // Retângulo inscrito no losango: metade da largura e da altura.
@@ -109,7 +133,7 @@ final class CardGeometry {
      */
     static Point2D panelButtonCenter(CardShape shape, double width, double height) {
         double fromBottom = switch (shape) {
-            case RECTANGLE -> 18;
+            case RECTANGLE, FRAME -> 18;
             case ELLIPSE -> 20;
             case DIAMOND -> 26;
         };

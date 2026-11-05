@@ -48,7 +48,7 @@ public final class CardMarkers {
      * Distância até a borda direita no retângulo: a alça de redimensionar do
      * canto ocupa 8,5 px para dentro (17 px de área clicável centrada na quina).
      */
-    static final double RIGHT = 9;
+    public static final double RIGHT = 9;
     /** Folga dentro da silhueta em elipse e losango. */
     private static final double SHAPE_MARGIN = 2;
     /** Espaço entre a fileira de marcadores e o texto. */
@@ -97,7 +97,8 @@ public final class CardMarkers {
         double half = rowWidth / 2 + SHAPE_MARGIN;
         // Switch exaustivo: um formato novo (5.2 do DOCUMENTACAO.md) não compila sem decidir aqui.
         double y = switch (shape) {
-            case RECTANGLE -> TOP;
+            // Seção: na faixa do título, à direita (o título termina antes, CardGeometry).
+            case RECTANGLE, FRAME -> TOP;
             // (x/a)² + (y/b)² = 1: desce até a meia largura da elipse cobrir metade da fileira.
             case ELLIPSE -> {
                 double ratio = a <= 0 ? 1 : Math.min(1, half / a);
@@ -107,7 +108,7 @@ public final class CardMarkers {
             case DIAMOND -> Math.max(TOP, (a <= 0 ? b : b * half / a) + 1);
         };
         double x0 = switch (shape) {
-            case RECTANGLE -> width - RIGHT - rowWidth;
+            case RECTANGLE, FRAME -> width - RIGHT - rowWidth;
             case ELLIPSE, DIAMOND -> (width - rowWidth) / 2;
         };
         // Card minúsculo: nunca passa do meio do card.
@@ -130,7 +131,8 @@ public final class CardMarkers {
      * marcadores (0 sem marcadores).
      */
     public static double reservedTop(CardShape shape, double width, double height, int count) {
-        if (count <= 0) {
+        // Na seção os marcadores ficam ao lado do título, não em cima dele.
+        if (count <= 0 || shape == CardShape.FRAME) {
             return 0;
         }
         List<Kind> kinds = new ArrayList<>(count);

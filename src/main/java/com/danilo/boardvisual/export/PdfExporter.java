@@ -5,6 +5,7 @@ import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.BoardNames;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardMarkers;
+import com.danilo.boardvisual.model.Frames;
 import com.danilo.boardvisual.model.PanelMode;
 import com.danilo.boardvisual.model.WebLink;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -191,6 +192,8 @@ public final class PdfExporter {
                 // O card todo leva à página dele (board aninhado, detalhes) ou, se não
                 // tem, à do link para outro board, ou, se nem isso, ao site. Os destinos
                 // que não ficaram com o card todo vão só na área do marcador, por cima.
+                // Seção (frame): os links dela ficam só nos marcadores. A área inteira cobriria
+                // os cards de dentro e competiria com os links deles.
                 PDPage target = node.linkTarget(card);
                 PDPage boardTarget = boardLinkTarget(card, pagesById);
                 Optional<String> uri = WebLink.toBrowserUri(card.getLink());
@@ -198,11 +201,12 @@ public final class PdfExporter {
                     link(page, rect, target);
                 }
                 if (boardTarget != null) {
-                    link(page, target == null ? rect : markerRect(card, rect, node.scale, CardMarkers.Kind.BOARD_LINK),
+                    boolean wholeCard = target == null && !card.isFrame();
+                    link(page, wholeCard ? rect : markerRect(card, rect, node.scale, CardMarkers.Kind.BOARD_LINK),
                             boardTarget);
                 }
                 if (uri.isPresent()) {
-                    boolean wholeCard = target == null && boardTarget == null;
+                    boolean wholeCard = target == null && boardTarget == null && !card.isFrame();
                     uriLink(page, wholeCard ? rect : markerRect(card, rect, node.scale, CardMarkers.Kind.LINK),
                             uri.get());
                 }
@@ -236,9 +240,15 @@ public final class PdfExporter {
 
     /**
      * Onde fica o texto do card na página: o card todo, ou, num card de imagem,
-     * só a parte abaixo da imagem (a legenda).
+     * só a parte abaixo da imagem (a legenda), ou, numa seção, só a faixa do
+     * título (o texto invisível não se espalha pela área dos cards de dentro).
      */
     static PDRectangle textRect(Card card, PDRectangle cardRect, double scale) {
+        if (card.isFrame()) {
+            float titleHeight = (float) Math.min(cardRect.getHeight(), Frames.TITLE_HEIGHT * scale);
+            return new PDRectangle(cardRect.getLowerLeftX(), cardRect.getUpperRightY() - titleHeight,
+                    cardRect.getWidth(), titleHeight);
+        }
         double imageHeight = card.imageHeight(card.getWidth()) * scale;
         if (imageHeight <= 0) {
             return cardRect;

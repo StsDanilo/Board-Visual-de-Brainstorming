@@ -63,12 +63,23 @@ mvn test
   ordem. Clique direito › "Travar"/"Destravar", botão de cadeado da barra flutuante (tracejado se a seleção
   tem travados e destravados) ou `Ctrl+L`. Um cadeado pequeno aparece no canto do card (só na tela, não no
   PDF/PNG). Duplicar um card travado cria uma cópia destravada
+- Seções (frames): uma área colorida com título que fica **atrás dos cards**, para organizá-los por tema
+  (ferramenta Seção, tecla `S`). Arrastar a seção pela **borda** ou pelo **título** leva junto os cards que
+  estão dentro dela (os que têm o centro dentro da área), inclusive os travados; soltar um card em cima de
+  uma seção já o põe nela (é só geometria, não há vínculo salvo). O **meio vazio** da seção funciona como
+  o fundo do canvas: caixa de seleção, criar card com a ferramenta ativa, clicar nos cards de dentro.
+  Redimensionar a seção não mexe nos cards; excluir ou duplicar a seção age só nela. O título é o texto
+  do card (duplo clique para editar, `Enter` termina), numa linha, com fonte fixa, e nunca faz a seção
+  crescer. A cor usa a mesma paleta dos cards, em tom translúcido; a ordem entre seções muda pelas ações
+  de ordem, mas elas ficam sempre atrás dos cards comuns e das setas. Seções não têm setas e podem ter
+  link e cadeado (seção travada não se move e não leva nada). Aparecem atrás no PDF e no PNG, com o
+  título buscável no PDF
 - Menu de clique direito nos cards (clique sem arrastar; arrastar com o direito continua movendo a visão)
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
-- Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Imagem, Conexão e cor dos novos cards
+- Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Seção, Imagem, Conexão e cor dos novos cards
 - Barra flutuante da seleção: cor, formato, tamanho do texto, link e link para outro board (com um card selecionado),
-  ordem (camadas), travar (cadeado), duplicar e excluir
+  ordem (camadas), travar (cadeado), duplicar e excluir (só seções selecionadas: sem formato nem tamanho do texto)
 - Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`);
   saves antigos (um `.json` solto) continuam abrindo e viram pasta no primeiro "Salvar"
 - Exportar para PDF navegável: uma página por board, cards de board aninhado e caminho do topo
@@ -85,6 +96,8 @@ mvn test
 | `R` / `E` / `L` | Criar retângulo / elipse / losango |
 | `P` | Criar painel flutuante |
 | `B` | Criar board aninhado |
+| `S` | Criar seção (área com título, atrás dos cards) |
+| Duplo clique no título da seção | Editar o título (`Enter` termina) |
 | `I` | Inserir imagem (abre o seletor de arquivo) |
 | `Ctrl+V` | Colar imagem (fora da edição de texto) |
 | Duplo clique na imagem | Escrever a legenda |
