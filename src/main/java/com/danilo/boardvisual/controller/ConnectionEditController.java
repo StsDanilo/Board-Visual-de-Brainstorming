@@ -82,6 +82,9 @@ public class ConnectionEditController {
 
     /** Abre o campo de texto da seta (duplo clique). */
     public void editLabel(ConnectionView connectionView) {
+        if (view.isPresenting()) {
+            return; // na apresentação o texto da seta é só de leitura
+        }
         if (editing != null && editing != connectionView) {
             finish(editing, true);
         }

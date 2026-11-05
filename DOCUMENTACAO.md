@@ -11,8 +11,9 @@
 > com texto (duplo clique na seta) e os estilos de seta (simples, tracejada, ponta dupla, sem ponta,
 > escolhidos numa mini barra ao lado da barra lateral, com o mouse sobre a ferramenta Conexão) e o
 > copiar, recortar e colar cards (`Ctrl+C` / `Ctrl+X` / `Ctrl+V`) no mesmo board ou em outro, com as setas
-> entre eles, os boards aninhados, as imagens e os links; e o zoom para caber tudo (`Shift+1`) ou a seleção
-> (`Shift+2`) e a busca de texto (`Ctrl+F`), no board da tela ou em todos os boards.
+> entre eles, os boards aninhados, as imagens e os links; o zoom para caber tudo (`Shift+1`) ou a seleção
+> (`Shift+2`) e a busca de texto (`Ctrl+F`), no board da tela ou em todos os boards; e o modo apresentação (`F5`):
+> o board em tela cheia, sem barras nem menu, só para ver e navegar, passando de um board ao outro como slides.
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -47,6 +48,9 @@ As setas podem ter um **texto** no meio ("leva a", "depende de") e um **estilo**
 ponta dupla ou linha sem ponta), escolhido numa mini barra que abre com o mouse sobre a ferramenta Conexão.
 Dá para **copiar e colar** cards (com as setas entre eles e tudo que tem dentro) no mesmo board ou em outro,
 inclusive um board aninhado de outro caminho ou outro save aberto depois.
+Com **F5** o board da tela vira uma **apresentação em tela cheia**: sem barras nem menu, só para ver e
+navegar (zoom, mover a visão, entrar nos boards, abrir painéis e links), com as setas do teclado passando de
+um board ao próximo como slides; `Esc` sai.
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
 pode virar uma **imagem PNG** (fundo branco ou transparente).
 Não há servidor nem banco de dados.
@@ -135,6 +139,7 @@ sem tocar no modelo.
 | `PasteStaircase` | A "escada" do colar (Java puro): colar de novo no mesmo board e lugar desce 24 px por vez. |
 | `BoardSearch` | A busca de texto (Java puro, 3.26): acha cards (texto, painel) e setas pelo texto, sem maiúsculas nem acentos, no board da tela ou em toda a árvore; devolve `Hit`s na ordem (board, caminho, trecho). Não altera nada. |
 | `SearchResults` | A lista de resultados e qual é o atual (Java puro): `next`/`previous` dão a volta, `replace` mantém o atual se ele ainda casa, contador "3 de 12". |
+| `BoardSlides` | A ordem dos slides da apresentação (Java puro, 3.27): a mesma das páginas do PDF (`BoardTree.entries`: o board, depois os filhos de cada card, recursivamente). `next` / `previous` de um board (comparado pelo id), `indexOf`, `count`. Não altera nada. |
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
 | `BoardNames` | Nome exibido de cada board (pasta do save no principal, 1ª linha do card nos filhos), usado no caminho da tela e no PDF. |
@@ -147,9 +152,9 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainWindow` | Layout da janela: menu (Editar: desfazer, refazer, recortar, copiar, colar, selecionar tudo, Buscar...; Exibir: redefinir visualização, ajustar tudo à tela, ajustar à seleção; com os aceleradores), área do canvas (com a barra de ferramentas e a caixa de busca por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). |
-| `BoardView` | O canvas: pan/zoom, camadas (seções numa camada atrás das setas), cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção (seção só inteira), posição da barra flutuante, "caber tudo / a seleção" (`fitAll`, `fitSelection`), destaque e "revelar" dos resultados da busca (`setSearchHighlights`, `revealCard`, `revealConnection`). |
-| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). Seção: fundo translúcido sem clique, anel da borda e faixa do título que pegam o clique, título de uma linha com reticências (`:frame`, 3.23); `hitsScenePoint` diz se um ponto pega o card. |
+| `MainWindow` | Layout da janela: menu (Editar: desfazer, refazer, recortar, copiar, colar, selecionar tudo, Buscar...; Exibir: redefinir visualização, ajustar tudo à tela, ajustar à seleção; com os aceleradores), área do canvas (com a barra de ferramentas e a caixa de busca por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). O menu Exibir tem também **Apresentar** (`F5`). A propriedade `presentingProperty` (apresentação, 3.27) esconde o menu, a barra de ferramentas e a barra de status por binding (visible e managed), liga a pseudo-classe `:presenting` e põe o `BoardView` em leitura; embaixo, no meio, fica o aviso discreto da apresentação (`showPresentationNotice`). |
+| `BoardView` | O canvas: pan/zoom, camadas (seções numa camada atrás das setas), cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção (seção só inteira), posição da barra flutuante, "caber tudo / a seleção" (`fitAll`, `fitSelection`), destaque e "revelar" dos resultados da busca (`setSearchHighlights`, `revealCard`, `revealConnection`). `setPresenting` (3.27): nada se seleciona, sem barra flutuante nem alças, textos dos cards só de leitura; `fitAllForPresentation` enquadra com as folgas da apresentação. |
+| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). Seção: fundo translúcido sem clique, anel da borda e faixa do título que pegam o clique, título de uma linha com reticências (`:frame`, 3.23); `hitsScenePoint` diz se um ponto pega o card. `setReadOnly` (apresentação, 3.27): o texto não se edita nem recebe foco. |
 | `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
 | `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards e da própria seta: linha (cheia ou tracejada, `:dashed`), pontas conforme o estilo, área de clique larga e invisível (`connection-hit`), destaque de seta selecionada (`:selected`), texto no meio e o campo de edição dele (os dois em `getLabelLayer()`, que vai para uma camada acima de todas as linhas). |
 | `ConnectionStyleOrder` | Ordem dos estilos de seta na barra (Java puro): a posição 0 é o ícone principal; escolher um extra troca de lugar com ele. |
@@ -161,7 +166,7 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `StackOrderButton` | Botão "Ordem" (camadas) da barra flutuante: popup com as quatro ações da ordem de empilhamento e os atalhos; as que não mudariam nada aparecem desabilitadas. |
 | `LinkEditorPopup` | Popup pequeno com o campo do endereço do link (Salvar, Cancelar, Remover), com a mensagem de erro da validação. |
 | `BoardLinkPickerPopup` | Popup com a lista da árvore de boards (indentada, com o caminho de cada um) para escolher o destino do link para outro board; o board do card aparece desabilitado e o destino atual, marcado. |
-| `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
+| `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. `setReadOnly` (apresentação, 3.27): campos sem edição, sem "adicionar item" e sem o ✕ de cada item. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar (a dica diz para onde ele leva). |
 | `SearchBarView` | A caixa de busca (3.26), no canto superior direito do canvas: campo, contador, botões ↑ ↓ ×, caixa "Em todos os boards" e a lista de resultados (trecho + caminho; só nessa opção). Só desenha; nenhum botão aceita foco (clicar não tira o cursor do campo). |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
@@ -176,7 +181,7 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainController` | Monta e conecta tudo (recebe de fora quem abre links no navegador); ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF, exportar PNG do board atual); desfazer/refazer do menu. |
+| `MainController` | Monta e conecta tudo (recebe de fora quem abre links no navegador); ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF, exportar PNG do board atual); desfazer/refazer do menu. Na apresentação as ações de arquivo e de edição do menu são ignoradas (`unlessPresenting`), os itens ficam desabilitados e criar ou abrir um board encerra a apresentação (3.27). |
 | `ImageController` | Imagens: inserir (ferramenta Imagem, colar a imagem do sistema, arrastar arquivo), pasta de trabalho das imagens ainda não salvas, carregar a imagem de cada card (com cache); diz ao `ClipboardController` onde as imagens do board atual ficam (`ImageSpace`). |
 | `ClipboardController` | Copiar, recortar e colar cards (3.25): a cópia da sessão (`CardClip`), a colagem num passo do desfazer, a regra imagem do sistema × cards copiados, os itens do menu Editar e dos menus de clique direito (card e fundo). |
 | `CanvasController` | Mouse no fundo (inclusive o meio vazio de uma seção): pan, zoom, caixa de seleção, criar card (e seção). |
@@ -189,16 +194,17 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `StackOrderController` | Ordem de empilhamento: botão Ordem, quatro itens no menu de clique direito, atalhos (`moveFor`); cada mudança é um passo no desfazer (3.21). |
 | `LockController` | Travar/destravar a seleção: botão de cadeado (com estado misto), item "Travar"/"Destravar" no menu, `Ctrl+L`; um passo no desfazer (3.22). |
 | `TextEditController` | Registra a edição de texto no histórico (sessões de edição); duplo clique num card de imagem abre a legenda, e no título de uma seção abre o título (`Enter` termina). |
-| `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
-| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`, usado pelo link para outro board e pela busca); avisa quem se registra (`addOnBoardShown`) quando o board da tela muda; guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. |
+| `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. Na apresentação o painel abre só para leitura, sem selecionar o card nem focar campos, e não troca de modo (3.27). |
+| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`, usado pelo link para outro board e pela busca); avisa quem se registra (`addOnBoardShown`) quando o board da tela muda; guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. `viewStates` / `restoreViewStates` guardam e devolvem a visão (pan e zoom) de cada board da pilha: a apresentação usa ao entrar e ao sair (3.27). |
 | `NavigationPath` | A pilha de níveis da navegação, sem tela (testável): entrar, voltar, ir a um nível, pular (`jumpTo` reconstrói o caminho real do destino e guarda a pilha de origem para o voltar). |
 | `ViewFitController` | Shift+1 / Shift+2: ajusta pan e zoom para caber todos os cards / a seleção (3.8), com os avisos da barra de status. A conta é do `alignment/ViewFit`. |
 | `SearchController` | Busca de texto (3.26): abre e fecha a caixa, refaz a busca ao digitar, destaca, anda com Enter / Shift+Enter, centraliza, vai a outro board pelo `jumpTo`; barra o `Ctrl+F` durante a edição de texto (filtro de janela). |
-| `KeyboardController` | Atalhos de teclado (`Delete` exclui a seta selecionada, se houver; senão, os cards). `Ctrl+X/C/V`, `Ctrl+F`, `Shift+1` e `Shift+2` não são daqui: são aceleradores de menu (3.25, 3.26, 3.8). O `Esc` fecha a busca aberta antes de fechar o painel. |
+| `PresentationController` | Modo apresentação (3.27): entra (`F5`) e sai (`Esc`) da tela cheia, enquadra cada board que aparece, `→`/`←`/`PageDown`/`PageUp` como slides, e é a barreira que impede qualquer edição: filtro de eventos na janela (teclas, mouse, menu de contexto, arrastar e soltar, método de entrada) que só deixa passar a navegação. |
+| `KeyboardController` | Atalhos de teclado (`Delete` exclui a seta selecionada, se houver; senão, os cards). `Ctrl+X/C/V`, `Ctrl+F`, `Shift+1` e `Shift+2` não são daqui: são aceleradores de menu (3.25, 3.26, 3.8). O `Esc` fecha a busca aberta antes de fechar o painel. Não age na apresentação: as teclas são do `PresentationController` (3.27). |
 | `CardContextMenuController` | Menu de clique direito nos cards (clique sem arrastar). Montado na hora a partir de quem se registra (`addContributor`): é onde as próximas funcionalidades plugam itens. |
-| `LinkController` | Link externo: botão Link da barra flutuante, itens do menu de clique direito, popup de edição (com desfazer) e abrir o endereço pelo clipe do card (`Opener`, na aplicação o `HostServices`). |
-| `BoardLinkController` | Link para outro board: botão de seta curva da barra flutuante, itens do menu de clique direito, lista de destinos (com desfazer), ir ao destino pelo marcador e marcador quebrado quando o destino foi excluído. |
-| `EditHistory` | Pilha de desfazer/refazer. |
+| `LinkController` | Link externo: botão Link da barra flutuante, itens do menu de clique direito, popup de edição (com desfazer) e abrir o endereço pelo clipe do card (`Opener`, na aplicação o `HostServices`). Na apresentação os avisos (link inválido, navegador que não abriu) vão para o aviso discreto da tela, não para um diálogo (`setPresentation`). |
+| `BoardLinkController` | Link para outro board: botão de seta curva da barra flutuante, itens do menu de clique direito, lista de destinos (com desfazer), ir ao destino pelo marcador e marcador quebrado quando o destino foi excluído. Na apresentação o aviso de destino que não existe mais vai para o aviso discreto, não para um diálogo (`setPresentation`). |
+| `EditHistory` | Pilha de desfazer/refazer. `setFrozen` congela o histórico na apresentação: `perform` nem executa a mudança, e registrar, desfazer e refazer não fazem nada (3.27). |
 
 ### `alignment/` — geometria de caixas (alinhamento e redimensionamento)
 
@@ -727,6 +733,12 @@ para outro board, mesmo dentro da cópia, continua apontando para o **original**
 **Visual:** o card-board tem uma "folha" deslocada atrás dele (CSS com camadas de fundo e insets
 negativos, via pseudo-classe `:has-board`), para parecer uma pilha.
 
+**Visões guardadas e a apresentação (3.27):** `NavigationController.viewStates()` devolve a visão (pan e zoom)
+de cada board da pilha (e dos níveis da volta de um link), pelo id do board; `restoreViewStates(mapa)` a devolve aos
+níveis que ainda existem e aplica à tela a do board atual. O modo apresentação guarda isso ao entrar e devolve ao
+sair; é só visão, não toca no modelo nem no desfazer. A ordem em que `→` / `←` percorrem os boards é a da árvore
+no PDF (`BoardSlides`), e a troca de board é o mesmo `jumpTo` dos links (3.20).
+
 ## 3.12 Alinhamento simplificado (linhas guia)
 
 Ao arrastar, as 6 linhas da caixa que está se movendo (esquerda, centro, direita, topo, meio, base)
@@ -918,6 +930,8 @@ Divisão de responsabilidades:
 | Ctrl+X, Ctrl+C, Ctrl+V | aceleradores do menu Editar → `ClipboardController` | recortar, copiar e colar cards (3.25); com texto em edição são do texto |
 | Shift+1, Shift+2 | aceleradores do menu Exibir → `ViewFitController` | caber tudo / caber a seleção (3.8); `KeyCode.DIGIT1`/`DIGIT2` (posição física, ABNT2 ok); com texto em edição são do texto |
 | Ctrl+F | acelerador do menu Editar → `SearchController`, mais um filtro na janela | abre a busca (3.26); o filtro **barra** o atalho com o texto de um card em edição (só avisa na barra de status) |
+| F5 | acelerador do menu Exibir → `PresentationController.start` | entra na apresentação (3.27); funciona até com texto em edição (o F5 não é usado por campo de texto) |
+| Na apresentação: Esc, → / PageDown, ← / PageUp, Alt+←, Shift+1, Ctrl+0 | `PresentationController` (filtro na janela) | sair, próximo, anterior, voltar, enquadrar, 100% (3.27); **todas as outras teclas são consumidas** (inclusive os aceleradores do menu) |
 | Enter, Shift+Enter, Esc, Ctrl+F no campo da busca | `SearchController` (filtro no campo) | próximo, anterior, fechar, selecionar o texto; não chegam aos atalhos da janela (3.26) |
 | V R E L P B S I C, Delete, Ctrl+D, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional (`S` = Seção, 3.23) |
 | Enter no título de uma seção | `TextEditController` | termina a edição do título (que é de uma linha) |
@@ -946,7 +960,9 @@ cancela, e letras ou `Delete` não chegam ao board.
 `Alt+←` e o botão ← voltam ao board anterior; depois de um link para outro board (ou de ir a um resultado de outro
 board na busca), ao board de onde você saiu (3.11).
 
-**`Esc`**, em ordem: sai da edição de texto → **fecha a busca** (3.26) se ela estiver aberta (com o foco no canvas;
+**Na apresentação (3.27)** o `Esc` **sai direto** da apresentação (mesmo com painel aberto) e as setas, `PageUp` e
+`PageDown` passam de board; o `KeyboardController` não age (a janela consome as teclas antes dele). Fora da
+apresentação, o **`Esc`**, em ordem: sai da edição de texto → **fecha a busca** (3.26) se ela estiver aberta (com o foco no canvas;
 no campo da busca o `Esc` é do próprio campo e a fecha) → fecha o painel flutuante → volta para Selecionar → limpa
 a seleção.
 
@@ -1891,8 +1907,144 @@ Como a barra flutuante e a caixa de seleção (4.2), a `SearchBarView` fica **fo
 ### Fora do escopo (ficou o caminho aberto)
 
 Substituir texto; buscar em links, cores ou nomes de arquivo; expressões regulares; destaque que acompanha a edição (hoje os
-destaques são refeitos a cada passo); salvar o último texto buscado; filtrar por tipo de card. O modo apresentação (tarefa 7b)
-e o agrupamento de elementos são outras tarefas.
+destaques são refeitos a cada passo); salvar o último texto buscado; filtrar por tipo de card. O modo apresentação é o
+3.27; o agrupamento de elementos é outra tarefa.
+
+## 3.27 Modo apresentação (`F5`)
+
+Mostra o board em **tela cheia**, sem barras nem menu, para **ver e navegar** (nada se edita), passando de um board ao
+outro como **slides**. É o `PresentationController`, com a ajuda de `MainWindow` (o estado `presenting` e as barras),
+`BoardView` (leitura), `EditHistory` (congelado) e `BoardSlides` (a ordem dos boards, Java puro).
+
+### Entrar e sair
+
+- **Entrar:** `F5` ou **Exibir › Apresentar**. Entra no board que está na tela (inclusive um aninhado). Antes de ligar,
+  termina o que estiver em andamento **enquanto o histórico ainda grava**: o texto em edição (de card, de painel ou de seta)
+  vira o passo de desfazer de sempre, e a busca, o painel aberto e o menu de clique direito se fecham. Guarda o que a
+  saída vai devolver (visões da pilha, ferramenta ativa, estado da tela cheia, combinação e dica de saída do JavaFX),
+  põe a ferramenta em Selecionar, congela o histórico, liga `presenting`, vai à tela cheia, enquadra o board e mostra por
+  três segundos a dica "Esc sai · ← → mudam de board · Shift+1 enquadra".
+- **Sair:** `Esc` (ou a janela deixar a tela cheia por fora, por exemplo pelo sistema: a apresentação acaba junto).
+  Desliga `presenting` (barras e menu voltam, o canvas volta a editar), descongela o histórico, sai da tela cheia,
+  devolve a ferramenta e a visão (ver "Visão ao sair" abaixo). Criar ou abrir um board (`MainController.showBoard`)
+  também encerra a apresentação antes.
+
+### O que some e o que fica
+
+| Some | Fica |
+|---|---|
+| menu, barra de ferramentas, barra de status, mini barra de estilos de seta, caixa de busca, barra flutuante da seleção, alças de redimensionar, alça de conexão e cadeado dos cards, o texto de exemplo dos cards vazios | o **caminho no topo** (`Principal › board 2`) e o **botão voltar**, em 60% de opacidade (100% com o mouse em cima); o aviso discreto embaixo, no meio, quando há algo a dizer ("Último board") |
+
+O caminho e o botão ficam porque são a navegação do canvas (entrar, voltar, ir a um nível); discretos para não competir
+com o board. `presenting` (`MainWindow.presentingProperty`) esconde o menu, a barra de ferramentas e a barra de status
+**por binding** em `visible` e `managed` (a barra de status e o menu não deixam um vazio na tela); o CSS usa a
+pseudo-classe `:presenting` do `.main-window` só para aparência (cursor, opacidade do caminho, cor do texto de exemplo).
+O CSS **não** mexe em `visibility`, que o código também usa (o cadeado): ver B.55.
+
+### Edição desligada: quatro barreiras
+
+Nenhuma barreira sozinha precisa estar certa; juntas, nada altera o modelo (um teste automatizado dispara a bateria de
+eventos de edição com a apresentação ligada e compara a foto de **todos os boards** da árvore antes e depois):
+
+1. **Filtro de eventos na janela** (o principal, `PresentationController.onKey`, `onMouse` e os de menu de contexto,
+   arrastar e soltar e método de entrada). Filtros da janela rodam **antes** de qualquer nó e da cena (4.3), então o evento
+   consumido nunca chega a um controller nem ao acelerador de menu:
+   - **Teclado:** passam e agem só `Esc`, `→`/`PageDown`, `←`/`PageUp` (sem Ctrl, Shift, Alt nem Meta), `Alt+←`, `Shift+1` e
+     `Ctrl+0`. **Todo o resto é consumido**, inclusive os aceleradores do menu (`Ctrl+Z`, `Ctrl+N`...), as letras de ferramenta, `Delete`,
+     `Enter`, `Tab`, `Espaço`, `F5` e o que seria digitado em um campo (`KEY_TYPED` também).
+   - **Mouse:** passam sem mexer o mouse só passando por cima (dicas) e o clique **primário em quem navega**
+     (`isNavigationTarget`): um botão dentro de um card (entrar no board, abrir o painel, os marcadores de link), o ✕ do painel,
+     qualquer coisa do caminho do topo e as barras de rolagem. O resto é consumido. Apertar e arrastar **em qualquer botão do
+     mouse** (primário, meio, direito) **move a visão**; clicar fora do painel aberto o fecha.
+   - Menu de clique direito (`CONTEXT_MENU_REQUESTED`), soltar arquivos (o `ImageController` insere imagens ao soltar) e eventos do método
+     de entrada: consumidos.
+2. **Histórico congelado** (`EditHistory.setFrozen`): `perform` nem **executa** a mudança; registrar, desfazer e refazer não fazem nada. Pega o que
+   escapar do filtro e qualquer controller novo que passe por `history.perform`. Nada do que se faz na apresentação (entrar, voltar,
+   navegar, zoom) entra no desfazer.
+3. **Canvas em leitura** (`BoardView.setPresenting`): a seleção (de cards e de seta) é limpa e **não se seleciona mais**, nem pela API
+   (então não há o que excluir, duplicar, travar, reordenar, recortar ou colar por cima); sem barra flutuante nem alças; o
+   texto de cada card (inclusive dos criados ao trocar de board) fica `editable = false` e sem foco por `Tab`;
+   `ConnectionEditController.editLabel` e `CardView.focusText` não agem.
+4. **Menu escondido e desabilitado:** todos os itens (menos "Apresentar") ficam desabilitados por binding, e as **ações** dos itens de arquivo e de edição
+   são ignoradas (`MainController.unlessPresenting`): quem dispara um item por código (`fire()` ignora `disable`) não abre diálogo
+   nem edita. Esconder o menu **não** desliga os aceleradores (B.56): quem os barra é a barreira 1.
+
+### O que continua funcionando
+
+Roda do mouse (zoom em torno do cursor; não é evento de mouse, segue para o `CanvasController`) e a pinça; arrastar para mover a visão (botão
+do meio, direito ou **primário**: sem seleção a desenhar, o arrasto primário não teria outro uso, e ajuda quem não tem botão do meio);
+`Shift+1` (enquadra de novo) e `Ctrl+0` (100%); **entrar** num board aninhado pelo botão do card e **voltar** (`Alt+←` ou o botão do caminho, ou
+clicar num nível do caminho); **clicar nos marcadores de link**: o externo abre o navegador (pelo `Opener` de sempre), e o link para outro board
+usa o `jumpTo` e o voltar leva de volta à origem; **abrir e fechar painéis** (botão do card, ✕, ou um clique fora) e `→`/`←`. O `Espaço` não faz
+nada na apresentação (consumido), mas arrastar já move a visão com ou sem ele: o "`Espaço` + arrastar" de antes continua valendo na prática.
+
+### Slides: `→` / `←` (e `PageDown` / `PageUp`)
+
+`BoardSlides` (Java puro, `BoardSlidesTest`) dá a ordem: **a mesma das páginas do PDF** (`BoardTree.entries`): o board principal,
+depois, para cada card com board aninhado na ordem dos cards, esse board e os filhos dele, em profundidade. `next` / `previous`
+comparam o board pelo **id**. Um board vazio também é um slide (como é uma página do PDF); um card sem board não é. O
+`PresentationController` chama `NavigationController.jumpTo(id do vizinho)`, o mesmo dos links: o caminho do topo passa a ser o
+caminho real do destino, e o voltar (`Alt+←` ou o botão) leva ao board de onde se veio (e, de novo, ao de antes: os pulos formam um
+histórico). No primeiro board `←` e no último `→` **não fazem nada** e aparece o aviso discreto "Primeiro board" / "Último board".
+Com Ctrl, Shift ou Alt as setas não passam de slide (`Alt+←` é o **voltar**: não conflita com `←`).
+
+### `Esc` com painel aberto (decisão)
+
+**O primeiro `Esc` já sai** (o painel fecha junto): um só toque sempre tira da tela cheia, que cobre tudo (inclusive as outras janelas).
+Para fechar só o painel: o ✕, o botão do card (alterna) ou um clique fora dele. (A alternativa, "o primeiro `Esc` fecha o painel e o segundo
+sai", deixaria alguém preso na tela cheia com um painel esquecido.) O `Esc` é consumido pelo filtro, então o `KeyboardController` não limpa a seleção por cima.
+
+### Visão: enquadrar a cada board, e ao sair
+
+- **A cada troca de board** (entrar, voltar, link, `→`/`←`) o novo board aparece **enquadrado** (`BoardView.fitAllForPresentation`, que é o
+  "caber tudo" do 3.8 com as folgas da apresentação: 56 em cima, onde fica o caminho, e 32 nos outros lados; sem a folga da barra
+  de ferramentas à esquerda). Nenhuma visão por board é guardada na apresentação: previsível, todo slide aparece inteiro.
+- **A tela cheia chega depois da entrada** (o `BoardView` só muda de tamanho no próximo layout): o ouvinte de largura e altura refaz o enquadramento
+  **enquanto você não mexeu na visão** (`lastFit`: se a visão atual ainda é a do último enquadramento). Depois de qualquer pan ou zoom, o
+  tamanho novo não desfaz a sua visão.
+- **Visão ao sair (decisão):** a apresentação **termina no board em que você está** (como os programas de slides; quem achou algo
+  para corrigir já está lá). A visão de cada board que estava na pilha **volta ao que era antes de apresentar**
+  (`NavigationController.restoreViewStates`, inclusive os níveis da volta de um link, então o `Alt+←` mostra a origem como estava); se você
+  sai no **mesmo board** de onde entrou, é exatamente a visão de antes. Um board que só foi visitado na apresentação é **enquadrado
+  de novo com as folgas normais**, e de novo quando a janela voltar ao tamanho (ouvinte de tamanho, uma vez só). A ferramenta ativa volta. (Trocar
+  para "sempre voltar ao board de entrada" é pequeno: `stop()` chamar `jumpTo` do board guardado.)
+
+### Painéis e links na apresentação
+
+O painel abre **só para leitura** (`FloatingPanelView.setReadOnly`): sem foco nos campos, sem "adicionar item", sem o ✕ de cada item,
+sem texto de exemplo, sem selecionar o card, sem trocar o modo (o `PanelController` confere `presenting`). Ele segue o card, em pixels de
+tela, então tem o tamanho de sempre e fica **legível** mesmo com o board enquadrado pequeno. Os avisos que viram **diálogos** na edição
+(link externo inválido, navegador que não abriu, destino do link para outro board que não existe mais) viram o **aviso discreto** da tela
+(`setPresentation` em `LinkController` e `BoardLinkController`): um `Alert` por cima da tela cheia pode aparecer atrás dela e prender o teclado.
+
+### Teclado ABNT2 e o que o JavaFX entrega
+
+| Tecla | `KeyCode` | Observação |
+|---|---|---|
+| `F5` | `F5` | tecla de função, igual em qualquer layout; é o acelerador do item Apresentar |
+| `←` `→` | `LEFT` `RIGHT` | as setas do teclado de navegação |
+| `PageUp` / `PageDown` | `PAGE_UP` / `PAGE_DOWN` | em notebooks, às vezes com `Fn` |
+| `Esc` | `ESCAPE` | |
+| `Shift+1` | `DIGIT1` (com `Shift`) | no ABNT2 é a tecla `1`, que com `Shift` escreve "!" (conferido na tarefa 7a: `getKeyCodeForChar("!")` = `DIGIT1`) |
+| `Ctrl+0` | `DIGIT0` | |
+
+Todas são teclas de função ou de navegação (sem caractere), então o layout do teclado não muda o `KeyCode`; nenhuma troca de lugar entre o ABNT2 e o
+americano. **Não validado com a tecla física**: o roteiro dispara `KeyEvent`s com esses códigos (sem entrada do sistema).
+
+### A tela cheia do JavaFX
+
+`Stage.setFullScreen(true)`; a combinação padrão de saída (`Esc`) e a dica "Pressione ESC para sair da tela cheia" são do JavaFX e
+conflitariam com o `Esc` daqui (que também precisa do filtro): ao entrar, `setFullScreenExitKeyCombination(KeyCombination.NO_MATCH)` e
+`setFullScreenExitHint("")`; ao sair, os valores de antes voltam. Se a janela sair da tela cheia por fora (`fullScreenProperty` vira falso
+durante a apresentação), a apresentação acaba junto. Conferido numa janela JavaFX simples (sem o app) neste Windows: depois de sair da tela cheia a janela volta
+**11 px mais baixa** (altura 799 → 788; a cena de 760 → 749 px): é o comportamento do JavaFX/Windows, não do app; a
+visão devolvida não depende disso (é relativa ao canto de cima).
+
+### Fora do escopo
+
+Ponteiro laser, cronômetro, anotações do apresentador, projetar num segundo monitor, gravação, guardar o estado da apresentação no
+arquivo, ordem de slides escolhida pelo usuário (hoje a do PDF), agrupar elementos, exportar SVG. **Não validado:** vários monitores (o JavaFX escolhe a
+tela onde a janela está), a tela cheia "exclusiva" do sistema, o `Esc` e o `F5` físicos, e `mvn javafx:run` aberto à mão.
 
 ---
 
@@ -2030,6 +2182,7 @@ Onde o projeto usa cada um e por quê:
 | `CardView`, press (seleção e conexão) | filtro | **Ignora** o clique num marcador (`isMarkerNode`): o clipe só abre o link. |
 | `BoardView`, release do botão direito | filtro | Abre o menu do card se não houve movimento (3.19). |
 | `BoardView`, `CONTEXT_MENU_REQUESTED` sobre card | filtro + consume | Impede o menu nativo do `TextArea` por cima do nosso. |
+| `Stage`, teclas, mouse, menu de contexto, arrastar e soltar na apresentação | filtro + consume | `PresentationController` (3.27): na janela, **antes** de qualquer nó e dos aceleradores; só passa a navegação, o resto é consumido. |
 | `Stage`, teclas | handler | Só teclas não consumidas pelo campo de texto. Os atalhos da ordem comparam por caractere (`KeyCharacterCombination`), não pela `KeyCode` (3.16). |
 | Popup do link, teclas | handler na raiz + consume | Nenhuma tecla digitada no endereço chega aos atalhos da janela. |
 
@@ -2394,6 +2547,7 @@ você estava editando.
 - [ ] **`CardAllPropertiesTest.fullCard()`**: preencher a propriedade nova com um valor diferente do padrão
 - [ ] Campo de **texto** que o usuário vê (como o texto do card, o detalhe do painel): decidir se a **busca** (3.26) deve
   achá-lo: `BoardSearch.hitOf` (card) ou `searchBoard` (seta); acrescente o campo à ordem e a um caso do `BoardSearchTest`
+- [ ] Campo de **texto** novo na tela, ação nova que **edita** ou diálogo novo: respeitar a **apresentação** (3.27, 5.7)
 - [ ] Testes: `BoardStorageTest` (salvar/abrir) e `BoardSnapshotTest` (desfazer)
 
 > **Rede de segurança (`CardAllPropertiesTest`):** um card com **todas** as propriedades diferentes do
@@ -2538,7 +2692,7 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 **[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9), as
 imagens nos cards (3.17), o PNG (3.18), o link externo (3.19), o link para outro board (3.20), a ordem de
 empilhamento (3.21), o lock de item (3.22), as seções (3.23), as setas com texto e estilos (3.24) e o copiar e
-colar entre boards (3.25), a busca de texto (3.26) e o zoom para caber tudo (3.8):
+colar entre boards (3.25), a busca de texto (3.26), o zoom para caber tudo (3.8) e o modo apresentação (3.27):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -2546,6 +2700,7 @@ colar entre boards (3.25), a busca de texto (3.26) e o zoom para caber tudo (3.8
 
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
+| ~~Modo apresentação~~ (tarefa 7b) | **Feito** (3.27): `F5` / Exibir › Apresentar, tela cheia sem barras, só leitura (filtro de eventos na janela + histórico congelado), `→`/`←` na ordem do PDF (`BoardSlides`), `Esc` sai | Fora: ponteiro laser, cronômetro, anotações, segundo monitor, gravação, ordem de slides escolhida |
 | ~~Busca de texto + zoom para caber tudo~~ (tarefa 7a) | **Feito** (3.26, 3.8): `BoardSearch` (Java puro) no board atual ou em todos, destaque por pseudo-classe, `jumpTo` para outro board; `Shift+1` / `Shift+2` | Fora: substituir texto, regex, destaque que acompanha a edição |
 | **Link para outro arquivo** | Extensão do link para outro board (3.20): guardar a pasta do save além do id | Primeira versão ficou só na mesma árvore |
 | ~~Frames / seções coloridas~~ (tarefa 4b) | **Feito** (3.23): formato `FRAME`, camada própria atrás dos cards e das setas, conteúdo por geometria | — |
@@ -2557,6 +2712,27 @@ colar entre boards (3.25), a busca de texto (3.26) e o zoom para caber tudo (3.8
 | **Aviso de alterações não salvas** | Comparar `board.snapshot()` com a foto do último salvamento | O snapshot já resolve a detecção |
 | **Exportar SVG** (tarefa 8) | Item ao lado dos de PNG no menu `Arquivo`; pode reaproveitar `PngExporter.Background` e `suggestedFileName` | Vetorial: não dá para usar o snapshot; desenhar formatos e setas à mão |
 | **PNG só da seleção / de todos os boards** | Seleção: `BoardRenderer` com só os cards selecionados e as setas entre eles. Todos: percorrer a árvore como o `PdfExporter.BoardNode`, um arquivo por board nomeado pelo caminho | Decisões em 3.18 |
+
+## 5.7 Nova edição, novo campo de texto ou novo diálogo: respeitar a apresentação
+
+Na apresentação (3.27) o app é só leitura. Um controller novo costuma já nascer bloqueado, mas confira:
+
+- [ ] A edição **passa por `history.perform`** (ou `capture` + `record`): congelado, ele não executa nem registra. Se mexe no
+  modelo por fora do histórico, ela depende só do filtro da janela (barreira 1): teste com a apresentação ligada.
+- [ ] A edição nasce de um **evento de mouse, tecla, menu de contexto ou arrastar e soltar**: o filtro da janela os consome.
+  Uma **tecla nova** só precisa agir na apresentação se for navegação: nesse caso, acrescente-a em `PresentationController.onKey`
+  (e à tabela do 3.27 e do 3.16). Um **botão novo dentro de um card** que navega passa sozinho (`isNavigationTarget`); um botão que edita
+  não deve ficar dentro de `CardView` (o filtro deixa passar todo botão de card).
+- [ ] **Item de menu novo:** os itens do menu já são desabilitados na apresentação (laço em `MainController.wireMenu`); a **ação** dele
+  precisa de `unlessPresenting(...)`, porque `fire()` por código ignora `disable`.
+- [ ] **Campo de texto novo** (`TextArea`, `TextField`): `editable = false` e sem foco quando `BoardView.isPresenting()` (como
+  `CardView.setReadOnly` e `FloatingPanelView.setReadOnly`).
+- [ ] **Diálogo novo** (`Alert`, `FileChooser`, popup): não pode abrir na apresentação (pode ficar atrás da tela cheia). Use o aviso
+  discreto (`MainWindow.showPresentationNotice`), como `LinkController.setPresentation`.
+- [ ] Coisa que **só aparece na edição** (alça, barra, selo): esconda por CSS com `:presenting` usando opacidade ou cursor, não
+  `visibility` (B.55); ou por binding em `MainWindow.bindPresentation`.
+- [ ] Teste: `PresentationControllerTest` (`noKeyboardEventChangesTheBoard`, `noMouseEventChangesTheBoard...`) dispara a bateria de eventos e compara a foto de
+  todos os boards; acrescente o evento ou a tecla novos à bateria.
 
 ---
 
@@ -2674,6 +2850,14 @@ colar entre boards (3.25), a busca de texto (3.26) e o zoom para caber tudo (3.8
 | Busca refeita a cada passo; destaques estáticos entre os passos | Ouvir todas as mudanças do modelo | Barato e sem ouvintes no modelo; o que mudou aparece no próximo Enter/letra |
 | "Em todos os boards" usa o `jumpTo` do link para outro board | Entrar pelos cards (pilha de baixo para cima) | O caminho do topo e o voltar ficam coerentes com os links, sem código novo de navegação |
 | Destaque da busca com a borda de dentro intacta e o anel por fora | Engrossar a borda | O layout (e o ajuste do texto) não muda ao destacar (3.26, 4.5) |
+| Na apresentação o primeiro `Esc` já sai (o painel aberto fecha junto) | O primeiro `Esc` fecha o painel e o segundo sai | Um toque sempre tira da tela cheia, que cobre tudo; fechar só o painel tem o ✕, o botão do card e o clique fora (3.27) |
+| A apresentação termina no board em que você está, devolvendo a visão que cada board da pilha tinha | Sempre voltar ao board de onde se entrou | É o que os programas de slides fazem e quem achou algo a corrigir já está lá; o `Alt+←` leva à origem do pulo. Trocar é pequeno (3.27) |
+| Cada board que aparece na apresentação é enquadrado (sem visão guardada por board) | Lembrar a visão de cada board | Todo slide aparece inteiro e previsível; a visão de antes só importa ao sair |
+| `→` / `←` usam o `jumpTo` na ordem do PDF (`BoardSlides`, Java puro) | Andar só entre irmãos; entrar e voltar pela pilha | A mesma ordem do PDF, uma função testável sem tela; o voltar volta ao slide de onde se veio; sem código novo de navegação |
+| Edição bloqueada por **um filtro na janela** + histórico congelado + canvas em leitura + menu desabilitado | Desligar os controllers um a um | O filtro não depende de lembrar de cada controller (um novo já nasce bloqueado); as outras camadas pegam o que escapar; o teste confere a foto de todos os boards |
+| Na apresentação, arrastar com o botão **primário** também move a visão | Só botão do meio/direito e Espaço | Sem seleção a desenhar, o arrasto primário não tem outro uso; ajuda quem não tem botão do meio |
+| Na apresentação os avisos vão para um aviso discreto, não para a barra de status nem para diálogos | `Alert` / barra de status | A barra de status está escondida; um diálogo por cima da tela cheia pode aparecer atrás e prender o teclado |
+| O caminho e o botão voltar ficam na apresentação, a 60% de opacidade | Esconder tudo; deixar sem esmaecer | São a navegação do canvas e ajudam a se localizar; discretos, não competem com o board |
 | Destaque da busca vence o da seleção | Mostrar os dois | O resultado atual precisa se ver mesmo com o card selecionado; selecionar já tem a barra flutuante |
 
 ## B. Armadilhas conhecidas
@@ -2838,12 +3022,31 @@ colar entre boards (3.25), a busca de texto (3.26) e o zoom para caber tudo (3.8
 53. **`NavigationController.setOnBoardShown` é um só.** Quem mais precisa saber da troca de board usa
     `addOnBoardShown`; sobrescrever o do `BoardLinkController` deixaria os marcadores quebrados desatualizados.
 
+54. **`Event.fireEvent` consome uma cópia.** O JavaFX copia o evento ao longo do caminho: depois de `Event.fireEvent(no, evento)`,
+    `evento.isConsumed()` do original é sempre `false`, mesmo que um filtro o tenha consumido. Nos testes, a conta "foi consumido?" se faz com um
+    filtro-sonda no próprio alvo, que só roda se ninguém consumiu antes (`fire` do `PresentationControllerTest`).
+55. **CSS `visibility` e código disputam a propriedade.** O cadeado do card usa `setVisible(locked)`; um `visibility: hidden` do CSS
+    (como o do PDF e do PNG, onde não importa) venceria o código e, ao sair da regra, a propriedade pode voltar ao padrão. Na apresentação o CSS só usa
+    cursor, opacidade e cor do texto de exemplo (`-fx-opacity` do cadeado não é definido pelo código).
+56. **Esconder o menu não desliga os aceleradores.** Os atalhos (`Ctrl+Z`, `Ctrl+N`...) ficam registrados na cena mesmo com a `MenuBar` invisível e
+    com o item desabilitado por binding; e `MenuItem.fire()` por código ignora `disable`. Quem barra é o filtro da janela (consome a tecla antes da cena) e a
+    guarda `unlessPresenting` nas ações.
+57. **O laço de `isNavigationTarget` não pode parar no primeiro `Button`.** O botão voltar do caminho é um `Button` fora de card; se o laço
+    retornasse ao achar qualquer botão, o clique nele seria barrado em vez de subir até o `BreadcrumbView`. (Achado pelo teste de picking.)
+58. **Tela cheia no JavaFX/Windows.** A combinação e a dica de saída padrão (`Esc`) precisam ser desligadas (`NO_MATCH`, dica vazia) e restauradas ao
+    sair; sair por fora precisa encerrar a apresentação (ouvir `fullScreenProperty`); e a janela volta 11 px mais baixa depois da tela cheia (confirmado com uma
+    janela simples, sem o app). A tela cheia só chega ao `BoardView` no próximo layout: o enquadramento é refeito no ouvinte de tamanho enquanto a visão não foi mexida.
+59. **Diálogo por cima da tela cheia pode aparecer atrás dela.** Na apresentação, nada abre `Alert`, `FileChooser` nem popup: os avisos vão para o aviso
+    discreto (`showPresentationNotice`).
+60. **Roteiro de interface com tela cheia real.** O roteiro cobre a tela do usuário por alguns segundos: precisa de um vigia (thread que tira a janela da tela
+    cheia e derruba a JVM se travar) e de `try/finally` que sai dela mesmo com erro; e nunca usar `java.awt.Robot` nem entrada do sistema.
+
 ## C. Testes
 
-### Automatizados (`mvn test`) — 506 testes, sem abrir janela
+### Automatizados (`mvn test`) — 555 testes, sem abrir janela
 
 (O `BoardRendererPngTest`, o `FrameViewTest`, o `ConnectionViewTest`, o `ConnectionEditControllerTest` e o
-`ClipboardControllerTest`, o `ViewFitControllerTest` e o `SearchControllerTest` ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
+`ClipboardControllerTest`, o `ViewFitControllerTest`, o `SearchControllerTest` e o `PresentationControllerTest` ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
 
 | Classe | Cobre |
 |---|---|
@@ -2873,7 +3076,9 @@ colar entre boards (3.25), a busca de texto (3.26) e o zoom para caber tudo (3.8
 | `CardTextFitTest` | seção: título com fonte fixa nunca faz crescer (nem com fonte manual ou link), texto só na faixa do título e antes dos marcadores; espaço do clipe reservado em cima (fonte menor ou card maior), losango sem mudança; fonte máxima/menor/mínima, palavra nunca quebrada no meio, retângulo cresce só na altura, elipse mantém proporção, volta ao tamanho à mão, fonte manual, card vazio, espaço do botão; card de imagem: sem legenda não cresce, legenda cresce embaixo sem distorcer a imagem, fonte da legenda, imagem maior (com medidor falso, sem JavaFX) |
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
-| `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
+| `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board; **congelado** (apresentação): `perform` não executa nem registra, desfazer/refazer/registrar não fazem nada e os passos de antes continuam, congelar fecha a edição em andamento como um passo, trocar de board continua valendo |
+| `BoardSlidesTest` | (Java puro) a ordem é a das páginas do PDF; `next` percorre a árvore toda, `previous` volta; do pai ao primeiro filho, do último filho ao irmão do pai, do mais fundo ao próximo irmão de um ancestral; as pontas não têm vizinho; um board só; board de fora da árvore; card sem board é pulado e board vazio conta; achado pelo id (cópia recriada pelo desfazer) |
+| `PresentationControllerTest` | (JavaFX, `MainWindow` + `MainController` + `Stage` sem exibir; eventos do próprio JavaFX, com o controle "os mesmos eventos editam fora da apresentação") entrar/sair: tela cheia, dica e combinação de saída do JavaFX, barras e menu escondidos e voltando, ferramenta e visão de volta exatamente, idempotente, item do menu Exibir com `F5`, board enquadrado dentro da tela e refeito quando a tela cheia chega (mas não depois de o usuário mexer), sair por fora da tela cheia, novo board encerra; **`Esc`** (consumido, sai direto mesmo com painel aberto e o fecha), `F5` dentro não faz nada, `Shift+1` e `Ctrl+0`; **slides** na ordem do PDF com `→ ← PageDown PageUp`, as pontas com aviso, setas com Ctrl/Shift não passam, `Alt+←` volta; botão do card entra (enquadrado, cards em leitura) e o botão voltar volta; links (externo abre, link para board leva e volta, destino quebrado avisa sem diálogo); painéis em leitura com o conteúdo, fechando pelo ✕, pelo botão do card e clicando fora, sem editar nem digitar; roda dá zoom, arrastar com os três botões move a visão, arrastar um card não o move; **nenhum evento de teclado, de mouse (clique, duplo, arrasto, alça de conexão, texto da seta, criar com ferramenta, caixa de seleção), de menu de contexto nem item de menu disparado à força altera o modelo** (foto de todos os boards), seleciona, edita texto ou abre menu; `BoardView` recusa seleção e cards novos já nascem em leitura; nada entra no desfazer; a visão de cada board da pilha volta ao sair (inclusive a origem de um pulo); quem é "navegação" (`isNavigationTarget`); busca e painel de edição fecham ao entrar; começar dentro de um board aninhado (os slides seguem dele e a saída devolve a visão); board vazio |
 | `PdfExporterTest` | texto da seta buscável, no meio da seta; seção: texto invisível só na faixa do título; título buscável, link da seção só no marcador, cards de dentro com os links inteiros (card com site e card-board), nenhuma área clicável do tamanho da seção; link para outro board: o card todo leva à página do destino em outro ramo; card que já leva a uma página vai ao destino só pelo marcador (por cima); card com os dois links e sem página própria (card todo → board, clipe → site); destino excluído sem área clicável; marcadores lado a lado; link externo: card todo com ação URI (endereço ASCII), card de board aninhado mantém o link da página e ganha o do site só no clipe (por cima), área do clipe acompanha a escala, cards sem link sem URI; ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
 | `BoardStorageTest` | link salvo e aberto (card comum, de imagem e de board), card sem link não grava o campo, save anterior sem o campo abre sem link, links maliciosos no arquivo (`javascript:`, `file:`, caminho, rede, `usuário@site`) descartados; salvar/abrir em pasta (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), abrir pela pasta ou pelo `board.json`, `.json` antigo (abre, salva no formato novo sem alterar o antigo, versão decide e não o nome), JSON inválido, pasta incompleta, `board.json` vazio, versão futura, `version` 2 com outro nome, "salvar como" copiando `imagens/`, imagens copiadas antes do JSON (falha na gravação não deixa JSON solto), falha mantém o `board.json` anterior, destino livre × save existente × ocupado; card de imagem salvo e aberto com o arquivo, card sem imagem não grava o campo, save anterior sem o campo abre, imagem faltando (e nome com `../`) não quebra e mantém a referência, imagens de várias origens |
 | `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia (inclusive `copyFile` de um arquivo só) sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada; achar o arquivo na ordem das pastas, nomes com pasta recusados |
@@ -3096,6 +3301,21 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   principal é idêntico (foto) e nada entrou no desfazer. **Não validado:** o mouse e as teclas físicas (inclusive
   `Shift+1`/`Shift+2` no teclado ABNT2 de verdade), `Ctrl+F` físico, e o `mvn javafx:run` aberto à mão.
 
+- **Modo apresentação** (3.27) foi validado por um roteiro dentro da JVM (picking real, **janela real em tela cheia**), **sem `java.awt.Robot` e sem
+  mouse nem teclado do sistema**, só os `MouseEvent`/`KeyEvent`/`ScrollEvent` do JavaFX com o alvo do `Scene.pick`; um vigia tira a janela da tela
+  cheia e derruba a JVM se travar, e um `try/finally` sai da tela cheia no fim (B.60). Roteiro: `F5` pelo acelerador do menu entra → a janela real ocupa a tela
+  inteira (cena e canvas do tamanho da tela), menu, barra de ferramentas, barra de status e mini barra de estilos somem, o caminho fica (60%) → o board aparece
+  enquadrado e centrado → clicar (1x, 2x, `Shift`), arrastar um card, a alça de conexão, duplo clique no texto e na seta, clique direito num card e no fundo, ~30 teclas
+  (`Delete`, `Ctrl+D/X/C/V/Z/Y/A/L/F/N/O/S/E`, as letras de ferramenta, `Enter`, `Tab`, `F5`...), digitar e disparar os itens do menu à força: nenhuma mudou o modelo (foto
+  de todos os boards), nada entrou no desfazer, nenhuma janela ou menu novo → entrar num board aninhado e voltar pelo botão do caminho (picking real) → link externo (interceptado) e link
+  para outro board, `Alt+←` volta → `→ ← PageDown PageUp` por todos os boards, cada um enquadrado, e o aviso nas pontas → painel de texto e de lista abertos em leitura
+  (capturas conferidas: legíveis, dentro da tela), ✕ e clique fora fecham, digitar não muda nada → `Esc` com painel aberto sai direto e fecha o painel → **Exibir ›
+  Apresentar** entra de novo → roda do mouse, botões direito e meio arrastando, `Shift+1`, `Ctrl+0` → `Esc` sai: janela fora da tela cheia, menu e barras de volta,
+  ferramenta e **visão de antes exatamente** → fora da apresentação o clique seleciona, arrastar move e `Ctrl+Z` desfaz, e nada da apresentação ficou no histórico → um texto em edição quando o
+  `F5` é apertado é encerrado, vira um passo de desfazer e a apresentação começa. **Não validado:** o `Esc` e o `F5` físicos (a tela cheia real consome o `Esc` do JavaFX só
+  se a combinação padrão estivesse ligada: aqui está desligada e conferida pela propriedade), vários monitores, a tela cheia exclusiva do sistema, o `mvn javafx:run` aberto à mão e o
+  módulo (`module path`) com a janela (os testes do Maven rodam no módulo; o roteiro, no classpath).
+
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
 
@@ -3103,6 +3323,7 @@ para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
 
 | Termo | Significado |
 |---|---|
+| **Apresentação** | O modo de tela cheia (`F5`): só ver e navegar, sem barras nem menu, passando de board em board como slides (3.27). |
 | **Binding** | Ligação automática: uma propriedade passa a seguir outra (ou um cálculo). |
 | **Propriedade observável** | Valor que avisa quando muda (`DoubleProperty`, `StringProperty`...). |
 | **Scene graph** | Árvore de nós visuais do JavaFX. |

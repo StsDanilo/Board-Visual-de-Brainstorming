@@ -41,6 +41,8 @@ public class EditHistory {
 
     /** Foto do início da sessão de edição em andamento, ou {@code null}. */
     private BoardSnapshot pendingEdit;
+    /** Congelado (modo apresentação): nada é executado nem registrado, nem desfeito ou refeito. */
+    private boolean frozen;
 
     private static final class Stacks {
         final Deque<BoardSnapshot> undo = new ArrayDeque<>();
@@ -51,8 +53,30 @@ public class EditHistory {
         this.board = board;
     }
 
+    /**
+     * Congela ou descongela o histórico. Congelado (enquanto o modo apresentação está ligado),
+     * {@link #perform} <b>não executa</b> a alteração, e {@link #record}, {@link #undo},
+     * {@link #redo}, {@link #beginEdit} e {@link #endEdit} não fazem nada: é a última barreira
+     * contra uma alteração do board durante a apresentação (a primeira é o filtro de eventos do
+     * {@code PresentationController}). Ao congelar, uma sessão de edição em andamento é encerrada
+     * (e registrada) antes. Trocar de board ({@link #boardChanged}) continua valendo.
+     */
+    public void setFrozen(boolean frozen) {
+        if (frozen && !this.frozen) {
+            endEdit();
+        }
+        this.frozen = frozen;
+    }
+
+    public boolean isFrozen() {
+        return frozen;
+    }
+
     /** Executa uma alteração no board registrando-a como um passo desfazível. */
     public void perform(Runnable change) {
+        if (frozen) {
+            return;
+        }
         boolean editing = pendingEdit != null;
         if (editing) {
             endEdit();
@@ -67,13 +91,16 @@ public class EditHistory {
 
     /** Início de uma edição de texto (campo ganhou foco). */
     public void beginEdit() {
-        if (pendingEdit == null) {
+        if (!frozen && pendingEdit == null) {
             pendingEdit = capture();
         }
     }
 
     /** Fim da edição de texto (campo perdeu foco): registra o que mudou. */
     public void endEdit() {
+        if (frozen) {
+            return;
+        }
         BoardSnapshot before = pendingEdit;
         pendingEdit = null;
         record(before);
@@ -88,7 +115,7 @@ public class EditHistory {
     /** Registra o passo iniciado em {@code before}, se algo mudou desde então. */
     public void record(BoardSnapshot before) {
         Board current = board.get();
-        if (before == null || current == null || before.equals(current.snapshot())) {
+        if (frozen || before == null || current == null || before.equals(current.snapshot())) {
             return;
         }
         Stacks stacks = stacksOf(current);
@@ -145,6 +172,9 @@ public class EditHistory {
     }
 
     private void move(boolean undo) {
+        if (frozen) {
+            return;
+        }
         Board current = board.get();
         boolean editing = pendingEdit != null;
         if (editing) {

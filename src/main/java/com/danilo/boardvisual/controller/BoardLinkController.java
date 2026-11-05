@@ -18,6 +18,8 @@ import javafx.scene.control.MenuItem;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Link para outro board: um atalho, em qualquer card, para qualquer board da
@@ -47,6 +49,9 @@ public class BoardLinkController {
     private final EditHistory history;
     private final NavigationController navigation;
     private final BoardLinkPickerPopup picker = new BoardLinkPickerPopup();
+    /** Na apresentação (tela cheia) o aviso de destino que não existe mais não abre diálogo. */
+    private BooleanSupplier presenting = () -> false;
+    private Consumer<String> notifier = text -> { };
 
     /** Card selecionado observado, para o botão refletir o link (inclusive ao desfazer). */
     private Card observed;
@@ -82,6 +87,12 @@ public class BoardLinkController {
         card.childBoardProperty().removeListener(markersListener);
         card.childBoardProperty().addListener(markersListener);
         refreshMarker(cardView, card);
+    }
+
+    /** Na apresentação o aviso vai para {@code notifier} em vez de um diálogo (ver {@link LinkController#setPresentation}). */
+    public void setPresentation(BooleanSupplier presenting, Consumer<String> notifier) {
+        this.presenting = presenting == null ? () -> false : presenting;
+        this.notifier = notifier == null ? text -> { } : notifier;
     }
 
     /** O popup de escolha (usado pelos roteiros de teste de interface). */
@@ -211,6 +222,10 @@ public class BoardLinkController {
     }
 
     private void warn(String header, String content) {
+        if (presenting.getAsBoolean()) {
+            notifier.accept(header);
+            return;
+        }
         Alert alert = new Alert(Alert.AlertType.WARNING);
         if (view.getScene() != null) {
             alert.initOwner(view.getScene().getWindow());

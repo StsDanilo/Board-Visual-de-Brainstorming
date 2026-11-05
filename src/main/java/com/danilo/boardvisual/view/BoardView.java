@@ -73,6 +73,13 @@ public class BoardView extends Pane {
      * ferramentas, e em cima, onde ficam o caminho do board e a caixa de busca.
      */
     private static final ViewFit.Margins FIT_MARGINS = new ViewFit.Margins(64, 48, 48, 96);
+    /**
+     * Folgas do "caber tudo" na apresentação: sem barra de ferramentas, só sobra o caminho do
+     * board no canto de cima (discreto); o resto são margens pequenas e iguais.
+     */
+    private static final ViewFit.Margins PRESENTATION_FIT_MARGINS = new ViewFit.Margins(56, 32, 32, 32);
+    /** Modo apresentação (F5): só ver e navegar; ver {@link #setPresenting}. */
+    private static final PseudoClass PRESENTING = PseudoClass.getPseudoClass("presenting");
     private static final PseudoClass PANNING = PseudoClass.getPseudoClass("panning");
     /** Espaço pressionado: arrastar move a visão. */
     private static final PseudoClass SPACE_PAN = PseudoClass.getPseudoClass("space-pan");
@@ -146,6 +153,8 @@ public class BoardView extends Pane {
             new ReadOnlyObjectWrapper<>(this, "selectedConnection");
 
     private Board board;
+    /** Modo apresentação ligado: nada se seleciona, não há alças nem barra da seleção, textos só de leitura. */
+    private boolean presenting;
     private Consumer<CardView> cardViewInitializer = cardView -> { };
     private Consumer<ConnectionView> connectionViewInitializer = connectionView -> { };
     private CardImageLoader imageLoader = CardImageLoader.NONE;
@@ -233,6 +242,35 @@ public class BoardView extends Pane {
 
     public Board getBoard() {
         return board;
+    }
+
+    /**
+     * Liga ou desliga o modo apresentação (F5). Ligado: a seleção (de cards e de seta) é limpa e
+     * nada mais se seleciona ({@link #setSelection}, {@link #selectConnection}); somem a barra
+     * flutuante da seleção e as alças de redimensionar; o texto de todos os cards fica só de
+     * leitura (inclusive dos cards criados depois, ao trocar de board). É a pseudo-classe
+     * {@code :presenting} do canvas. Só enfeite e trava da tela: o modelo não é tocado.
+     */
+    public void setPresenting(boolean presenting) {
+        if (this.presenting == presenting) {
+            return;
+        }
+        if (presenting) {
+            clearSelection();
+            setResizeTarget(null, false);
+            hideMarquee();
+            hideGuides();
+            hideConnectionPreview();
+        }
+        this.presenting = presenting;
+        pseudoClassStateChanged(PRESENTING, presenting);
+        cardViews.values().forEach(cardView -> cardView.setReadOnly(presenting));
+        updateSelectionOverlay();
+        updateResizeHandles();
+    }
+
+    public boolean isPresenting() {
+        return presenting;
     }
 
     /** Troca o board exibido, recriando todos os nós visuais. */
@@ -324,6 +362,7 @@ public class BoardView extends Pane {
 
     private void addCardView(Card card) {
         CardView cardView = new CardView(card, imageLoader);
+        cardView.setReadOnly(presenting);
         cardViews.put(card, cardView);
         layerOf(card).getChildren().add(cardView);
         cardViewInitializer.accept(cardView);
@@ -405,11 +444,14 @@ public class BoardView extends Pane {
         setSelection(cardViews.keySet());
     }
 
-    /** Substitui a seleção pelos cards informados (ignora cards fora do board). */
+    /**
+     * Substitui a seleção pelos cards informados (ignora cards fora do board). Na apresentação
+     * ({@link #setPresenting}) nada se seleciona: só a seleção vazia vale.
+     */
     public void setSelection(Collection<Card> cards) {
         Set<Card> wanted = new HashSet<>();
         for (Card card : cards) {
-            if (cardViews.containsKey(card)) {
+            if (!presenting && cardViews.containsKey(card)) {
                 wanted.add(card);
             }
         }
@@ -433,7 +475,7 @@ public class BoardView extends Pane {
      * {@code null} limpa. Uma seta fora do board na tela é ignorada.
      */
     public void selectConnection(Connection connection) {
-        if (connection != null && !connectionViews.containsKey(connection)) {
+        if (connection != null && (presenting || !connectionViews.containsKey(connection))) {
             return;
         }
         if (connection != null) {
@@ -489,7 +531,7 @@ public class BoardView extends Pane {
         }
         Optional<Bounds> target = selectionBoundsInView();
         // Durante a caixa de seleção a barra some, para não ficar pulando a cada card incluído.
-        selectionOverlay.setVisible(target.isPresent() && !marquee.isVisible());
+        selectionOverlay.setVisible(target.isPresent() && !marquee.isVisible() && !presenting);
         if (target.isEmpty()) {
             return;
         }
@@ -607,7 +649,7 @@ public class BoardView extends Pane {
         if (resizeTarget != null) {
             CardGeometry.forEach(resizeTarget, p -> p.removeListener(resizeUpdater));
         }
-        resizeTarget = card != null && cardViews.containsKey(card) ? card : null;
+        resizeTarget = card != null && !presenting && cardViews.containsKey(card) ? card : null;
         resizeCornersOnly = cornersOnly;
         if (resizeTarget != null) {
             CardGeometry.forEach(resizeTarget, p -> p.addListener(resizeUpdater));
@@ -618,7 +660,7 @@ public class BoardView extends Pane {
 
     private void updateResizeHandles() {
         // Some durante a caixa de seleção, como a barra flutuante.
-        boolean show = resizeTarget != null && !marquee.isVisible();
+        boolean show = resizeTarget != null && !marquee.isVisible() && !presenting;
         resizeHandles.setVisible(show);
         if (show) {
             Point2D topLeft = world.localToParent(resizeTarget.getX(), resizeTarget.getY());
@@ -799,7 +841,22 @@ public class BoardView extends Pane {
             resetView();
             return Optional.of(ViewFit.reset());
         }
-        return applyFit(ViewFit.boxesOf(board));
+        return applyFit(ViewFit.boxesOf(board), FIT_MARGINS);
+    }
+
+    /**
+     * Igual a {@link #fitAll}, com as folgas da apresentação (sem a barra de ferramentas à
+     * esquerda): é o enquadramento de cada board que aparece na tela cheia.
+     */
+    public Optional<ViewFit.Result> fitAllForPresentation() {
+        if (board == null) {
+            return Optional.empty();
+        }
+        if (board.getCards().isEmpty()) {
+            resetView();
+            return Optional.of(ViewFit.reset());
+        }
+        return applyFit(ViewFit.boxesOf(board), PRESENTATION_FIT_MARGINS);
     }
 
     /**
@@ -811,7 +868,7 @@ public class BoardView extends Pane {
         if (board == null || selection.isEmpty()) {
             return Optional.empty();
         }
-        return applyFit(ViewFit.boxesOf(board, selection));
+        return applyFit(ViewFit.boxesOf(board, selection), FIT_MARGINS);
     }
 
     // ------------------------------------------------------------ busca de texto
@@ -882,11 +939,11 @@ public class BoardView extends Pane {
         setViewState(new ViewState(result.panX(), result.panY(), result.zoom()));
     }
 
-    private Optional<ViewFit.Result> applyFit(List<Box> boxes) {
+    private Optional<ViewFit.Result> applyFit(List<Box> boxes, ViewFit.Margins margins) {
         if (getWidth() <= 0 || getHeight() <= 0) {
             return Optional.empty();
         }
-        ViewFit.Result result = ViewFit.fit(boxes, getWidth(), getHeight(), FIT_MARGINS, MIN_ZOOM, FIT_MAX_ZOOM);
+        ViewFit.Result result = ViewFit.fit(boxes, getWidth(), getHeight(), margins, MIN_ZOOM, FIT_MAX_ZOOM);
         setViewState(new ViewState(result.panX(), result.panY(), result.zoom()));
         return Optional.of(result);
     }

@@ -139,4 +139,93 @@ class EditHistoryTest {
         history.perform(() -> board.addCard(new Card(100, 100)));
         assertFalse(history.canRedoProperty().get());
     }
+
+    // ------------------------------------------------------- congelado (apresentação)
+
+    @Test
+    void frozenHistoryDoesNotRunPerformedChangesAndRecordsNothing() {
+        Card card = new Card(0, 0);
+        history.perform(() -> board.addCard(card));
+        history.setFrozen(true);
+
+        history.perform(() -> card.setColor("#FFF1A8"));
+        history.perform(() -> board.addCard(new Card(100, 100)));
+
+        assertTrue(history.isFrozen());
+        assertEquals(Card.DEFAULT_COLOR, card.getColor(), "a alteração nem é executada");
+        assertEquals(1, board.getCards().size());
+
+        BoardSnapshot before = history.capture();
+        card.setX(50);
+        history.record(before);
+        history.undo();
+        assertEquals(50, card.getX(), "congelado, nem registrar nem desfazer agem (o x mexido por fora fica)");
+
+        history.setFrozen(false);
+        history.undo();
+        assertTrue(board.getCards().isEmpty(), "o passo de antes (criar o card) continua lá, e agora desfaz");
+    }
+
+    @Test
+    void frozenHistoryIgnoresUndoAndRedoAndKeepsTheStepsOfBefore() {
+        Card card = new Card(0, 0);
+        history.perform(() -> board.addCard(card));
+        history.perform(() -> card.setColor("#FFF1A8"));
+        history.undo();
+        history.setFrozen(true);
+
+        history.undo();
+        history.redo();
+        assertEquals(1, board.getCards().size());
+        assertEquals(Card.DEFAULT_COLOR, card.getColor(), "o refazer também não age");
+        assertTrue(history.canRedoProperty().get(), "o refazer de antes continua à espera");
+
+        history.setFrozen(false);
+        history.redo();
+        assertEquals("#FFF1A8", card.getColor());
+    }
+
+    @Test
+    void freezingClosesAnEditSessionInProgressAsOneStep() {
+        Card card = new Card(0, 0);
+        board.addCard(card);
+        history.beginEdit();
+        card.setText("digitado antes de apresentar");
+
+        history.setFrozen(true);
+        history.endEdit(); // o foco saindo do campo, já congelado: nada a fazer
+
+        history.setFrozen(false);
+        assertTrue(history.canUndoProperty().get(), "o que foi digitado virou um passo ao congelar");
+        history.undo();
+        assertEquals("", card.getText());
+    }
+
+    @Test
+    void frozenHistoryDoesNotStartEditSessions() {
+        Card card = new Card(0, 0);
+        board.addCard(card);
+        history.setFrozen(true);
+        history.beginEdit();
+        card.setText("não deveria virar passo");
+        history.endEdit();
+        history.setFrozen(false);
+
+        assertFalse(history.canUndoProperty().get());
+    }
+
+    @Test
+    void changingBoardStillWorksWhileFrozen() {
+        Board[] current = {board};
+        EditHistory nested = new EditHistory(() -> current[0]);
+        nested.perform(() -> board.addCard(new Card(0, 0)));
+        nested.setFrozen(true);
+
+        current[0] = new Board("outro");
+        nested.boardChanged();
+        assertFalse(nested.canUndoProperty().get(), "o outro board começa sem histórico");
+        current[0] = board;
+        nested.boardChanged();
+        assertTrue(nested.canUndoProperty().get(), "a navegação não perde o histórico");
+    }
 }

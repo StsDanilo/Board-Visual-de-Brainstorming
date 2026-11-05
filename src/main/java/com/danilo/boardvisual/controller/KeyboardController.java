@@ -27,6 +27,7 @@ import java.util.Optional;
  * - Espaço (segurado): arrastar move a visão.
  * - Alt+←: volta ao board anterior (boards aninhados; depois de um link para
  *   outro board, ao board de onde se saiu).
+ * - Na apresentação (F5) este controller não age: as teclas são do {@link PresentationController}.
  * - Esc: sai da edição de texto; senão fecha a busca (Ctrl+F) aberta; senão fecha o painel
  *   flutuante aberto; senão volta para Selecionar; senão limpa a seleção (de cards e de seta).
  *   No campo do texto da seta, o Esc é do próprio campo (cancela a edição); no campo da
@@ -87,6 +88,9 @@ public class KeyboardController {
     }
 
     private void onKeyPressed(KeyEvent e) {
+        if (view.isPresenting()) {
+            return; // na apresentação as teclas são do PresentationController (filtro da janela)
+        }
         if (e.getCode() == KeyCode.ESCAPE) {
             handleEscape();
             e.consume();

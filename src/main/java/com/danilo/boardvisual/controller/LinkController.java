@@ -17,6 +17,8 @@ import javafx.scene.control.MenuItem;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Link externo dos cards: um endereço web opcional em qualquer card.
@@ -45,6 +47,9 @@ public class LinkController {
     private final EditHistory history;
     private final Opener opener;
     private final LinkEditorPopup editor = new LinkEditorPopup();
+    /** Na apresentação (tela cheia) os avisos não abrem diálogo: vão para o aviso discreto da tela. */
+    private BooleanSupplier presenting = () -> false;
+    private Consumer<String> notifier = text -> { };
 
     /** Card selecionado observado, para o botão "Link" refletir o link (inclusive ao desfazer). */
     private Card observed;
@@ -65,6 +70,15 @@ public class LinkController {
 
     public void attach(CardView cardView) {
         cardView.getMarker(CardMarkers.Kind.LINK).setOnAction(e -> open(cardView.getCard()));
+    }
+
+    /**
+     * Na apresentação um aviso (link inválido, navegador que não abriu) não pode abrir um diálogo
+     * por cima da tela cheia: vai para {@code notifier}.
+     */
+    public void setPresentation(BooleanSupplier presenting, Consumer<String> notifier) {
+        this.presenting = presenting == null ? () -> false : presenting;
+        this.notifier = notifier == null ? text -> { } : notifier;
     }
 
     /** O popup de edição (usado pelos roteiros de teste de interface). */
@@ -171,6 +185,10 @@ public class LinkController {
     }
 
     private void warn(String header, String content) {
+        if (presenting.getAsBoolean()) {
+            notifier.accept(header);
+            return;
+        }
         Alert alert = new Alert(Alert.AlertType.WARNING);
         if (view.getScene() != null) {
             alert.initOwner(view.getScene().getWindow());

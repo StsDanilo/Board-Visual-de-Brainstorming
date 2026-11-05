@@ -15,6 +15,8 @@ import javafx.beans.property.ObjectProperty;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuItem;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -55,6 +57,7 @@ public class MainController {
     private final ClipboardController clipboard;
     private final ViewFitController viewFit;
     private final SearchController search;
+    private final PresentationController presentation;
 
     /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
     private Path currentFolder;
@@ -103,6 +106,12 @@ public class MainController {
         search = new SearchController(boardView, window.getSearchBar(), navigation);
         search.setNotifier(window::showStatusMessage);
         search.installOn(stage);
+        // Apresentação (F5): filtro de eventos na janela, histórico congelado, avisos sem diálogo (3.27).
+        presentation = new PresentationController(stage, window, navigation, panelController, history,
+                activeTool, search, contextMenu, canvasController);
+        panelController.setPresenting(presentation::isPresenting);
+        links.setPresentation(presentation::isPresenting, window::showPresentationNotice);
+        boardLinks.setPresentation(presentation::isPresenting, window::showPresentationNotice);
         connectionEdits = new ConnectionEditController(boardView, history);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
                 canvasController, panelController, navigation, stackOrder, locks, connectionEdits, search, this);
@@ -127,26 +136,50 @@ public class MainController {
     }
 
     private void wireMenu() {
-        window.getNewItem().setOnAction(e -> newBoard());
-        window.getOpenItem().setOnAction(e -> open());
-        window.getSaveItem().setOnAction(e -> save());
-        window.getSaveAsItem().setOnAction(e -> saveAs());
-        window.getExportPdfItem().setOnAction(e -> exportPdf());
-        window.getExportPngItem().setOnAction(e -> exportPng(PngExporter.Background.WHITE));
-        window.getExportTransparentPngItem().setOnAction(e -> exportPng(PngExporter.Background.TRANSPARENT));
+        // Na apresentação nada disso age (o menu está escondido e desabilitado; isto é a última barreira,
+        // para quem dispara um item por código): sem editar, sem abrir arquivo, sem diálogos por cima da tela cheia.
+        window.getNewItem().setOnAction(e -> unlessPresenting(this::newBoard));
+        window.getOpenItem().setOnAction(e -> unlessPresenting(this::open));
+        window.getSaveItem().setOnAction(e -> unlessPresenting(this::save));
+        window.getSaveAsItem().setOnAction(e -> unlessPresenting(this::saveAs));
+        window.getExportPdfItem().setOnAction(e -> unlessPresenting(this::exportPdf));
+        window.getExportPngItem().setOnAction(e -> unlessPresenting(() -> exportPng(PngExporter.Background.WHITE)));
+        window.getExportTransparentPngItem().setOnAction(
+                e -> unlessPresenting(() -> exportPng(PngExporter.Background.TRANSPARENT)));
         window.getExitItem().setOnAction(e -> Platform.exit());
         window.getResetViewItem().setOnAction(e -> boardView.resetView());
         window.getFitAllItem().setOnAction(e -> viewFit.fitAll());
         window.getFitSelectionItem().setOnAction(e -> viewFit.fitSelection());
-        window.getUndoItem().setOnAction(e -> undo());
-        window.getRedoItem().setOnAction(e -> redo());
-        window.getSelectAllItem().setOnAction(e -> boardView.selectAll());
-        window.getSearchItem().setOnAction(e -> search.open());
-        window.getCutItem().setOnAction(e -> clipboard.menuCut());
-        window.getCopyItem().setOnAction(e -> clipboard.menuCopy());
-        window.getPasteItem().setOnAction(e -> clipboard.menuPaste());
-        window.getUndoItem().disableProperty().bind(history.canUndoProperty().not());
-        window.getRedoItem().disableProperty().bind(history.canRedoProperty().not());
+        window.getUndoItem().setOnAction(e -> unlessPresenting(this::undo));
+        window.getRedoItem().setOnAction(e -> unlessPresenting(this::redo));
+        window.getSelectAllItem().setOnAction(e -> unlessPresenting(boardView::selectAll));
+        window.getSearchItem().setOnAction(e -> unlessPresenting(search::open));
+        window.getCutItem().setOnAction(e -> unlessPresenting(clipboard::menuCut));
+        window.getCopyItem().setOnAction(e -> unlessPresenting(clipboard::menuCopy));
+        window.getPasteItem().setOnAction(e -> unlessPresenting(clipboard::menuPaste));
+        window.getPresentItem().setOnAction(e -> presentation.start());
+        // Na apresentação o menu está escondido e todos os itens ficam desabilitados (os atalhos também): só ver e navegar.
+        var presenting = window.presentingProperty();
+        window.getUndoItem().disableProperty().bind(history.canUndoProperty().not().or(presenting));
+        window.getRedoItem().disableProperty().bind(history.canRedoProperty().not().or(presenting));
+        for (Menu menu : window.getMenuBar().getMenus()) {
+            for (MenuItem item : menu.getItems()) {
+                if (item != window.getUndoItem() && item != window.getRedoItem() && item != window.getPresentItem()) {
+                    item.disableProperty().bind(presenting);
+                }
+            }
+        }
+    }
+
+    /** Modo apresentação (usado pelos roteiros de teste de interface). */
+    public PresentationController getPresentation() {
+        return presentation;
+    }
+
+    private void unlessPresenting(Runnable action) {
+        if (!presentation.isPresenting()) {
+            action.run();
+        }
     }
 
     /** Menu de clique direito dos cards (as próximas funcionalidades acrescentam itens nele). */
@@ -401,6 +434,7 @@ public class MainController {
     }
 
     private void showBoard(Board board, Path folder, Path legacy) {
+        presentation.stop(); // um board novo ou aberto não pode aparecer dentro da apresentação
         history.clear();
         images.reset(folder); // antes de criar os cards: eles carregam as imagens desta pasta
         navigation.openRoot(board);

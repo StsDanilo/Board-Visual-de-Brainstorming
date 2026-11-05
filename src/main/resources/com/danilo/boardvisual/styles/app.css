@@ -1127,3 +1127,61 @@
     -fx-text-fill: -bv-text-muted;
     -fx-font-size: 11px;
 }
+
+/* ------------------------------------------------ modo apresentação (F5) */
+
+/*
+ * Na apresentação a janela ganha :presenting (MainWindow). O menu, a barra de ferramentas e a barra
+ * de status somem por binding no código (visible/managed); aqui só o que é aparência. Só usa
+ * propriedades que o código não define (cursor, opacidade, cor do texto de exemplo): o CSS não
+ * mexe em visibility, que o código também usa (ex.: o cadeado), para não brigar com ele (4.5).
+ */
+
+/* O caminho no topo continua, mas discreto; ganha força quando o mouse chega nele. */
+.main-window:presenting .breadcrumb {
+    -fx-opacity: 0.6;
+}
+
+.main-window:presenting .breadcrumb:hover {
+    -fx-opacity: 1;
+}
+
+/* Sem editar: nada de cursor de mover/escrever, nem alça de conexão, nem cadeado. */
+.main-window:presenting .card,
+.main-window:presenting .card .card-text,
+.main-window:presenting .frame-title,
+.main-window:presenting .connector-handle {
+    -fx-cursor: default;
+}
+
+.main-window:presenting .card-view:hover .connector-handle,
+.main-window:presenting .connector-handle {
+    -fx-opacity: 0;
+}
+
+.main-window:presenting .card-lock-badge {
+    -fx-opacity: 0;
+}
+
+/* Card vazio não mostra "Escreva uma ideia...", nem o painel "Escreva os detalhes...". */
+.main-window:presenting .card .card-text,
+.main-window:presenting .card-panel-detail {
+    -fx-prompt-text-fill: transparent;
+}
+
+/* Mover a visão arrastando (qualquer botão): mão fechada. */
+.main-window:presenting .board-view:panning,
+.main-window:presenting .board-view:panning .card,
+.main-window:presenting .board-view:panning .card .card-text,
+.main-window:presenting .board-view:panning .frame-title {
+    -fx-cursor: closed-hand;
+}
+
+/* Aviso discreto (dica das teclas, "Último board"): uma pílula escura e translúcida, embaixo no meio. */
+.presentation-notice {
+    -fx-background-color: rgba(42, 42, 40, 0.82);
+    -fx-background-radius: 14;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-padding: 6 16 6 16;
+}

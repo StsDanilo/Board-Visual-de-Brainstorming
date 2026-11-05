@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -29,6 +30,8 @@ import java.util.stream.Collectors;
  *   clicar fora dele (exceto no próprio card, para poder editar o título).
  * - Trocar entre Texto e Lista apaga o conteúdo do modo anterior; se houver
  *   conteúdo, pede confirmação antes. Tudo passa pelo histórico.
+ * - Na apresentação (F5) o painel abre só para leitura: sem foco nos campos, sem selecionar o
+ *   card, sem adicionar nem remover itens, e sem trocar o modo.
  */
 public class PanelController {
 
@@ -38,6 +41,8 @@ public class PanelController {
     private final TextEditController textEdit;
 
     private FloatingPanelView openPanel;
+    /** Verdadeiro na apresentação: o painel abre só para leitura. */
+    private BooleanSupplier presenting = () -> false;
 
     /** Cards selecionados observados, para os botões de modo refletirem mudanças (ex.: desfazer). */
     private final Set<Card> observedCards = new HashSet<>();
@@ -64,18 +69,29 @@ public class PanelController {
         });
 
         // Clique fora do painel e fora do card dele fecha o painel (como uma combobox).
-        view.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
-            if (openPanel == null || e.getButton() != MouseButton.PRIMARY) {
-                return;
-            }
-            Node target = e.getPickResult().getIntersectedNode();
-            boolean insideAnchor = view.getCardView(openPanel.getCard())
-                    .map(cardView -> isInside(target, cardView))
-                    .orElse(false);
-            if (!isInside(target, openPanel) && !insideAnchor) {
-                close();
-            }
-        });
+        view.addEventFilter(MouseEvent.MOUSE_PRESSED, this::closeIfPressedOutside);
+    }
+
+    /** Diz se a apresentação está ligada (o painel abre só para leitura). */
+    public void setPresenting(BooleanSupplier presenting) {
+        this.presenting = presenting == null ? () -> false : presenting;
+    }
+
+    /**
+     * Fecha o painel se o clique (primário) caiu fora dele e fora do card dele. Também é usado pela
+     * apresentação, que barra o clique antes de ele chegar ao filtro do canvas.
+     */
+    void closeIfPressedOutside(MouseEvent e) {
+        if (openPanel == null || e.getButton() != MouseButton.PRIMARY) {
+            return;
+        }
+        Node target = e.getPickResult().getIntersectedNode();
+        boolean insideAnchor = view.getCardView(openPanel.getCard())
+                .map(cardView -> isInside(target, cardView))
+                .orElse(false);
+        if (!isInside(target, openPanel) && !insideAnchor) {
+            close();
+        }
     }
 
     public void attach(CardView cardView) {
@@ -96,15 +112,21 @@ public class PanelController {
         }
         FloatingPanelView panel = new FloatingPanelView(card);
         panel.setOnClose(this::close);
-        panel.setOnAddItem(text -> history.perform(() -> card.addListItem(text)));
-        panel.setOnRemoveItem(item -> history.perform(() -> card.removeListItem(item)));
-        // Tudo que for digitado no painel (entre ações pontuais) vira um passo de desfazer.
-        textEdit.track(panel.focusWithinProperty());
+        boolean readOnly = presenting.getAsBoolean();
+        panel.setReadOnly(readOnly);
+        if (!readOnly) {
+            panel.setOnAddItem(text -> history.perform(() -> card.addListItem(text)));
+            panel.setOnRemoveItem(item -> history.perform(() -> card.removeListItem(item)));
+            // Tudo que for digitado no painel (entre ações pontuais) vira um passo de desfazer.
+            textEdit.track(panel.focusWithinProperty());
+        }
 
         view.showPanel(panel, card);
         openPanel = panel;
-        view.select(card);
-        panel.focusPrimaryField();
+        if (!readOnly) {
+            view.select(card);
+            panel.focusPrimaryField();
+        }
     }
 
     public void close() {
@@ -127,6 +149,9 @@ public class PanelController {
     // ------------------------------------------------------------ modo
 
     private void switchMode(PanelMode mode) {
+        if (presenting.getAsBoolean()) {
+            return;
+        }
         List<Card> targets = view.getSelection().stream()
                 .filter(Card::isPanel)
                 .filter(card -> card.getPanelMode() != mode)

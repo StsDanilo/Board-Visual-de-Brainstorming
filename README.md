@@ -51,6 +51,12 @@ mvn test
   estava menor, para o texto ser legível). A opção **Em todos os boards** acha também nos boards aninhados: a lista
   mostra o caminho de cada resultado, e clicar nele leva até lá (o botão voltar leva de volta ao board de onde você
   saiu). `Esc` fecha a busca e tira os destaques. A busca não altera o board nem entra no desfazer
+- Modo apresentação: `F5` (ou **Exibir › Apresentar**) mostra o board da tela em **tela cheia**, sem barras nem menu,
+  só para ver e navegar (nada se edita nem se seleciona). Funcionam a roda do mouse (zoom), arrastar para mover a
+  visão, `Shift+1` (enquadrar), entrar nos boards aninhados e voltar (`Alt+←` ou o botão do caminho, que fica no topo,
+  discreto), os links dos cards e os painéis (abrem só para leitura). `→` / `PageDown` e `←` / `PageUp` passam ao
+  próximo / anterior board, na ordem do PDF, cada um enquadrado. `Esc` sai (mesmo com painel aberto) e devolve a janela,
+  as barras, a ferramenta e a visão de antes; a apresentação termina no board em que você está
 - Painel flutuante: card com um botão que abre um painel ao lado, em modo texto (detalhamento)
   ou lista (itens editáveis); o modo é trocado pela barra do card selecionado
 - Boards aninhados: card que contém outro board (sem limite de níveis), com caminho clicável
@@ -162,14 +168,21 @@ mvn test
 | `Ctrl+E` | Exportar PDF (todos os boards) |
 | `Ctrl+Shift+E` | Exportar PNG do board atual (fundo branco) |
 | `Ctrl+0` | Redefinir visualização |
+| `F5` | Apresentar em tela cheia (menu Exibir) |
 | `Shift+1` | Ajustar o zoom para caber todos os cards (menu Exibir) |
 | `Shift+2` | Ajustar o zoom para caber os cards selecionados (menu Exibir) |
+| Na apresentação: `→` / `PageDown`, `←` / `PageUp` | Próximo / anterior board (ordem do PDF) |
+| Na apresentação: `Esc` | Sair da apresentação (mesmo com painel aberto) |
+| Na apresentação: `Alt+←`, `Shift+1`, `Ctrl+0` | Voltar, enquadrar o board, zoom de 100%; **as outras teclas não fazem nada** |
 
 Enquanto o texto de um card está sendo editado, as teclas vão para o texto (inclusive `Ctrl+Z`,
 que desfaz dentro do próprio texto, e `Ctrl+C`/`Ctrl+X`/`Ctrl+V`, que copiam, recortam e colam o texto, e
 `Shift+1`/`Shift+2`, que digitam "!" e "@"); só o `Esc` age como atalho. O `Ctrl+F` com o texto em edição não
 abre a busca (termine a edição com `Esc`); o mesmo vale para o campo da própria busca: o que se digita lá é só texto. Ao sair da edição, tudo o que foi
 digitado vira um único passo no desfazer do board.
+
+Na **apresentação** (`F5`) nenhum atalho de edição age (nem `Delete`, `Ctrl+Z`, as letras de ferramenta, nem os atalhos do menu): só
+as teclas da tabela acima. `F5`, as setas, `PageUp`/`PageDown` e `Esc` são iguais em qualquer layout (no notebook, `PageUp`/`PageDown` às vezes com `Fn`).
 
 `Shift+1` e `Shift+2` usam a posição da tecla (as teclas `1` e `2` do alto do teclado, que no ABNT2 escrevem "!" e "@" com
 `Shift`), então valem em qualquer layout. Os atalhos com colchetes funcionam pelo **caractere** da tecla: no teclado ABNT2 são as teclas `[` e `]`

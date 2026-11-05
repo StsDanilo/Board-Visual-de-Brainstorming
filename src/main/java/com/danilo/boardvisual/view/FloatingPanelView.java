@@ -54,7 +54,9 @@ public class FloatingPanelView extends VBox {
     private Consumer<String> onAddItem = text -> { };
     private Consumer<ListItem> onRemoveItem = item -> { };
 
-    /** Campo que recebe o foco ao abrir (texto detalhado ou "adicionar item"). */
+    /** Modo apresentação: só leitura (sem adicionar nem remover itens, campos sem edição). */
+    private boolean readOnly;
+    /** Campo que recebe o foco ao abrir (texto detalhado ou "adicionar item"); {@code null} se só leitura. */
     private Node primaryField;
     private VBox rowsBox;
     private TextField newItemField;
@@ -119,10 +121,14 @@ public class FloatingPanelView extends VBox {
         TextArea detail = new TextArea();
         detail.getStyleClass().add("card-panel-detail");
         detail.setWrapText(true);
-        detail.setPromptText("Escreva os detalhes desta ideia...");
+        detail.setPromptText(readOnly ? "" : "Escreva os detalhes desta ideia...");
         detail.setPrefRowCount(10);
         detail.textProperty().bindBidirectional(card.detailTextProperty());
-        primaryField = detail;
+        if (readOnly) {
+            detail.setEditable(false);
+            detail.setFocusTraversable(false);
+        }
+        primaryField = readOnly ? null : detail;
         return detail;
     }
 
@@ -155,8 +161,12 @@ public class FloatingPanelView extends VBox {
         addRow.setAlignment(Pos.CENTER_LEFT);
 
         rebuildRows();
-        primaryField = newItemField;
-        VBox list = new VBox(scroll, addRow);
+        primaryField = readOnly ? null : newItemField;
+        // Só leitura: sem a linha de "adicionar item" (e sem o campo, para o Enter de um item não ir até ele).
+        VBox list = readOnly ? new VBox(scroll) : new VBox(scroll, addRow);
+        if (readOnly) {
+            newItemField = null;
+        }
         list.getStyleClass().add("card-panel-list");
         return list;
     }
@@ -207,7 +217,11 @@ public class FloatingPanelView extends VBox {
         remove.setFocusTraversable(false);
         remove.setOnAction(e -> onRemoveItem.accept(item));
 
-        HBox row = new HBox(bullet, field, remove);
+        if (readOnly) {
+            field.setEditable(false);
+            field.setFocusTraversable(false);
+        }
+        HBox row = readOnly ? new HBox(bullet, field) : new HBox(bullet, field, remove);
         row.getStyleClass().add("card-panel-row");
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
@@ -219,7 +233,26 @@ public class FloatingPanelView extends VBox {
         return card;
     }
 
-    /** Coloca o cursor no campo principal do modo atual. */
+    /**
+     * Painel só de leitura (modo apresentação): os textos não se editam e somem o "adicionar item" e o
+     * ✕ de cada item. Reconstrói o corpo.
+     */
+    public void setReadOnly(boolean readOnly) {
+        if (this.readOnly != readOnly) {
+            this.readOnly = readOnly;
+            getStyleClass().remove("read-only");
+            if (readOnly) {
+                getStyleClass().add("read-only");
+            }
+            rebuildBody();
+        }
+    }
+
+    public boolean isReadOnly() {
+        return readOnly;
+    }
+
+    /** Coloca o cursor no campo principal do modo atual (nada, se o painel é só de leitura). */
     public void focusPrimaryField() {
         Platform.runLater(() -> {
             if (primaryField != null) {

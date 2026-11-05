@@ -2,6 +2,10 @@ package com.danilo.boardvisual.view;
 
 import javafx.animation.PauseTransition;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.css.PseudoClass;
+import javafx.scene.Node;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
@@ -23,6 +27,13 @@ import javafx.util.Duration;
  * Layout da janela: menu no topo, canvas no centro com o caminho do board no
  * canto superior esquerdo, a barra de ferramentas flutuando à esquerda (e a
  * barra da seleção sobre o card selecionado), e barra de status embaixo.
+ *
+ * <b>Apresentação (F5):</b> a propriedade {@link #presentingProperty()} liga o modo
+ * apresentação: o menu, a barra de ferramentas, a barra de status e a mini barra de estilos de
+ * seta somem (visíveis e "managed" ligados por binding), o canvas passa a ser só de leitura
+ * ({@link BoardView#setPresenting}) e a janela ganha a pseudo-classe {@code :presenting} (o CSS
+ * deixa o caminho do board discreto, entre outras coisas). O caminho no topo e o botão de voltar
+ * continuam. Quem liga e desliga a propriedade é o {@code PresentationController}.
  */
 public class MainWindow extends BorderPane {
 
@@ -35,6 +46,14 @@ public class MainWindow extends BorderPane {
     /** Aviso curto e passageiro na barra de status ({@link #showStatusMessage}). */
     private final Label statusMessage = new Label();
     private final PauseTransition statusMessageTimer = new PauseTransition(Duration.seconds(5));
+    private static final PseudoClass PRESENTING = PseudoClass.getPseudoClass("presenting");
+    /** Apresentação (tela cheia) ligada: some tudo que é de edição (ver a descrição da classe). */
+    private final BooleanProperty presenting = new SimpleBooleanProperty(this, "presenting", false);
+    private final MenuBar menuBar;
+    private HBox statusBar;
+    /** Aviso discreto da apresentação (embaixo, no meio): "Último board", dica das teclas... */
+    private final Label presentationNotice = new Label();
+    private final PauseTransition presentationNoticeTimer = new PauseTransition(Duration.seconds(3));
 
     private final MenuItem newItem = new MenuItem("Novo board");
     private final MenuItem openItem = new MenuItem("Abrir...");
@@ -54,6 +73,7 @@ public class MainWindow extends BorderPane {
     private final MenuItem pasteItem = new MenuItem("Colar");
     private final MenuItem selectAllItem = new MenuItem("Selecionar tudo");
     private final MenuItem searchItem = new MenuItem("Buscar...");
+    private final MenuItem presentItem = new MenuItem("Apresentar");
 
     public MainWindow() {
         getStyleClass().add("main-window");
@@ -79,19 +99,30 @@ public class MainWindow extends BorderPane {
         pasteItem.setAccelerator(new KeyCodeCombination(KeyCode.V, KeyCombination.SHORTCUT_DOWN));
         // Ctrl+F: a busca de texto (3.26). Com texto em edição o SearchController barra o atalho (o item do menu, não).
         searchItem.setAccelerator(new KeyCodeCombination(KeyCode.F, KeyCombination.SHORTCUT_DOWN));
+        // F5: apresentação em tela cheia (3.27). Dentro da apresentação o PresentationController barra o F5.
+        presentItem.setAccelerator(new KeyCodeCombination(KeyCode.F5));
 
         Menu fileMenu = new Menu("Arquivo", null,
                 newItem, openItem, new SeparatorMenuItem(), saveItem, saveAsItem, new SeparatorMenuItem(), exportPdfItem,
                 exportPngItem, exportTransparentPngItem, new SeparatorMenuItem(), exitItem);
         Menu editMenu = new Menu("Editar", null, undoItem, redoItem, new SeparatorMenuItem(),
                 cutItem, copyItem, pasteItem, new SeparatorMenuItem(), selectAllItem, searchItem);
-        Menu viewMenu = new Menu("Exibir", null, resetViewItem, fitAllItem, fitSelectionItem);
-        setTop(new MenuBar(fileMenu, editMenu, viewMenu));
+        Menu viewMenu = new Menu("Exibir", null, resetViewItem, fitAllItem, fitSelectionItem,
+                new SeparatorMenuItem(), presentItem);
+        menuBar = new MenuBar(fileMenu, editMenu, viewMenu);
+        setTop(menuBar);
 
         boardView.setSelectionOverlay(selectionToolbar);
         // A mini barra dos estilos de seta fica no mesmo pai da barra de ferramentas, por cima de tudo;
         // ela não entra no layout da StackPane e se posiciona sozinha à direita da barra.
-        StackPane canvasArea = new StackPane(boardView, toolBar, breadcrumb, toolBar.getConnectionStyleBar(), searchBar);
+        presentationNotice.getStyleClass().add("presentation-notice");
+        presentationNotice.setMouseTransparent(true);
+        presentationNotice.setVisible(false);
+        presentationNoticeTimer.setOnFinished(e -> presentationNotice.setVisible(false));
+        StackPane canvasArea = new StackPane(boardView, toolBar, breadcrumb, toolBar.getConnectionStyleBar(), searchBar,
+                presentationNotice);
+        StackPane.setAlignment(presentationNotice, Pos.BOTTOM_CENTER);
+        StackPane.setMargin(presentationNotice, new Insets(12, 12, 28, 12));
         StackPane.setAlignment(toolBar, Pos.CENTER_LEFT);
         // Margem de cima maior: deixa espaço para o caminho no canto superior esquerdo.
         StackPane.setMargin(toolBar, new Insets(64, 12, 12, 12));
@@ -100,7 +131,47 @@ public class MainWindow extends BorderPane {
         StackPane.setAlignment(searchBar, Pos.TOP_RIGHT);
         StackPane.setMargin(searchBar, new Insets(12));
         setCenter(canvasArea);
-        setBottom(createStatusBar());
+        statusBar = createStatusBar();
+        setBottom(statusBar);
+        bindPresentation();
+    }
+
+    /** O que some na apresentação: menu, barra de ferramentas, barra de status (a mini barra de estilos junto). */
+    private void bindPresentation() {
+        for (Node bar : new Node[]{menuBar, toolBar, statusBar}) {
+            bar.visibleProperty().bind(presenting.not());
+            bar.managedProperty().bind(presenting.not());
+        }
+        presenting.addListener((obs, was, now) -> {
+            pseudoClassStateChanged(PRESENTING, now);
+            boardView.setPresenting(now);
+            if (now) {
+                toolBar.getConnectionStyleBar().setVisible(false);
+            }
+        });
+    }
+
+    /** Apresentação ligada? (F5; ver a descrição da classe.) */
+    public BooleanProperty presentingProperty() {
+        return presenting;
+    }
+
+    /** Aviso curto e discreto da apresentação, embaixo no meio; some sozinho depois de uns segundos. */
+    public void showPresentationNotice(String text) {
+        presentationNotice.setText(text);
+        presentationNotice.setVisible(true);
+        presentationNoticeTimer.playFromStart();
+    }
+
+    /** O aviso da apresentação, se aparece agora ("" quando não). */
+    public String getPresentationNotice() {
+        return presentationNotice.isVisible() ? presentationNotice.getText() : "";
+    }
+
+    /** Some com o aviso da apresentação (ao sair dela). */
+    public void hidePresentationNotice() {
+        presentationNoticeTimer.stop();
+        presentationNotice.setVisible(false);
     }
 
     /**
@@ -148,6 +219,9 @@ public class MainWindow extends BorderPane {
     public ToolBarView getToolBar() { return toolBar; }
     public SelectionToolbarView getSelectionToolbar() { return selectionToolbar; }
     public BreadcrumbView getBreadcrumb() { return breadcrumb; }
+    public MenuBar getMenuBar() { return menuBar; }
+    public HBox getStatusBar() { return statusBar; }
+    public MenuItem getPresentItem() { return presentItem; }
     public SearchBarView getSearchBar() { return searchBar; }
     public MenuItem getNewItem() { return newItem; }
     public MenuItem getOpenItem() { return openItem; }

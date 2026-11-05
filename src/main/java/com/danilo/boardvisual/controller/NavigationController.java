@@ -11,7 +11,12 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.value.ObservableStringValue;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -108,6 +113,68 @@ public class NavigationController {
             return result[0] == NavigationPath.JumpResult.DONE;
         });
         return result[0];
+    }
+
+    /**
+     * As visões (pan e zoom) de todos os níveis da pilha, pelo id do board; a do board da tela é a
+     * de agora. O modo apresentação guarda isso ao entrar, para devolver ao sair
+     * ({@link #restoreViewStates}). Inclui os níveis da volta de um link, para o voltar mostrar o
+     * board de origem como estava.
+     */
+    public Map<String, ViewState> viewStates() {
+        Map<String, ViewState> states = new HashMap<>();
+        if (path.isEmpty()) {
+            return states;
+        }
+        collectViewStates(path.levels(), states, Collections.newSetFromMap(new IdentityHashMap<>()));
+        states.put(path.current().board().getId(), view.getViewState());
+        return states;
+    }
+
+    private void collectViewStates(List<NavigationPath.Level<ViewState>> levels, Map<String, ViewState> states,
+                                   Set<List<NavigationPath.Level<ViewState>>> seen) {
+        if (!seen.add(levels)) {
+            return;
+        }
+        for (NavigationPath.Level<ViewState> level : levels) {
+            states.putIfAbsent(level.board().getId(), level.viewState());
+            if (level.returnPath() != null) {
+                collectViewStates(level.returnPath(), states, seen);
+            }
+        }
+    }
+
+    /**
+     * Devolve as visões guardadas por {@link #viewStates} aos níveis que ainda existem (a pilha e a
+     * volta de um link) e aplica à tela a do board que está nela, se havia uma. Boards que não
+     * estavam na pilha quando a visão foi guardada ficam como estão. Só mexe na visão: nada de
+     * modelo, nada no desfazer.
+     */
+    public void restoreViewStates(Map<String, ViewState> states) {
+        if (path.isEmpty()) {
+            return;
+        }
+        applyViewStates(path.levels(), states, Collections.newSetFromMap(new IdentityHashMap<>()));
+        ViewState current = states.get(path.current().board().getId());
+        if (current != null) {
+            view.setViewState(current);
+        }
+    }
+
+    private void applyViewStates(List<NavigationPath.Level<ViewState>> levels, Map<String, ViewState> states,
+                                 Set<List<NavigationPath.Level<ViewState>>> seen) {
+        if (!seen.add(levels)) {
+            return;
+        }
+        for (NavigationPath.Level<ViewState> level : levels) {
+            ViewState state = states.get(level.board().getId());
+            if (state != null) {
+                level.setViewState(state);
+            }
+            if (level.returnPath() != null) {
+                applyViewStates(level.returnPath(), states, seen);
+            }
+        }
     }
 
     /** Guarda a visão do nível atual, aplica a mudança e, se algo mudou, mostra o novo nível. */

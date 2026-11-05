@@ -128,6 +128,8 @@ public class CardView extends Region {
     private final Region frameGrip = new Region();
     /** Seção: o título fora da edição (uma linha, cortada com reticências). */
     private final Label frameTitle = new Label();
+    /** Modo apresentação: o texto não se edita ({@link #setReadOnly}). */
+    private boolean readOnly;
 
     public CardView(Card card) {
         this(card, CardImageLoader.NONE);
@@ -323,7 +325,31 @@ public class CardView extends Region {
     }
 
     public void focusText() {
-        Platform.runLater(textArea::requestFocus);
+        if (readOnly) {
+            return;
+        }
+        Platform.runLater(() -> {
+            if (!readOnly) {
+                textArea.requestFocus();
+            }
+        });
+    }
+
+    /**
+     * Texto só de leitura (modo apresentação): o campo não edita, não recebe foco por Tab e, se
+     * estava em edição, perde o foco (o histórico fecha a edição antes de a apresentação congelá-lo).
+     */
+    public void setReadOnly(boolean readOnly) {
+        this.readOnly = readOnly;
+        textArea.setEditable(!readOnly);
+        textArea.setFocusTraversable(!readOnly);
+        if (readOnly && textArea.isFocused()) {
+            endTextEdit();
+        }
+    }
+
+    public boolean isReadOnly() {
+        return readOnly;
     }
 
     public boolean isTextFocused() {
