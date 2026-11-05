@@ -52,6 +52,7 @@ public class MainController {
     private final StackOrderController stackOrder;
     private final LockController locks;
     private final ConnectionEditController connectionEdits;
+    private final ClipboardController clipboard;
 
     /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
     private Path currentFolder;
@@ -86,14 +87,18 @@ public class MainController {
         navigation = new NavigationController(boardView, window.getBreadcrumb(), history);
         images = new ImageController(stage, boardView, activeTool, history);
         contextMenu = new CardContextMenuController(boardView);
+        // Antes dos outros: Copiar / Recortar / Colar abrem o menu do card, como nos editores.
+        clipboard = new ClipboardController(boardView, history, selectionActionsController, images,
+                ClipboardController.systemOf(images), contextMenu);
         links = new LinkController(boardView, window.getSelectionToolbar(), history, linkOpener, contextMenu);
         boardLinks = new BoardLinkController(boardView, window.getSelectionToolbar(), history, navigation, contextMenu);
         stackOrder = new StackOrderController(boardView, window.getSelectionToolbar(), history, contextMenu);
         locks = new LockController(boardView, window.getSelectionToolbar(), history, contextMenu);
         selectionActionsController.setNotifier(window::showStatusMessage);
+        clipboard.setNotifier(window::showStatusMessage);
         connectionEdits = new ConnectionEditController(boardView, history);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
-                canvasController, panelController, navigation, images, stackOrder, locks, connectionEdits, this);
+                canvasController, panelController, navigation, stackOrder, locks, connectionEdits, this);
         CardTextFitController textFitController = new CardTextFitController();
         boardView.setCardViewInitializer(cardView -> {
             textFitController.attach(cardView);
@@ -127,6 +132,9 @@ public class MainController {
         window.getUndoItem().setOnAction(e -> undo());
         window.getRedoItem().setOnAction(e -> redo());
         window.getSelectAllItem().setOnAction(e -> boardView.selectAll());
+        window.getCutItem().setOnAction(e -> clipboard.menuCut());
+        window.getCopyItem().setOnAction(e -> clipboard.menuCopy());
+        window.getPasteItem().setOnAction(e -> clipboard.menuPaste());
         window.getUndoItem().disableProperty().bind(history.canUndoProperty().not());
         window.getRedoItem().disableProperty().bind(history.canRedoProperty().not());
     }
@@ -159,6 +167,11 @@ public class MainController {
     /** Seleção, exclusão e texto das setas (usado pelos roteiros de teste de interface). */
     public ConnectionEditController getConnectionEdits() {
         return connectionEdits;
+    }
+
+    /** Copiar, recortar e colar cards (usado pelos roteiros de teste de interface). */
+    public ClipboardController getClipboard() {
+        return clipboard;
     }
 
     /** Navegação entre boards (usado pelos roteiros de teste de interface). */

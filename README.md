@@ -87,6 +87,14 @@ mvn test
 - Menu de clique direito nos cards (clique sem arrastar; arrastar com o direito continua movendo a visão)
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
+- Copiar, recortar e colar cards (`Ctrl+C` / `Ctrl+X` / `Ctrl+V`, ou o menu **Editar** e o clique direito):
+  leva os cards selecionados **e as setas entre eles** (texto e estilo), com tudo que tem dentro (board
+  aninhado, painel, imagem, links, seção). Cola no centro da área visível, no mesmo board ou em **outro**
+  (entre num board aninhado, ou abra outro save, e cole). Colar de novo desce um degrau; cada colagem é um
+  passo no desfazer. A cópia de um card travado nasce destravada; copiar uma seção copia só a seção. Links
+  para outro board que apontam para dentro do que foi copiado passam a apontar para a cópia. Clique direito no
+  fundo abre "Colar" onde você clicou. Se você copiou uma imagem depois dos cards, o `Ctrl+V` cola a imagem
+  (vale o que foi copiado por último). A cópia vale só enquanto o programa está aberto.
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Seção, Imagem, Conexão
   (com a mini barra dos estilos de seta) e cor dos novos cards
 - Barra flutuante da seleção: cor, formato, tamanho do texto, link e link para outro board (com um card selecionado),
@@ -110,7 +118,8 @@ mvn test
 | `S` | Criar seção (área com título, atrás dos cards) |
 | Duplo clique no título da seção | Editar o título (`Enter` termina) |
 | `I` | Inserir imagem (abre o seletor de arquivo) |
-| `Ctrl+V` | Colar imagem (fora da edição de texto) |
+| `Ctrl+C` / `Ctrl+X` | Copiar / recortar os cards selecionados (com as setas entre eles) |
+| `Ctrl+V` | Colar os cards copiados no centro da área visível (ou a imagem da área de transferência, se ela foi copiada depois) |
 | Duplo clique na imagem | Escrever a legenda |
 | `Alt+←` | Voltar ao board anterior (depois de um link para outro board: ao board de onde você saiu) |
 | `C` | Conexão |
@@ -129,7 +138,8 @@ mvn test
 | `Esc` | Sair da edição de texto → fechar painel flutuante → voltar para Selecionar → limpar seleção |
 | `Espaço` + arrastar | Mover a visão (também: botão do meio ou direito) |
 | `Shift` + clique | Somar/retirar card da seleção |
-| Clique direito no card (sem arrastar) | Menu do card: adicionar, editar, abrir ou remover o link; escolher, trocar, ir para ou remover o link para outro board; ordem de empilhamento; travar/destravar |
+| Clique direito no fundo (sem arrastar) | Colar onde você clicou |
+| Clique direito no card (sem arrastar) | Menu do card: copiar, recortar, colar; adicionar, editar, abrir ou remover o link; escolher, trocar, ir para ou remover o link para outro board; ordem de empilhamento; travar/destravar |
 | Clique no clipe do card | Abrir o link no navegador |
 | Clique na seta curva do card | Ir para o board de destino |
 | Na lista de boards | Setas para escolher, `Enter` confirma, `Esc` cancela |
@@ -142,7 +152,7 @@ mvn test
 | `Ctrl+0` | Redefinir visualização |
 
 Enquanto o texto de um card está sendo editado, as teclas vão para o texto (inclusive `Ctrl+Z`,
-que desfaz dentro do próprio texto, e `Ctrl+V`, que cola no texto); só o `Esc` age como atalho. Ao sair da edição, tudo o que foi
+que desfaz dentro do próprio texto, e `Ctrl+C`/`Ctrl+X`/`Ctrl+V`, que copiam, recortam e colam o texto); só o `Esc` age como atalho. Ao sair da edição, tudo o que foi
 digitado vira um único passo no desfazer do board.
 
 Os atalhos com colchetes funcionam pelo **caractere** da tecla: no teclado ABNT2 são as teclas `[` e `]`

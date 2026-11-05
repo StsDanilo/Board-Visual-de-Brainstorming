@@ -87,19 +87,33 @@ public final class BoardImages {
         if (files.isEmpty()) {
             return;
         }
-        Files.createDirectories(targetDir);
         for (Path file : files) {
-            Path target = targetDir.resolve(file.getFileName().toString());
-            if (Files.isRegularFile(target) && Files.size(target) == Files.size(file)) {
-                continue;
-            }
-            Path temp = targetDir.resolve(file.getFileName() + ".tmp");
+            copyFile(file, targetDir);
+        }
+    }
+
+    /**
+     * Copia um arquivo de imagem para {@code targetDir} (criada se preciso) com o
+     * mesmo nome. Um arquivo já existente lá com o mesmo tamanho é mantido (o
+     * nome de uma imagem é único e ela nunca é editada). A cópia vai para um
+     * temporário e é movida no fim, como o JSON.
+     */
+    public static void copyFile(Path file, Path targetDir) throws IOException {
+        Files.createDirectories(targetDir);
+        Path target = targetDir.resolve(file.getFileName().toString());
+        if (Files.isRegularFile(target) && Files.size(target) == Files.size(file)) {
+            return;
+        }
+        Path temp = targetDir.resolve(file.getFileName() + ".tmp");
+        try {
             Files.copy(file, temp, StandardCopyOption.REPLACE_EXISTING);
             try {
                 Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
             }
+        } finally {
+            Files.deleteIfExists(temp);
         }
     }
 

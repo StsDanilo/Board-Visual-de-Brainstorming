@@ -16,6 +16,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -139,6 +140,30 @@ class CardAllPropertiesTest {
 
         assertNotEquals(original.getId(), copy.getId(), "a cópia tem id novo");
         assertEquals(describeWithoutId(original), describeWithoutId(copy));
+    }
+
+    /**
+     * Copiar e colar (Ctrl+C / Ctrl+V, 3.25) leva todas as propriedades: o mesmo
+     * que o Duplicar, com as duas diferenças de propósito (id novo; a cópia de um
+     * card travado nasce destravada).
+     */
+    @Test
+    void copyAndPasteKeepEveryPropertyExceptTheIdAndTheLock() {
+        Board board = new Board("origem");
+        Card original = fullCard();
+        board.addCard(original);
+
+        // Centralizada no próprio centro: o card volta ao mesmo lugar.
+        CardClip.Pasted pasted = CardClip.of(board, List.of(original)).orElseThrow()
+                .pasteCenteredAt(original.getCenterX(), original.getCenterY());
+        Card pastedCard = pasted.cards().get(0);
+
+        assertNotEquals(original.getId(), pastedCard.getId(), "a cópia tem id novo");
+        assertTrue(original.isLocked(), "o original continua travado");
+        assertFalse(pastedCard.isLocked(), "a cópia de um card travado nasce destravada");
+        Map<String, Object> expected = describeWithoutId(original);
+        expected.put("Locked", false);
+        assertEquals(expected, describeWithoutId(pastedCard));
     }
 
     @Test

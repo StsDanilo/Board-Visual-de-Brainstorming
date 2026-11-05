@@ -62,6 +62,33 @@ class BoardImagesTest {
         assertTrue(BoardImages.isPlainFileName("3f2a-1b.png"));
     }
 
+    // ------------------------------------------------------------ copiar um arquivo
+
+    @Test
+    void copyFileKeepsTheNameCreatesTheFolderAndLeavesNoTemporary(@TempDir Path dir) throws IOException {
+        Path source = fakeImage(dir.resolve("origem"), "a.png", 1, 2, 3);
+        Path target = dir.resolve("destino").resolve("imagens");
+
+        BoardImages.copyFile(source, target);
+
+        assertEquals(List.of("a.png"), namesIn(target), "mesmo nome, sem .tmp sobrando");
+        assertArrayEquals(new byte[] {1, 2, 3}, Files.readAllBytes(target.resolve("a.png")));
+        assertTrue(Files.exists(source), "a origem continua");
+    }
+
+    @Test
+    void copyFileKeepsAnIdenticalSizeFileAndReplacesADifferentOne(@TempDir Path dir) throws IOException {
+        Path source = fakeImage(dir.resolve("origem"), "a.png", 1, 2, 3);
+        Path target = dir.resolve("destino");
+        fakeImage(target, "a.png", 9, 9, 9); // mesmo tamanho: considerado o mesmo arquivo (o nome é único)
+        BoardImages.copyFile(source, target);
+        assertArrayEquals(new byte[] {9, 9, 9}, Files.readAllBytes(target.resolve("a.png")));
+
+        fakeImage(target, "a.png", 9); // tamanho diferente: substituído
+        BoardImages.copyFile(source, target);
+        assertArrayEquals(new byte[] {1, 2, 3}, Files.readAllBytes(target.resolve("a.png")));
+    }
+
     // ------------------------------------------------------------ limpeza
 
     @Test

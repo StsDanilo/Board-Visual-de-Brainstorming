@@ -45,6 +45,9 @@ public class MainWindow extends BorderPane {
     private final MenuItem resetViewItem = new MenuItem("Redefinir visualização");
     private final MenuItem undoItem = new MenuItem("Desfazer");
     private final MenuItem redoItem = new MenuItem("Refazer");
+    private final MenuItem cutItem = new MenuItem("Recortar");
+    private final MenuItem copyItem = new MenuItem("Copiar");
+    private final MenuItem pasteItem = new MenuItem("Colar");
     private final MenuItem selectAllItem = new MenuItem("Selecionar tudo");
 
     public MainWindow() {
@@ -62,11 +65,16 @@ public class MainWindow extends BorderPane {
         undoItem.setAccelerator(new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN));
         redoItem.setAccelerator(new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN));
         selectAllItem.setAccelerator(new KeyCodeCombination(KeyCode.A, KeyCombination.SHORTCUT_DOWN));
+        // Idem Ctrl+X / Ctrl+C / Ctrl+V: editando texto, as teclas são do texto; fora dele, dos cards (3.25).
+        cutItem.setAccelerator(new KeyCodeCombination(KeyCode.X, KeyCombination.SHORTCUT_DOWN));
+        copyItem.setAccelerator(new KeyCodeCombination(KeyCode.C, KeyCombination.SHORTCUT_DOWN));
+        pasteItem.setAccelerator(new KeyCodeCombination(KeyCode.V, KeyCombination.SHORTCUT_DOWN));
 
         Menu fileMenu = new Menu("Arquivo", null,
                 newItem, openItem, new SeparatorMenuItem(), saveItem, saveAsItem, new SeparatorMenuItem(), exportPdfItem,
                 exportPngItem, exportTransparentPngItem, new SeparatorMenuItem(), exitItem);
-        Menu editMenu = new Menu("Editar", null, undoItem, redoItem, new SeparatorMenuItem(), selectAllItem);
+        Menu editMenu = new Menu("Editar", null, undoItem, redoItem, new SeparatorMenuItem(),
+                cutItem, copyItem, pasteItem, new SeparatorMenuItem(), selectAllItem);
         Menu viewMenu = new Menu("Exibir", null, resetViewItem);
         setTop(new MenuBar(fileMenu, editMenu, viewMenu));
 
@@ -139,5 +147,8 @@ public class MainWindow extends BorderPane {
     public MenuItem getResetViewItem() { return resetViewItem; }
     public MenuItem getUndoItem() { return undoItem; }
     public MenuItem getRedoItem() { return redoItem; }
+    public MenuItem getCutItem() { return cutItem; }
+    public MenuItem getCopyItem() { return copyItem; }
+    public MenuItem getPasteItem() { return pasteItem; }
     public MenuItem getSelectAllItem() { return selectAllItem; }
 }

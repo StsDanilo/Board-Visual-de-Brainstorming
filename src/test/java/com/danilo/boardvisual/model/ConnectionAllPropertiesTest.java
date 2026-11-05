@@ -150,6 +150,29 @@ class ConnectionAllPropertiesTest {
         assertEquals(describe(original), describe(copy.findConnection(CONNECTION_ID).orElseThrow()));
     }
 
+    /**
+     * Copiar e colar cards (3.25) leva as setas entre eles: a seta colada tem id e pontas
+     * novos, e todas as outras propriedades iguais.
+     */
+    @Test
+    void copyAndPasteKeepEveryPropertyExceptIdAndEnds() {
+        Board board = boardWithFullConnection();
+        Connection original = board.findConnection(CONNECTION_ID).orElseThrow();
+
+        CardClip.Pasted pasted = CardClip.of(board, board.getCards()).orElseThrow().pasteCenteredAt(0, 0);
+
+        assertEquals(1, pasted.connections().size());
+        Connection copy = pasted.connections().get(0);
+        assertTrue(!original.getId().equals(copy.getId()), "a seta colada tem id novo");
+        Map<String, Object> expected = describe(original);
+        Map<String, Object> actual = describe(copy);
+        FIXED.forEach(key -> {
+            expected.remove(key);
+            actual.remove(key);
+        });
+        assertEquals(expected, actual);
+    }
+
     @Test
     void saveAndLoadKeepEveryProperty(@TempDir Path dir) throws IOException {
         Board board = boardWithFullConnection();

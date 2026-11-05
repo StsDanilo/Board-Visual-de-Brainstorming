@@ -49,7 +49,7 @@ import java.util.stream.Stream;
  * Cada inserção (de uma ou várias imagens) é um passo no desfazer. Excluir um
  * card não apaga o arquivo: a limpeza só acontece ao salvar.
  */
-public class ImageController {
+public class ImageController implements ClipboardController.ImageSpace {
 
     /** Maior lado do card de imagem ao ser criado (a imagem guardada pode ser maior). */
     static final double INITIAL_MAX_SIDE = 320;
@@ -219,25 +219,56 @@ public class ImageController {
     }
 
     /**
-     * Ctrl+V fora da edição de texto: cola a imagem da área de transferência do
-     * sistema (ou arquivos de imagem copiados no Explorer) no centro da área
-     * visível. Retorna false se não havia imagem para colar.
+     * Cola a imagem da área de transferência do sistema (ou arquivos de imagem
+     * copiados no Explorer) no centro da área visível. Retorna false se não
+     * havia imagem para colar. Quem decide entre isto e os cards copiados no
+     * app é o {@link ClipboardController}.
      */
     public boolean paste() {
+        return paste(null);
+    }
+
+    /** Como {@link #paste()}, centralizada em {@code center} (ponto do board; null = centro da área visível). */
+    public boolean paste(Point2D center) {
+        Point2D where = center != null ? center : view.visibleCenter();
         Clipboard clipboard = Clipboard.getSystemClipboard();
         if (clipboard.hasFiles()) {
             List<Path> files = clipboard.getFiles().stream().map(File::toPath)
                     .filter(ImageImporter::isSupportedFile).toList();
             if (!files.isEmpty()) {
-                insertFiles(files, view.visibleCenter());
+                insertFiles(files, where);
                 return true;
             }
         }
         if (clipboard.hasImage() && clipboard.getImage() != null) {
-            insertImage(clipboard.getImage(), view.visibleCenter());
+            insertImage(clipboard.getImage(), where);
             return true;
         }
         return false;
+    }
+
+    /** Se a área de transferência do sistema tem imagem, ou arquivos de imagem, para {@link #paste()}. */
+    public boolean canPasteSystemImage() {
+        Clipboard clipboard = Clipboard.getSystemClipboard();
+        if (clipboard.hasFiles()
+                && clipboard.getFiles().stream().map(File::toPath).anyMatch(ImageImporter::isSupportedFile)) {
+            return true;
+        }
+        return clipboard.hasImage();
+    }
+
+    // ------------------------------------------------------------ para o copiar/colar de cards
+
+    /** Pastas onde as imagens do board atual são procuradas ({@link ClipboardController}). */
+    @Override
+    public List<Path> searchDirs() {
+        return imageDirs();
+    }
+
+    /** A pasta de trabalho: onde entram as imagens que chegam de fora do save atual. */
+    @Override
+    public Path newImagesDir() throws IOException {
+        return workDir();
     }
 
     /** Arrastar arquivos de imagem (ou uma imagem) para o canvas: entram onde forem soltos. */

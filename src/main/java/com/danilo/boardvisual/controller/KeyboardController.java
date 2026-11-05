@@ -20,7 +20,6 @@ import java.util.Optional;
  *   ({@link ConnectionEditController}); senão, a seleção de cards (menos os travados).
  * - Ctrl+L: trava / destrava a seleção ({@link LockController}).
  * - Ctrl+D: duplica a seleção.
- * - Ctrl+V: cola a imagem da área de transferência do sistema como card.
  * - Ctrl+] / Ctrl+[ (ou Ctrl+PgUp / Ctrl+PgDn): trazer para frente / enviar
  *   para trás um nível; com Shift, para o topo / para o fundo
  *   ({@link StackOrderController}).
@@ -34,7 +33,8 @@ import java.util.Optional;
  *
  * Enquanto o texto de um card (ou de uma seta) está sendo editado, só o Esc
  * funciona: as outras teclas pertencem ao texto (digitar "v" não pode trocar de ferramenta).
- * Ctrl+Z, Ctrl+Y, Ctrl+A e os atalhos de arquivo ficam nos menus.
+ * Ctrl+Z, Ctrl+Y, Ctrl+A, Ctrl+X/C/V (recortar, copiar e colar cards, ou a imagem
+ * do sistema: {@link ClipboardController}) e os atalhos de arquivo ficam nos menus.
  */
 public class KeyboardController {
 
@@ -46,14 +46,13 @@ public class KeyboardController {
     private final MainController main;
     private final PanelController panels;
     private final NavigationController navigation;
-    private final ImageController images;
     private final StackOrderController stackOrder;
     private final LockController locks;
     private final ConnectionEditController connectionEdits;
 
     public KeyboardController(Stage stage, BoardView view, ObjectProperty<Tool> activeTool,
                               SelectionActionsController selectionActions, CanvasController canvas,
-                              PanelController panels, NavigationController navigation, ImageController images,
+                              PanelController panels, NavigationController navigation,
                               StackOrderController stackOrder, LockController locks,
                               ConnectionEditController connectionEdits, MainController main) {
         this.stage = stage;
@@ -67,7 +66,6 @@ public class KeyboardController {
         this.main = main;
         this.panels = panels;
         this.navigation = navigation;
-        this.images = images;
         // Handler (não filtro) na janela: recebe só o que o componente com foco não consumiu.
         stage.addEventHandler(KeyEvent.KEY_PRESSED, this::onKeyPressed);
         stage.addEventHandler(KeyEvent.KEY_RELEASED, e -> {
@@ -119,11 +117,6 @@ public class KeyboardController {
             } else if (e.getCode() == KeyCode.Z && e.isShiftDown()) {
                 main.redo();
                 e.consume();
-            } else if (e.getCode() == KeyCode.V && !e.isShiftDown()) {
-                // Só chega aqui fora da edição de texto: lá o Ctrl+V é do texto.
-                if (images.paste()) {
-                    e.consume();
-                }
             }
             return;
         }

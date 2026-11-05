@@ -9,7 +9,9 @@
 > (trazer para frente / enviar para trás), o lock de item (card travado, com cadeado), as seções
 > (frames: área colorida com título, atrás dos cards, que leva junto o que está dentro dela), as setas
 > com texto (duplo clique na seta) e os estilos de seta (simples, tracejada, ponta dupla, sem ponta,
-> escolhidos numa mini barra ao lado da barra lateral, com o mouse sobre a ferramenta Conexão).
+> escolhidos numa mini barra ao lado da barra lateral, com o mouse sobre a ferramenta Conexão) e o
+> copiar, recortar e colar cards (`Ctrl+C` / `Ctrl+X` / `Ctrl+V`) no mesmo board ou em outro, com as setas
+> entre eles, os boards aninhados, as imagens e os links.
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -42,6 +44,8 @@ Você escolhe quais cards ficam **por cima** de quais (a ordem é salva) e pode 
 sempre atrás dos cards, que organizam o board por tema: arrastar a seção leva junto o que está dentro dela.
 As setas podem ter um **texto** no meio ("leva a", "depende de") e um **estilo** (simples, tracejada,
 ponta dupla ou linha sem ponta), escolhido numa mini barra que abre com o mouse sobre a ferramenta Conexão.
+Dá para **copiar e colar** cards (com as setas entre eles e tudo que tem dentro) no mesmo board ou em outro,
+inclusive um board aninhado de outro caminho ou outro save aberto depois.
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
 pode virar uma **imagem PNG** (fundo branco ou transparente).
 Não há servidor nem banco de dados.
@@ -126,6 +130,8 @@ sem tocar no modelo.
 | `ConnectionGeometry` | Geometria da seta (Java puro, sem JavaFX): onde ela toca a borda de cada formato (`borderPoint`), início, ponta e o centro do texto (`labelCenter`, que afasta os textos de A→B e B→A). Usada pela tela e pelo PDF. |
 | `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada, sem seta de/para seção). `connect(a, b, estilo)`, `removeConnection`, `findConnection`, `hasReverse` (existe B→A). A ordem da lista de cards é a **ordem de empilhamento** (o último fica por cima); `reorder` a muda por permutação (3.21). As seções ficam sempre no começo da lista (atrás dos cards): `addCard`, `reorder` e `restore` mantêm isso (3.23). |
 | `BoardSnapshot` | "Foto" imutável do board, usada pelo desfazer/refazer. |
+| `CardClip` | O que o `Ctrl+C` guardou (Java puro): foto imutável dos cards copiados e das setas entre eles (com os boards aninhados), independente do board de origem; monta a colagem (`pasteCenteredAt`: ids novos, destravar, posição, links remapeados). 3.25. |
+| `PasteStaircase` | A "escada" do colar (Java puro): colar de novo no mesmo board e lugar desce 24 px por vez. |
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
 | `BoardNames` | Nome exibido de cada board (pasta do save no principal, 1ª linha do card nos filhos), usado no caminho da tela e no PDF. |
@@ -138,7 +144,7 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainWindow` | Layout da janela: menu, área do canvas (com a barra de ferramentas por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). |
+| `MainWindow` | Layout da janela: menu (Editar: desfazer, refazer, recortar, copiar, colar, selecionar tudo, com os aceleradores), área do canvas (com a barra de ferramentas por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). |
 | `BoardView` | O canvas: pan/zoom, camadas (seções numa camada atrás das setas), cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção (seção só inteira), posição da barra flutuante. |
 | `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). Seção: fundo translúcido sem clique, anel da borda e faixa do título que pegam o clique, título de uma linha com reticências (`:frame`, 3.23); `hitsScenePoint` diz se um ponto pega o card. |
 | `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
@@ -167,7 +173,8 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | Arquivo | Responsabilidade |
 |---|---|
 | `MainController` | Monta e conecta tudo (recebe de fora quem abre links no navegador); ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF, exportar PNG do board atual); desfazer/refazer do menu. |
-| `ImageController` | Imagens: inserir (ferramenta Imagem, `Ctrl+V`, arrastar arquivo), pasta de trabalho das imagens ainda não salvas, carregar a imagem de cada card (com cache). |
+| `ImageController` | Imagens: inserir (ferramenta Imagem, colar a imagem do sistema, arrastar arquivo), pasta de trabalho das imagens ainda não salvas, carregar a imagem de cada card (com cache); diz ao `ClipboardController` onde as imagens do board atual ficam (`ImageSpace`). |
+| `ClipboardController` | Copiar, recortar e colar cards (3.25): a cópia da sessão (`CardClip`), a colagem num passo do desfazer, a regra imagem do sistema × cards copiados, os itens do menu Editar e dos menus de clique direito (card e fundo). |
 | `CanvasController` | Mouse no fundo (inclusive o meio vazio de uma seção): pan, zoom, caixa de seleção, criar card (e seção). |
 | `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo; travados ficam parados), com alinhamento. Clicar não muda a ordem de empilhamento. Arrastar uma seção leva os cards de dentro (`draggedCards`); as seções só são referência de alinhamento quando o gesto envolve uma seção (`alignmentReferences`). |
 | `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas (card de imagem: proporção da imagem; seção: 8 alças, mínimo fixo, sem mexer no conteúdo). Card travado não ganha alças. |
@@ -181,7 +188,7 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
 | `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`); guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. |
 | `NavigationPath` | A pilha de níveis da navegação, sem tela (testável): entrar, voltar, ir a um nível, pular (`jumpTo` reconstrói o caminho real do destino e guarda a pilha de origem para o voltar). |
-| `KeyboardController` | Atalhos de teclado (`Delete` exclui a seta selecionada, se houver; senão, os cards). |
+| `KeyboardController` | Atalhos de teclado (`Delete` exclui a seta selecionada, se houver; senão, os cards). `Ctrl+X/C/V` não são daqui: são aceleradores do menu Editar (3.25). |
 | `CardContextMenuController` | Menu de clique direito nos cards (clique sem arrastar). Montado na hora a partir de quem se registra (`addContributor`): é onde as próximas funcionalidades plugam itens. |
 | `LinkController` | Link externo: botão Link da barra flutuante, itens do menu de clique direito, popup de edição (com desfazer) e abrir o endereço pelo clipe do card (`Opener`, na aplicação o `HostServices`). |
 | `BoardLinkController` | Link para outro board: botão de seta curva da barra flutuante, itens do menu de clique direito, lista de destinos (com desfazer), ir ao destino pelo marcador e marcador quebrado quando o destino foi excluído. |
@@ -209,7 +216,8 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 |---|---|
 | `BoardFileFormat` | Records que espelham exatamente o `board.json`; as constantes de versão (2 = save em pasta). |
 | `BoardStorage` | Converte `Board` ⇄ JSON; grava o save em pasta com segurança (imagens antes do JSON); abre pasta, `board.json` ou `.json` antigo; diz se um destino de "salvar como" está livre. |
-| `BoardImages` | A pasta `imagens/` do save: copiar arquivos para ela, achar um arquivo pelo nome (recusando nomes com pasta) e remover os que nenhum card usa. |
+| `BoardImages` | A pasta `imagens/` do save: copiar arquivos para ela (todos, ou um só: `copyFile`), achar um arquivo pelo nome (recusando nomes com pasta) e remover os que nenhum card usa. |
+| `ClipboardImages` | As imagens dos cards copiados: guardadas numa pasta temporária ao copiar e entregues ao colar só se o board de destino ainda não as tem (3.25). |
 | `ImageImporter` | Traz uma imagem (arquivo ou imagem em memória) para uma pasta de imagens: confere o formato, reduz se passar de 2000 px, nome novo `<uuid>.png/.jpg`. |
 
 ### `export/` — o PDF e o PNG
@@ -247,6 +255,7 @@ Main.main()
          │   ├─ new NavigationController(...)
          │   ├─ new ImageController(...)     ← dá ao BoardView o carregador de imagens; arrastar arquivo
          │   ├─ new CardContextMenuController(...) ← menu de clique direito (vazio; os outros põem itens)
+         │   ├─ new ClipboardController(...) ← copiar/recortar/colar (primeiro itens do menu de clique direito)
          │   ├─ new LinkController(...)      ← botão Link, itens do menu, clipe do card abre o link
          │   ├─ new BoardLinkController(...) ← botão de seta curva, itens do menu, seta do card vai ao board
          │   ├─ new StackOrderController(...)← botão Ordem, itens do menu (trazer para frente...)
@@ -254,7 +263,7 @@ Main.main()
          │   ├─ new ConnectionEditController(...) ← selecionar/excluir setas, texto e estilo da seta pronta
          │   │                                  (registrado no "inicializador" de ConnectionView do BoardView)
          │   ├─ new KeyboardController(...)  ← instala handlers de tecla na janela
-         │   ├─ wireMenu()
+         │   ├─ wireMenu()                   ← itens do menu, inclusive Recortar/Copiar/Colar → ClipboardController
          │   └─ newBoard()                   ← navigation.openRoot(new Board("Sem título"))
          ├─ new Scene(window) + app.css
          ├─ stage.show()
@@ -409,6 +418,9 @@ tamanho mantendo o centro (a área útil para texto de uma elipse/losango é men
   **travados** não são excluídos: ficam (selecionados) e aparece um aviso na barra de status (3.22).
 
 Ambos passam por `history.perform`.
+
+Para levar cards a **outro board** (ou para colar várias vezes) existe o copiar e colar, que **copia também
+as setas entre os cards** e tudo que está dentro deles: 3.25.
 
 ## 3.7 Desfazer / refazer
 
@@ -860,7 +872,8 @@ Divisão de responsabilidades:
 |---|---|---|
 | Ctrl+N/O/S/Shift+S, Ctrl+E, Ctrl+Shift+E, Ctrl+0 | aceleradores de menu | aparecem no menu |
 | Ctrl+Z, Ctrl+Y, Ctrl+A | aceleradores de menu | idem; e só disparam se o texto não usar a tecla |
-| V R E L P B S I C, Delete, Ctrl+D, Ctrl+V, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional (`S` = Seção, 3.23) |
+| Ctrl+X, Ctrl+C, Ctrl+V | aceleradores do menu Editar → `ClipboardController` | recortar, copiar e colar cards (3.25); com texto em edição são do texto |
+| V R E L P B S I C, Delete, Ctrl+D, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional (`S` = Seção, 3.23) |
 | Enter no título de uma seção | `TextEditController` | termina a edição do título (que é de uma linha) |
 | Ctrl+] / Ctrl+[ e Ctrl+PgUp / Ctrl+PgDn (com Shift: topo / fundo) | `KeyboardController` → `StackOrderController.moveFor` | ordem de empilhamento (3.21) |
 | Ctrl+L | `KeyboardController` → `LockController` | travar / destravar (3.22); a letra L sozinha continua sendo o Losango |
@@ -887,9 +900,12 @@ cancela, e letras ou `Delete` não chegam ao board.
 `Alt+←` e o botão ← voltam ao board anterior; depois de um link para outro board, ao board de onde você
 saiu (3.11).
 
-`Ctrl+V` (colar imagem) segue a mesma regra das letras: com texto em edição ele nem chega ao
-`KeyboardController` como atalho (`isEditingText()`), e o texto cola o que estiver na área de
-transferência. Fora da edição, se não há imagem para colar, a tecla não é consumida.
+`Ctrl+X`, `Ctrl+C` e `Ctrl+V` (recortar, copiar e colar cards, ou a imagem do sistema) são **aceleradores
+do menu Editar**, como `Ctrl+Z` e `Ctrl+A`: com um texto em edição (card, título de seção, texto da seta,
+painel) o próprio campo de texto consome a tecla e o atalho do board nem dispara, então o texto copia,
+recorta e cola o que estiver na área de transferência. Fora da edição, a tecla é do board (3.25). Antes
+da tarefa 6 o `Ctrl+V` era tratado no `KeyboardController` (só a imagem do sistema); agora o `KeyboardController`
+não conhece `Ctrl+X/C/V`.
 
 ## 3.17 Imagens nos cards
 
@@ -902,7 +918,7 @@ card, mover, conectar, selecionar em grupo, duplicar, desfazer e salvar funciona
 | Como | Onde o card nasce | Detalhes |
 |---|---|---|
 | Ferramenta **Imagem** (`I` ou botão) | centro da área visível | Abre o seletor de arquivo (vários de uma vez) e volta para Selecionar: a ferramenta nunca fica ativa |
-| **Colar** (`Ctrl+V`, fora da edição de texto) | centro da área visível | Imagem copiada (print, navegador, editor) ou arquivos de imagem copiados no Explorer |
+| **Colar** (`Ctrl+V`, fora da edição de texto) | centro da área visível | Imagem copiada (print, navegador, editor) ou arquivos de imagem copiados no Explorer. Se também há cards copiados no app, vale o que foi copiado por último (3.25) |
 | **Arrastar** arquivo para o canvas | onde foi solto | Filtros de `DRAG_OVER`/`DRAG_DROPPED` no `BoardView` (funcionam também soltando em cima de um card); a leitura acontece depois do evento, para liberar o Explorer |
 
 Várias imagens de uma vez entram em cascata (24 px) e são **um único passo** no desfazer. O card nasce
@@ -990,8 +1006,10 @@ não perde o dado, e devolver o arquivo à `imagens/` faz a imagem voltar ao rea
 ### Fora do escopo (ficou o caminho aberto)
 
 - **Exportar PNG:** feito em 3.18, com o mesmo `CardImageLoader`. **SVG** continua fora (tarefa 8).
-- Copiar/colar **cards** entre boards (tarefa 6): o `Ctrl+V` de hoje só trata imagens; quando houver
-  cards na área de transferência interna, decidir a prioridade no `KeyboardController`.
+- Copiar/colar **cards** entre boards: **feito** em 3.25. O `Ctrl+V` agora é um acelerador do menu Editar
+  (`ClipboardController`), que decide entre a imagem do sistema e os cards copiados (vale o que foi copiado
+  por último); a pasta de trabalho das imagens e o `imagens/` do save atual são achados pelo
+  `ImageController` (`searchDirs`, `newImagesDir`).
 
 ## 3.18 Exportar PNG do board atual
 
@@ -1590,6 +1608,118 @@ As duas setas ficam sobre a mesma reta. O `BoardView` marca cada uma com `setRev
 
 Curvas, espessura, cor da seta, mudar a ponta (origem/destino) de uma seta pronta, texto em mais de uma linha.
 
+## 3.25 Copiar, recortar e colar cards (entre boards)
+
+`Ctrl+C` guarda uma cópia dos cards selecionados **e das setas entre eles**; `Ctrl+V` cola no board da tela
+(o mesmo ou outro), `Ctrl+X` recorta (copia e exclui). Antes só existia o Duplicar (`Ctrl+D`, 3.6), que fica no
+mesmo board e não leva setas.
+
+```
+Ctrl+C  → CardClip.of(board, seleção)          foto imutável (BoardSnapshot filtrado): cards + setas entre eles
+        → ClipboardImages.keep(...)             guarda os arquivos de imagem numa pasta temporária
+        → sistema.putText(textos dos cards)     substitui o que estava na área de transferência do sistema
+Ctrl+V  → (imagem no sistema? → ImageController.paste)   senão:
+        → ClipboardImages.deliver(...)          põe onde o board atual procura as imagens que faltam
+        → clip.pasteCenteredAt(x, y)            cards e setas NOVOS, fora de qualquer board
+        → history.perform(addCard..., addConnection...)  um passo no desfazer
+        → view.setSelection(colados)
+```
+
+### O que a cópia guarda (`CardClip`, Java puro)
+
+- Só os cards **selecionados** e as setas cujas **duas pontas** estão na seleção, com texto e estilo. Seta para
+  um card de fora fica de fora. Seção: copia só a seção, **não** os cards que estão sobre ela (conteúdo de
+  seção é geometria, 3.23), a menos que eles também estejam selecionados. Setas ignoram seções (3.23).
+- É uma **foto imutável** (`BoardSnapshot`, a mesma do desfazer), com os boards aninhados dentro. Não guarda
+  referência a nenhum card do board de origem: depois de copiar, o original pode mudar ou ser excluído, e o
+  `Ctrl+V` cola o que foi copiado. Copiar de novo substitui a cópia anterior; copiar sem seleção não muda nada.
+- A área de transferência do app é **da sessão** (uma só, no `ClipboardController`): sobrevive a navegar para
+  outro board da árvore e a abrir outro save (`Ctrl+O`), e some ao fechar o programa. Não vai para outros
+  programas, a não ser o texto dos cards (abaixo).
+
+### O que a colagem faz (`CardClip.pasteCenteredAt`)
+
+1. Restaura a foto num board de rascunho e copia cada card com **`Card.copy()`** (a mesma cópia do Duplicar, que
+   o `CardAllPropertiesTest` confere): texto, cor, formato, fonte, tamanho à mão, painel, **imagem**, **link
+   externo**, **link para outro board**, seção e **board aninhado** (`Board.deepCopy`, conteúdo inteiro, com
+   **ids novos para todos os boards copiados**, porque o id de um board é único na árvore, 3.20).
+2. Cada card colado tem **id novo** e a cópia de um card **travado nasce destravada** (como no Duplicar, 3.22);
+   o que está dentro de um board aninhado fica como era (inclusive travado). As setas são recriadas com id
+   novo, nos cards colados, com texto e estilo.
+3. Os cards são deslocados para que o **centro da caixa que envolve o conjunto** caia no ponto pedido; as
+   distâncias entre eles não mudam.
+4. **Links para outro board** (3.20): se o destino está **dentro da parte copiada** (um board aninhado que veio
+   junto, em qualquer profundidade; vale também para cards dentro desses boards), o link colado aponta para a
+   **cópia**; qualquer outro link continua apontando para o **original** (inclusive para o próprio board de
+   onde se copiou, ou para um board que não existe mais: aparece quebrado, como sempre). Em outro save, os
+   links para fora aparecem quebrados.
+5. `Board.addCard` mantém as camadas (3.21, 3.23): as seções coladas vão para o topo das seções, **abaixo** de
+   todos os cards comuns; os cards colados entram no **topo** da pilha dos comuns, na ordem em que estavam.
+
+Quem aplica é o `ClipboardController.paste`: `history.perform` com todos os cards e setas (**um passo** no
+desfazer por colagem; copiar não é passo) e a seleção passa para os colados. Sem nada copiado, `Ctrl+V` não
+faz nada e não cria passo.
+
+### Onde cola e a "escada"
+
+- `Ctrl+V` e os itens de menu: no **centro da área visível** (`BoardView.visibleCenter`). Clique direito no
+  **fundo** do canvas (clique parado; arrastar é pan) abre um menu com **Colar**, que cola onde se clicou
+  (desabilitado se não há o que colar). O menu de clique direito num card tem **Copiar, Recortar e Colar**
+  no começo (contribuidor registrado antes dos outros, 5.4).
+- Colar de novo no mesmo board e no mesmo ponto desce **24 px** por vez (`PasteStaircase`); mudou de board,
+  deu pan ou zoom (o centro andou) ou copiou outra coisa: recomeça do ponto-base.
+
+### Imagens entre pastas (`ClipboardImages`)
+
+Os cards guardam só o **nome** do arquivo (3.17), que mora no `imagens/` do save de origem ou na pasta de
+trabalho de um board ainda não salvo (que é **limpa** ao abrir outro save). Por isso, **ao copiar**, os arquivos
+são guardados numa pasta temporária da própria cópia (apagada na próxima cópia e ao sair); a origem pode
+mudar, ser salva por cima ou aberta de novo. **Ao colar:** se o arquivo já é achado onde o board atual guarda
+imagens (**o mesmo save**, ou a pasta de trabalho), **nada é copiado** (mesmo arquivo); senão, ele vem da pasta
+guardada para a **pasta de trabalho** do destino, com o mesmo nome (o salvar o leva para o `imagens/`, 3.17).
+Um arquivo que já não existia na hora de copiar fica faltando: o card colado mostra "Imagem não encontrada"
+(a referência é mantida) e a barra de status avisa, sem quebrar nada.
+
+### Imagem do sistema × cards copiados (a regra)
+
+O `Ctrl+V` também cola a imagem da área de transferência do **sistema** (3.17), e o JavaFX não diz quando cada
+coisa entrou lá. A regra: **copiar cards no app substitui o que estava na área de transferência do sistema por
+texto** (os textos dos cards, um por linha; dá para colar em outro programa). Logo, se na hora do `Ctrl+V` o sistema
+tem uma imagem (ou arquivos de imagem), ela entrou **depois** da cópia e **vale a imagem**; senão, valem os cards
+copiados. Em outras palavras, vale o que foi copiado por último:
+
+| O que aconteceu | `Ctrl+V` cola |
+|---|---|
+| Copiou cards; depois copiou uma imagem (print, navegador, Explorer) | a imagem |
+| Copiou uma imagem; depois copiou cards | os cards (a cópia tirou a imagem do sistema) |
+| Copiou cards; depois copiou só texto em outro programa | os cards (texto não é colável no board) |
+| Só imagem no sistema, nada copiado no app | a imagem |
+| O sistema recusou a escrita ao copiar os cards (área de transferência em uso) | a imagem, se houver (não dá para saber a ordem: vale o sistema) |
+| A imagem do sistema não pôde ser lida | os cards copiados |
+
+O acesso ao sistema fica atrás da interface `ClipboardController.SystemSide` (`hasImage`, `putText`, `pasteImage`):
+os testes e o roteiro de interface usam uma versão falsa e nunca mexem na área de transferência do usuário.
+
+### Teclas e menus
+
+- `Ctrl+X`, `Ctrl+C`, `Ctrl+V`: aceleradores dos itens **Recortar, Copiar, Colar** do menu **Editar** (como
+  `Ctrl+Z` e `Ctrl+A`); com texto em edição são do texto (3.16).
+- Os itens do menu, usados com o mouse, agem no **texto** se um campo de texto ainda tem o foco
+  (`TextInputControl.copy/cut/paste`); senão, nos cards.
+- Menu de clique direito: card (Copiar, Recortar, Colar) e fundo (Colar), 3.19.
+
+### Recortar
+
+`Ctrl+X` = copiar e depois excluir a seleção pelo caminho de sempre (`SelectionActionsController.deleteSelection`):
+um passo no desfazer; os cards **travados** ficam (com o aviso de sempre), mas entram na cópia. O desfazer
+recria os cards excluídos (mesmo id, objetos novos, armadilha 37); a cópia não depende deles.
+
+### Fora do escopo (ficou o caminho aberto)
+
+Colar entre **processos** (outro BoardVisual aberto) ou de/para outros programas além do texto; colar links
+para outro save (os links para fora da parte copiada ficam quebrados em outro save); colar na posição do mouse
+com `Ctrl+V` (só o clique direito no fundo usa a posição); mostrar uma prévia do que está copiado.
+
 ---
 
 # Nível 4 — Aprofundamento técnico
@@ -2051,7 +2181,8 @@ você estava editando.
 - [ ] `Card`: campo como propriedade + getter/setter/`xxxProperty()`
 - [ ] `Card.copy()`: copiar o valor. O `copy` é uma cópia **fiel** (o `CardAllPropertiesTest` confere); se a
   **ação** de duplicar deve mudar algo na cópia (como o `locked`, que nasce `false`), faça isso na ação
-  (`SelectionActionsController.duplicate`), não no `copy`
+  (`SelectionActionsController.duplicate`), não no `copy`. O **copiar e colar** (3.25) usa o mesmo `copy` e
+  também destrava (`CardClip.pasteCenteredAt`): o `CardAllPropertiesTest` confere o colar
 - [ ] `BoardSnapshot.CardState`: novo componente + `of()` + `applyTo()` → **senão desfazer ignora a propriedade**
   (exemplo completo: veja como `panelMode`, `detailText` e `listItems` foram adicionados, ou
   `baseWidth`/`baseHeight`/`fontSize`, com valor padrão para arquivos antigos; os mais recentes são
@@ -2085,8 +2216,10 @@ você estava editando.
 >
 > **Propriedade de seta (`Connection`)**, como o `label` e o `style` (3.24): o mesmo checklist, trocando
 > `CardState` por `BoardSnapshot.ConnectionState` (+ `applyTo`), `CardData` por `ConnectionData` e
-> `CardView` por `ConnectionView`. Não há `copy` de seta (duplicar card não copia setas). A rede de
-> segurança é o `ConnectionAllPropertiesTest`: preencha a propriedade em `fullConnection()`.
+> `CardView` por `ConnectionView`. Duplicar card não copia setas, mas o **copiar e colar** (3.25) sim:
+> `CardClip.pasteCenteredAt` recria cada seta a partir do `ConnectionState`, então uma propriedade nova da
+> seta entra ali também (o `ConnectionAllPropertiesTest` confere o colar). A rede de segurança é o
+> `ConnectionAllPropertiesTest`: preencha a propriedade em `fullConnection()`.
 >
 > **Antes de criar uma propriedade, veja se não é um formato.** A seção (3.23) foi feita como o formato
 > `CardShape.FRAME`, sem propriedade nova: o checklist inteiro (cópia, foto, arquivo) já estava coberto pelo
@@ -2172,6 +2305,12 @@ as teclas na raiz (armadilha 29).
    `ctx.card()` é o card clicado (já selecionado); `ctx.screenX()/screenY()` dizem onde abrir um popup.
 2. A ação passa por `history.perform`. Devolva lista vazia quando não houver o que oferecer para aquele card.
 3. A ordem do menu é a ordem de registro no `MainController`; cada contribuidor vira um grupo separado por linha.
+   O `ClipboardController` (Copiar, Recortar, Colar) se registra **primeiro**, então seu grupo abre o menu.
+4. Menu no **fundo** do canvas (só o Colar hoje): não passa pelo contribuidor (ele é por card); o
+   `ClipboardController` tem o próprio filtro de `MOUSE_RELEASED` (clique direito parado, alvo do picking =
+   o próprio `BoardView`), como o `CardContextMenuController` faz para os cards.
+5. Item de **menu da janela** com atalho de teclado (como Editar > Copiar): aceleradores do `MainWindow`
+   (`SHORTCUT_DOWN`); só disparam quando o campo de texto não usa a tecla (3.16).
 
 ### Marcador novo no card
 
@@ -2207,7 +2346,8 @@ derivada da largura, e o canto oposto à alça fica parado.
 Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
 **[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9), as
 imagens nos cards (3.17), o PNG (3.18), o link externo (3.19), o link para outro board (3.20), a ordem de
-empilhamento (3.21), o lock de item (3.22), as seções (3.23) e as setas com texto e estilos (3.24):
+empilhamento (3.21), o lock de item (3.22), as seções (3.23), as setas com texto e estilos (3.24) e o copiar e
+colar entre boards (3.25):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -2221,6 +2361,7 @@ empilhamento (3.21), o lock de item (3.22), as seções (3.23) e as setas com te
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
 | ~~Setas com texto + estilos de seta~~ (tarefa 5) | **Feito** (3.24): `Connection.label`/`style`, seleção de seta, estilos na barra lateral (também na seta selecionada) | Curvas e espessura ficaram para depois: seriam mais um componente na `ConnectionView` e um campo em `ConnectionData` (checklist em 5.1) |
+| ~~Copiar e colar entre boards~~ (tarefa 6) | **Feito** (3.25): `CardClip` (foto imutável), colar num passo do desfazer, imagens entre pastas, links remapeados, prioridade com a imagem do sistema | Colar entre processos e na posição do mouse com `Ctrl+V` ficaram de fora |
 | **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem. **Recomendação (depois da 4b):** manter separado das seções e fazer pequeno. A seção já resolve "juntar por tema e mover junto" pelo espaço; o que ela não resolve é juntar cards **espalhados** ou **sem área visível** (ex.: dois cards em cantos opostos que devem andar juntos). Se esse caso não aparecer no uso, descartar o card. Se aparecer, `groupId` no card (5.1) + `CardDragController.draggedCards` incluindo os do mesmo grupo (o mesmo ponto em que a seção soma o conteúdo). Não reaproveitar a seção para isso: ela é geometria, o grupo seria vínculo salvo |
 | **Aviso de alterações não salvas** | Comparar `board.snapshot()` com a foto do último salvamento | O snapshot já resolve a detecção |
 | **Exportar SVG** (tarefa 8) | Item ao lado dos de PNG no menu `Arquivo`; pode reaproveitar `PngExporter.Background` e `suggestedFileName` | Vetorial: não dá para usar o snapshot; desenhar formatos e setas à mão |
@@ -2321,6 +2462,16 @@ empilhamento (3.21), o lock de item (3.22), as seções (3.23) e as setas com te
 | Com seta selecionada, os botões de estilo mudam a seta | Estilo só para setas novas | Aprovado pelo Danilo; usa a mesma barra, sem botão novo |
 | Estilo principal não é lembrado entre sessões | Preferência do usuário salva | Decisão do Danilo |
 | Geometria da seta em `model/ConnectionGeometry` (Java puro) | Conta só na `view` | O PDF (texto invisível) usa a mesma conta sem depender da tela |
+| Cópia = foto imutável (`CardClip`, um `BoardSnapshot` filtrado); colar monta cards novos a partir dela | Guardar os próprios cards ou uma referência ao board de origem | A origem pode mudar ou ser excluída depois; a colagem reaproveita `Board.restore`, `Card.copy` e `Board.deepCopy` (3.25) |
+| `Ctrl+C/X/V` como aceleradores do menu Editar | Tratar no `KeyboardController` | Com texto em edição o campo consome a tecla e nada dispara (como `Ctrl+Z`/`Ctrl+A`); os itens aparecem no menu com o atalho |
+| Copiar tira a imagem da área de transferência do sistema (põe o texto dos cards no lugar) | Comparar a hora de cada cópia; digital do conteúdo do sistema | O JavaFX não informa quando o conteúdo mudou; com a substituição, imagem no sistema na hora de colar entrou depois, e vale o que foi copiado por último sem relógio nenhum |
+| Imagens guardadas numa pasta temporária **ao copiar** | Guardar a pasta de origem e copiar ao colar | A pasta de trabalho de um board não salvo é limpa ao abrir outro save, e o `imagens/` do save pode perder arquivos ao salvar; a cópia continua colável |
+| Imagem já achada no destino não é copiada | Sempre copiar | Mesmo save: reaproveita o mesmo arquivo (3.17); o nome é único e o arquivo nunca muda |
+| Links para outro board dentro da parte copiada apontam para a cópia; os de fora, para o original | Todos para o original; todos remapeados | Copiar um projeto inteiro (card-board + atalhos para ele) dá um conjunto coerente; um atalho solto continua levando ao que levava |
+| Copiar leva as setas entre os cards copiados (o Duplicar não leva) | Nenhuma seta; todas | Copiar para outro board sem as setas desmontaria o desenho; seta para card de fora não tem como ser colada |
+| Colar no centro da área visível; "escada" de 24 px ao colar de novo; clique direito no fundo cola onde se clicou | Posição do mouse com `Ctrl+V`; sempre na posição original | A posição do mouse sem clique não é confiável (a janela pode nem ter recebido movimento); o centro visível é sempre visível |
+| Recortar = copiar + excluir pelo caminho de sempre | Mover o card entre boards | Trivial e seguro: um passo de desfazer, travados ficam, a cópia não depende dos cards excluídos |
+| Itens do menu agem no texto se o campo de texto ainda tem o foco | Sempre nos cards | Quem escolhe Copiar no menu com um texto selecionado espera copiar o texto |
 
 ## B. Armadilhas conhecidas
 
@@ -2454,19 +2605,37 @@ empilhamento (3.21), o lock de item (3.22), as seções (3.23) e as setas com te
     e conferir posições, use a caixa de layout (`getLayoutBounds`).
 44. **Pick da seta no meio de outra.** O texto de uma seta fica por cima da área de clique das outras (camada
     acima): um duplo clique sobre o texto de A→B, mesmo que caia sobre a linha de B→A, edita A→B.
+45. **Roteiro de interface não pode tocar a área de transferência real.** `TextInputControl.copy()/paste()`
+    usam a do Windows (ler o que o usuário copiou para dentro de um card do roteiro, ou apagá-la). O roteiro do
+    copiar e colar troca o `ClipboardController.SystemSide` por uma versão falsa antes de tudo e só dispara
+    `Ctrl+C`/`Ctrl+X` no campo de texto com nada selecionado (nada é gravado); o `Ctrl+V` no campo **não foi
+    validado**. Nos testes: nunca `new ClipboardController` com o `systemOf` de verdade.
+46. **`Event.fireEvent` não marca consumido o evento original.** Ele despacha cópias do evento; conferir
+    `isConsumed()` no objeto enviado não diz se o campo de texto consumiu a tecla. Confira o **efeito** (a cópia
+    dos cards não mudou, o card não foi excluído).
+47. **Cópia e colar nunca reaproveitam o objeto `Card`.** A colagem sempre cria cards novos (id novo); depois de
+    desfazer um recorte, o card volta com o mesmo id mas **objeto novo** (armadilha 37): um teste ou roteiro que
+    guarda o `Card` antigo e o procura por referência não o acha.
+48. **Sobras de uma rodada anterior mascaram o roteiro.** O roteiro grava saves em uma pasta; se ela já tem
+    `imagens/` de antes, o "arquivo já existe no destino" faz parecer que a cópia de imagens funcionou. Apagar a
+    pasta de execução no começo de cada rodada.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 362 testes, sem abrir janela
+### Automatizados (`mvn test`) — 422 testes, sem abrir janela
 
-(O `BoardRendererPngTest`, o `FrameViewTest`, o `ConnectionViewTest` e o `ConnectionEditControllerTest`
-ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
+(O `BoardRendererPngTest`, o `FrameViewTest`, o `ConnectionViewTest`, o `ConnectionEditControllerTest` e o
+`ClipboardControllerTest` ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
 
 | Classe | Cobre |
 |---|---|
 | `BoardTest` | regras de conexão, remoção em cascata, cópia de card |
 | `ConnectionTest` | seta nova sem texto e simples; texto de uma linha, nunca nulo; pontas e tracejado de cada estilo; estilo pelo nome (desconhecido = simples); `connect` com estilo mantém as regras (repetida em outro estilo, B→A, para si, seção, fora do board); excluir seta mantém os cards; contrária nos dois sentidos; duplicar card não copia setas; desfazer exclusão de card traz a seta com texto e estilo |
-| `ConnectionAllPropertiesTest` | seta com todas as propriedades fora do padrão (`fullConnection()`, falha se esquecer uma nova): foto/restauração em board novo e na seta existente (atualizada no lugar), texto e estilo mudam a foto, `deepCopy`, salvar/abrir |
+| `ConnectionAllPropertiesTest` | seta com todas as propriedades fora do padrão (`fullConnection()`, falha se esquecer uma nova): foto/restauração em board novo e na seta existente (atualizada no lugar), texto e estilo mudam a foto, `deepCopy`, copiar e colar (id novo, o resto igual), salvar/abrir |
+| `CardClipTest` | (Java puro) nada a copiar sem seleção ou com card de fora; só os selecionados e as setas entre eles (texto e estilo; a de/para card de fora não vai); a cópia é uma foto independente da origem (mudar ou excluir depois não muda a colagem); colar no mesmo board (ids novos, original intacto, setas somadas); colar duas vezes dá duas cópias independentes; em outro board mantém o arranjo e centraliza o conjunto no ponto pedido; cópia de travado nasce destravada; card de board aninhado leva o conteúdo inteiro (3 níveis) com ids de board novos e árvore sem repetição; mexer na cópia não mexe no original; link para board dentro da parte copiada aponta para a cópia, para fora (inclusive o board de origem e id inexistente) continua o original, em qualquer profundidade; seção copia só a seção (com o card de dentro selecionado, os dois); camadas (seções abaixo, colados no topo na ordem original); setas ignoram seções; imagens (inclusive em board aninhado) e texto da cópia; salvar e reabrir depois de colar (board igual, ids únicos) |
+| `PasteStaircaseTest` | primeira colagem no ponto-base; colar de novo desce 24 px por vez; outro board recomeça; pan (outro ponto-base) recomeça; diferença de subpixel é o mesmo ponto; copiar outra coisa (`reset`) recomeça |
+| `ClipboardImagesTest` | colar no mesmo save reaproveita o arquivo sem copiar; em outro save copia para a pasta de trabalho com o mesmo nome; só os que faltam são copiados; os arquivos guardados sobrevivem à origem mudar ou ser excluída; arquivo que já faltava ao copiar continua faltando; acha na pasta de trabalho e no `imagens/`; copiar de novo substitui; cópia sem imagens e `discard` apagam a pasta; nomes com pasta nunca são lidos |
+| `ClipboardControllerTest` | (JavaFX, com a área de transferência do sistema e as pastas de imagens falsas) copiar e colar no mesmo board (cards, setas com texto e estilo, centro da área visível, selecionados, texto dos cards no sistema, **um** passo no desfazer, copiar não é passo); colar de novo desce um degrau e copiar de novo recomeça; sem nada copiado não faz nada nem cria passo; copiar sem seleção mantém a cópia anterior; a cópia não depende da origem; colar em outro board da árvore (a cópia sobrevive à navegação, o desfazer age no board da tela); card com board aninhado leva o conteúdo; recortar (travados ficam, com aviso; a cópia leva tudo e nasce destravada; um passo para o recorte e outro para a colagem); **prioridade**: imagem que entrou no sistema depois vale, cards copiados depois da imagem valem, só imagem, só texto no sistema não cancela os cards, sistema que recusa o texto (vale a imagem), imagem que não pôde ser lida (valem os cards); `canPaste`; colar num ponto; imagens (mesmo save sem copiar, outro save copia para a pasta de trabalho, arquivo que faltava avisa e cola o card); itens Recortar/Copiar/Colar do Editar com `Ctrl+X/C/V` |
 | `ConnectionGeometryTest` | seta de borda a borda; texto no meio; textos de A→B e B→A lado a lado (horizontal e vertical) |
 | `ConnectionStorageTest` | os quatro estilos e textos salvos e abertos (também em board aninhado); padrão não grava `label`/`style` e mantém a versão 2; fora do padrão grava; save anterior sem os campos e `.json` antigo abrem com seta simples sem texto; quebra de linha vira espaço, estilo desconhecido vira simples |
 | `ConnectionStyleOrderTest` | começa com a seta simples no principal; escolher um extra troca de lugar; escolher o principal não muda nada; sempre os mesmos quatro estilos |
@@ -2483,7 +2652,7 @@ ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles
 | `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
 | `PdfExporterTest` | texto da seta buscável, no meio da seta; seção: texto invisível só na faixa do título; título buscável, link da seção só no marcador, cards de dentro com os links inteiros (card com site e card-board), nenhuma área clicável do tamanho da seção; link para outro board: o card todo leva à página do destino em outro ramo; card que já leva a uma página vai ao destino só pelo marcador (por cima); card com os dois links e sem página própria (card todo → board, clipe → site); destino excluído sem área clicável; marcadores lado a lado; link externo: card todo com ação URI (endereço ASCII), card de board aninhado mantém o link da página e ganha o do site só no clipe (por cima), área do clipe acompanha a escala, cards sem link sem URI; ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
 | `BoardStorageTest` | link salvo e aberto (card comum, de imagem e de board), card sem link não grava o campo, save anterior sem o campo abre sem link, links maliciosos no arquivo (`javascript:`, `file:`, caminho, rede, `usuário@site`) descartados; salvar/abrir em pasta (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), abrir pela pasta ou pelo `board.json`, `.json` antigo (abre, salva no formato novo sem alterar o antigo, versão decide e não o nome), JSON inválido, pasta incompleta, `board.json` vazio, versão futura, `version` 2 com outro nome, "salvar como" copiando `imagens/`, imagens copiadas antes do JSON (falha na gravação não deixa JSON solto), falha mantém o `board.json` anterior, destino livre × save existente × ocupado; card de imagem salvo e aberto com o arquivo, card sem imagem não grava o campo, save anterior sem o campo abre, imagem faltando (e nome com `../`) não quebra e mantém a referência, imagens de várias origens |
-| `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada; achar o arquivo na ordem das pastas, nomes com pasta recusados |
+| `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia (inclusive `copyFile` de um arquivo só) sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada; achar o arquivo na ordem das pastas, nomes com pasta recusados |
 | `ImageImporterTest` | (imagens reais geradas no teste) PNG e JPG pequenos copiados byte a byte com nome novo, grande reduzido a 2000 px mantendo a proporção (JPG continua JPG, PNG mantém transparência), GIF e BMP viram PNG, formato pelo conteúdo e não pela extensão, arquivo quebrado/não imagem/inexistente recusado sem sobras, imagem em memória vira PNG, extensões aceitas |
 | `ImageCardTest` | card de imagem nasce retângulo do tamanho da imagem, altura da imagem pela proporção, nome em branco = sem imagem, duplicar reutiliza o arquivo, desfazer/refazer a inserção, imagens da árvore inteira e das fotos |
 | `ImageCardControllerTest` | limpeza ao salvar mantém imagens de boards aninhados e do histórico e remove só a órfã; histórico zerado libera a imagem; tamanho inicial (limite, natural, ampliada); redimensionar mantém a proporção em todos os cantos, canto oposto parado, mínimo pelo maior lado |
@@ -2496,7 +2665,7 @@ ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles
 | `BoardLinkStorageTest` | link para board de outro ramo salvo e aberto (caminho conferido), card sem link não grava o campo, save anterior sem o campo abre sem link, link para board inexistente mantido, ids de board repetidos (saves antigos) renovados ao abrir |
 | `CardMarkersTest` | seta do link para outro board sozinha e depois do clipe (mesma fileira); sem link, sem marcador; retângulo: canto de cima à direita, fora das alças; elipse e losango: no meio e dentro da silhueta; losango estreito desce o marcador; seção: na faixa do título, à direita, sem empurrar o título; vários em fila sem sobrepor; texto abaixo; card minúsculo |
 | `LinkControllerTest` | adicionar, editar e remover são passos de desfazer/refazer; vazio remove; endereço inválido devolve mensagem e não muda nada; o mesmo link de novo não é passo; duplicar copia o link (painel, imagem); excluir e desfazer traz o link |
-| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`, `link`, `boardLink`, `locked` e o formato `FRAME`, que deixa `isFrame()` fora do padrão): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
+| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`, `link`, `boardLink`, `locked` e o formato `FRAME`, que deixa `isFrame()` fora do padrão): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, **copiar e colar** (tudo igual, menos o id e o travado, que nasce destravado), foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
 | `StackOrderTest` | `Board.reorder`: um nível para cima e para baixo, topo, fundo, limites (topo/fundo/vazio/card de outro board não mudam nada), vários selecionados mantêm a ordem relativa, bloco junto sobe junto, card no topo fica e o outro selecionado sobe, aviso de permutação (não remoção), foto vê a ordem, `restore` devolve a ordem com os mesmos objetos, desfazer exclusão volta ao lugar na pilha, restaurar num board vazio, `deepCopy` mantém a ordem dos filhos |
 | `StackOrderControllerTest` | cada movimento é um passo de desfazer/refazer; sem mudança, sem passo; duplicar põe as cópias no topo na ordem dos originais; excluir e desfazer mantém a ordem; mover não mexe na ordem; salvar/abrir mantém a ordem (inclusive num board aninhado) |
 | `LockControllerTest` | travar/destravar são passos de desfazer; o mesmo estado não é passo; botão/Ctrl+L trava todos (nenhum ou alguns travados) ou destrava (todos); foto vê o travado; arrasto em grupo move só os destravados; excluir mantém os travados (e o desfazer devolve os outros); só travados: nada excluído, sem passo; formato não muda no travado e a cor muda; cópia de travado nasce destravada; travado muda de ordem |
@@ -2657,6 +2826,31 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   → reabrir (estilos, textos e contrária na tela). **Não validado:** o mouse e as teclas físicas (o hover passou
   pelo caminho interno da cena, os cliques pelo `fireEvent` com o alvo do picking real) e o `mvn javafx:run`
   aberto à mão.
+- **Copiar, recortar e colar cards** (3.25) foram validados pelo mesmo tipo de roteiro (dentro da JVM, picking
+  real, **151 verificações**, no classpath e no **module path**, janela de 1400×860), **sem tocar na área de
+  transferência do Windows**: o
+  `ClipboardController.SystemSide` é uma versão falsa injetada antes de tudo (armadilha 45). Roteiro: `Ctrl+V`,
+  `Ctrl+C` e `Ctrl+X` sem nada copiado/selecionado não fazem nada (sem passo); clique direito no fundo abre o
+  menu só com "Colar" desabilitado; Editar tem Recortar/Copiar/Colar com `Ctrl+X/C/V` → quatro cards (tecla `R`)
+  e três setas pela alça (duas com texto e estilo) → menu do card: Copiar, Recortar, Colar (desabilitado) antes
+  dos outros itens → A, B e C selecionados (Shift+clique) → `Ctrl+C` (3 cards, 2 setas; a de C para D fica de
+  fora; aviso na barra; texto no sistema falso; sem passo) → `Ctrl+V` (centro da área visível, selecionados, ids
+  novos, setas com texto e estilo, **um** passo) → `Ctrl+Z`/`Ctrl+Y` → colar de novo desce 24 px por vez →
+  desfazer as três → `Ctrl+X` no D (a seta sai junto; `Ctrl+V` cola; dois `Ctrl+Z` devolvem) → card de board
+  aninhado criado e **colar dentro dele** (o principal não muda; um passo no desfazer do aninhado) → copiar o
+  próprio card-board (cópia profunda, id de board novo, mexer na cópia não mexe no original) → link para outro
+  board dentro da parte copiada aponta para a cópia e, sozinho, continua apontando para o original → travado
+  nasce destravado → seção: só a seção vai (camadas em ordem), com o card de dentro vão os dois → texto em
+  edição: `Ctrl+C` e `Ctrl+X` no campo não copiam nem excluem os cards → itens do Editar (Copiar, Colar, Recortar)
+  e do clique direito (Copiar no card; Colar no fundo, centralizado onde se clicou; Colar no card) → prioridade
+  imagem do sistema × cards copiados nos dois sentidos → imagem entre pastas: card de imagem (arquivo na pasta
+  de trabalho), colar no mesmo board (sem copiar o arquivo), arquivo inexistente (aviso e card colado), salvar,
+  **abrir outro save**, colar lá (arquivo vai para a pasta de trabalho do outro save, depois para o `imagens/`
+  ao salvar; colar de novo reaproveita) → reabrir a origem, selecionar tudo, copiar e colar duas vezes (27
+  cards) → salvar e reabrir (board igual, ids de boards iguais) → PNG e PDF (textos das setas e dos boards
+  aninhados copiados aparecem). **Não validado:** o `Ctrl+V` dentro do campo de texto (leria a área de
+  transferência real), a área de transferência real do Windows (copiar no app e colar em outro programa, ou o
+  contrário), o clique e as teclas físicas, e o `mvn javafx:run` aberto à mão.
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
