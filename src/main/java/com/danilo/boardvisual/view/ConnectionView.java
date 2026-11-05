@@ -63,6 +63,8 @@ public class ConnectionView extends Group {
 
     private static final PseudoClass SELECTED = PseudoClass.getPseudoClass("selected");
     private static final PseudoClass DASHED = PseudoClass.getPseudoClass("dashed");
+    private static final PseudoClass SEARCH_MATCH = PseudoClass.getPseudoClass("search-match");
+    private static final PseudoClass SEARCH_CURRENT = PseudoClass.getPseudoClass("search-current");
 
     private final Connection connection;
     private final Line hitLine = new Line();
@@ -251,6 +253,17 @@ public class ConnectionView extends Group {
     public void setSelected(boolean selected) {
         pseudoClassStateChanged(SELECTED, selected);
         labelLayer.pseudoClassStateChanged(SELECTED, selected); // o texto fica em outra camada
+    }
+
+    /**
+     * Destaque da busca de texto no texto da seta ({@code :search-match} e, no resultado
+     * atual, {@code :search-current}); o texto fica em outra camada, por isso as duas recebem.
+     */
+    public void setSearchState(boolean match, boolean current) {
+        pseudoClassStateChanged(SEARCH_MATCH, match);
+        pseudoClassStateChanged(SEARCH_CURRENT, match && current);
+        labelLayer.pseudoClassStateChanged(SEARCH_MATCH, match);
+        labelLayer.pseudoClassStateChanged(SEARCH_CURRENT, match && current);
     }
 
     /**

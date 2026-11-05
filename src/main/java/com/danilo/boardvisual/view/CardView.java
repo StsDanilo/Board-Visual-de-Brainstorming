@@ -82,6 +82,9 @@ public class CardView extends Region {
     private static final PseudoClass LOCKED = PseudoClass.getPseudoClass("locked");
     private static final PseudoClass FRAME = PseudoClass.getPseudoClass("frame");
     private static final PseudoClass PLACEHOLDER = PseudoClass.getPseudoClass("placeholder");
+    /** Resultado da busca de texto (Ctrl+F) e, entre eles, o atual (mais forte). */
+    private static final PseudoClass SEARCH_MATCH = PseudoClass.getPseudoClass("search-match");
+    private static final PseudoClass SEARCH_CURRENT = PseudoClass.getPseudoClass("search-current");
     /** Título exibido de uma seção sem título (só na tela; no PDF/PNG fica em branco). */
     public static final String FRAME_PLACEHOLDER = "Seção";
     /** Texto de exemplo do título de uma seção, durante a edição. */
@@ -338,6 +341,15 @@ public class CardView extends Region {
 
     public void setSelected(boolean value) {
         pseudoClassStateChanged(SELECTED, value);
+    }
+
+    /**
+     * Destaque da busca de texto: {@code :search-match} (casa com a busca) e
+     * {@code :search-current} (é o resultado atual; só vale se também casa).
+     */
+    public void setSearchState(boolean match, boolean current) {
+        pseudoClassStateChanged(SEARCH_MATCH, match);
+        pseudoClassStateChanged(SEARCH_CURRENT, match && current);
     }
 
     /** Destaca o card como destino de uma conexão sendo criada. */

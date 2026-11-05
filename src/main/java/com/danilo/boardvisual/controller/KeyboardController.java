@@ -27,14 +27,16 @@ import java.util.Optional;
  * - Espaço (segurado): arrastar move a visão.
  * - Alt+←: volta ao board anterior (boards aninhados; depois de um link para
  *   outro board, ao board de onde se saiu).
- * - Esc: sai da edição de texto; senão fecha o painel flutuante aberto;
- *   senão volta para Selecionar; senão limpa a seleção (de cards e de seta).
- *   No campo do texto da seta, o Esc é do próprio campo (cancela a edição).
+ * - Esc: sai da edição de texto; senão fecha a busca (Ctrl+F) aberta; senão fecha o painel
+ *   flutuante aberto; senão volta para Selecionar; senão limpa a seleção (de cards e de seta).
+ *   No campo do texto da seta, o Esc é do próprio campo (cancela a edição); no campo da
+ *   busca, também (fecha a busca: {@link SearchController}).
  *
  * Enquanto o texto de um card (ou de uma seta) está sendo editado, só o Esc
  * funciona: as outras teclas pertencem ao texto (digitar "v" não pode trocar de ferramenta).
  * Ctrl+Z, Ctrl+Y, Ctrl+A, Ctrl+X/C/V (recortar, copiar e colar cards, ou a imagem
- * do sistema: {@link ClipboardController}) e os atalhos de arquivo ficam nos menus.
+ * do sistema: {@link ClipboardController}), Ctrl+F (busca), Shift+1 / Shift+2 (zoom para caber
+ * tudo / a seleção, {@link ViewFitController}) e os atalhos de arquivo ficam nos menus.
  */
 public class KeyboardController {
 
@@ -49,13 +51,16 @@ public class KeyboardController {
     private final StackOrderController stackOrder;
     private final LockController locks;
     private final ConnectionEditController connectionEdits;
+    private final SearchController search;
 
     public KeyboardController(Stage stage, BoardView view, ObjectProperty<Tool> activeTool,
                               SelectionActionsController selectionActions, CanvasController canvas,
                               PanelController panels, NavigationController navigation,
                               StackOrderController stackOrder, LockController locks,
-                              ConnectionEditController connectionEdits, MainController main) {
+                              ConnectionEditController connectionEdits, SearchController search,
+                              MainController main) {
         this.stage = stage;
+        this.search = search;
         this.connectionEdits = connectionEdits;
         this.stackOrder = stackOrder;
         this.locks = locks;
@@ -147,6 +152,8 @@ public class KeyboardController {
     private void handleEscape() {
         if (isEditingText()) {
             view.requestFocus();
+        } else if (search.closeIfOpen()) {
+            return; // a busca aberta (com o foco no canvas): o Esc fecha ela e tira os destaques
         } else if (panels.closeIfOpen()) {
             return;
         } else if (activeTool.get() != Tool.SELECT) {

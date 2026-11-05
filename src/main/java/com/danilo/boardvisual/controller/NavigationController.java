@@ -10,6 +10,7 @@ import com.danilo.boardvisual.view.CardView;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ObservableStringValue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
@@ -37,6 +38,8 @@ public class NavigationController {
 
     /** Chamado depois de cada troca do board da tela. */
     private Runnable onBoardShown = () -> { };
+    /** Outros interessados na troca do board da tela (ex.: a busca), além do {@link #setOnBoardShown}. */
+    private final List<Runnable> boardShownListeners = new ArrayList<>();
 
     public NavigationController(BoardView view, BreadcrumbView breadcrumb, EditHistory history) {
         this.view = view;
@@ -53,6 +56,11 @@ public class NavigationController {
     /** Quem precisa saber que o board da tela mudou (ex.: conferir os links para outros boards). */
     public void setOnBoardShown(Runnable listener) {
         onBoardShown = listener == null ? () -> { } : listener;
+    }
+
+    /** Mais um interessado em saber que o board da tela mudou (não substitui os que já existem). */
+    public void addOnBoardShown(Runnable listener) {
+        boardShownListeners.add(listener);
     }
 
     /** Começa do zero com um novo board principal (novo arquivo ou arquivo aberto). */
@@ -124,6 +132,7 @@ public class NavigationController {
         breadcrumb.setPath(path.levels().stream().map(this::nameOf).toList());
         breadcrumb.setBack(path.canGoBack(), backTooltip());
         onBoardShown.run();
+        boardShownListeners.forEach(Runnable::run);
     }
 
     private String backTooltip() {

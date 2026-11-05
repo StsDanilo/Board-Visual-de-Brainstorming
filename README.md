@@ -41,6 +41,16 @@ mvn test
   acompanha os cards ao mover e aparece no PNG e no PDF (buscável). Com A→B e B→A, os dois textos ficam
   lado a lado; acima da linha se clica numa seta, abaixo na outra
 - Canvas com pan e zoom
+- Zoom para caber tudo: `Shift+1` (ou **Exibir › Ajustar tudo à tela**) ajusta pan e zoom para mostrar todos os
+  cards do board de uma vez, com margem (board vazio volta a 100%); `Shift+2` (ou **Exibir › Ajustar à seleção**)
+  faz o mesmo só com os cards selecionados. Respeita os limites de zoom (20% a 300%) e não entra no desfazer
+- Busca de texto: `Ctrl+F` (ou **Editar › Buscar...**) abre uma caixa no canto superior direito. Digitar destaca
+  os cards e as setas que têm o texto (card, título da seção, legenda da imagem, conteúdo dos painéis e texto das
+  setas; sem diferenciar maiúsculas nem acentos), com o resultado atual mais forte e o contador ("3 de 12").
+  `Enter` / `Shift+Enter` vão ao próximo / anterior e centralizam o resultado (sem mudar o zoom, que sobe a 50% se
+  estava menor, para o texto ser legível). A opção **Em todos os boards** acha também nos boards aninhados: a lista
+  mostra o caminho de cada resultado, e clicar nele leva até lá (o botão voltar leva de volta ao board de onde você
+  saiu). `Esc` fecha a busca e tira os destaques. A busca não altera o board nem entra no desfazer
 - Painel flutuante: card com um botão que abre um painel ao lado, em modo texto (detalhamento)
   ou lista (itens editáveis); o modo é trocado pela barra do card selecionado
 - Boards aninhados: card que contém outro board (sem limite de níveis), com caminho clicável
@@ -133,9 +143,11 @@ mvn test
 | `Ctrl+Shift+[` ou `Ctrl+Shift+PgDn` | Enviar para o fundo |
 | `Ctrl+L` | Travar / destravar a seleção |
 | `Ctrl+A` | Selecionar tudo |
+| `Ctrl+F` | Buscar texto nos cards (campo no canto superior direito) |
+| `Enter` / `Shift+Enter` (no campo da busca) | Próximo / anterior resultado, centralizando-o na tela |
 | `Ctrl+Z` | Desfazer |
 | `Ctrl+Y` / `Ctrl+Shift+Z` | Refazer |
-| `Esc` | Sair da edição de texto → fechar painel flutuante → voltar para Selecionar → limpar seleção |
+| `Esc` | Sair da edição de texto → fechar a busca → fechar painel flutuante → voltar para Selecionar → limpar seleção (no campo da busca, fecha a busca) |
 | `Espaço` + arrastar | Mover a visão (também: botão do meio ou direito) |
 | `Shift` + clique | Somar/retirar card da seleção |
 | Clique direito no fundo (sem arrastar) | Colar onde você clicou |
@@ -150,12 +162,17 @@ mvn test
 | `Ctrl+E` | Exportar PDF (todos os boards) |
 | `Ctrl+Shift+E` | Exportar PNG do board atual (fundo branco) |
 | `Ctrl+0` | Redefinir visualização |
+| `Shift+1` | Ajustar o zoom para caber todos os cards (menu Exibir) |
+| `Shift+2` | Ajustar o zoom para caber os cards selecionados (menu Exibir) |
 
 Enquanto o texto de um card está sendo editado, as teclas vão para o texto (inclusive `Ctrl+Z`,
-que desfaz dentro do próprio texto, e `Ctrl+C`/`Ctrl+X`/`Ctrl+V`, que copiam, recortam e colam o texto); só o `Esc` age como atalho. Ao sair da edição, tudo o que foi
+que desfaz dentro do próprio texto, e `Ctrl+C`/`Ctrl+X`/`Ctrl+V`, que copiam, recortam e colam o texto, e
+`Shift+1`/`Shift+2`, que digitam "!" e "@"); só o `Esc` age como atalho. O `Ctrl+F` com o texto em edição não
+abre a busca (termine a edição com `Esc`); o mesmo vale para o campo da própria busca: o que se digita lá é só texto. Ao sair da edição, tudo o que foi
 digitado vira um único passo no desfazer do board.
 
-Os atalhos com colchetes funcionam pelo **caractere** da tecla: no teclado ABNT2 são as teclas `[` e `]`
+`Shift+1` e `Shift+2` usam a posição da tecla (as teclas `1` e `2` do alto do teclado, que no ABNT2 escrevem "!" e "@" com
+`Shift`), então valem em qualquer layout. Os atalhos com colchetes funcionam pelo **caractere** da tecla: no teclado ABNT2 são as teclas `[` e `]`
 de sempre (sem `AltGr`). `Ctrl+PgUp`/`Ctrl+PgDn` fazem o mesmo em qualquer teclado (nos notebooks, às
 vezes com `Fn`).
 

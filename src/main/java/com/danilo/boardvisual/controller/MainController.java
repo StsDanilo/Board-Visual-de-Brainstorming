@@ -53,6 +53,8 @@ public class MainController {
     private final LockController locks;
     private final ConnectionEditController connectionEdits;
     private final ClipboardController clipboard;
+    private final ViewFitController viewFit;
+    private final SearchController search;
 
     /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
     private Path currentFolder;
@@ -96,9 +98,14 @@ public class MainController {
         locks = new LockController(boardView, window.getSelectionToolbar(), history, contextMenu);
         selectionActionsController.setNotifier(window::showStatusMessage);
         clipboard.setNotifier(window::showStatusMessage);
+        viewFit = new ViewFitController(boardView);
+        viewFit.setNotifier(window::showStatusMessage);
+        search = new SearchController(boardView, window.getSearchBar(), navigation);
+        search.setNotifier(window::showStatusMessage);
+        search.installOn(stage);
         connectionEdits = new ConnectionEditController(boardView, history);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
-                canvasController, panelController, navigation, stackOrder, locks, connectionEdits, this);
+                canvasController, panelController, navigation, stackOrder, locks, connectionEdits, search, this);
         CardTextFitController textFitController = new CardTextFitController();
         boardView.setCardViewInitializer(cardView -> {
             textFitController.attach(cardView);
@@ -129,9 +136,12 @@ public class MainController {
         window.getExportTransparentPngItem().setOnAction(e -> exportPng(PngExporter.Background.TRANSPARENT));
         window.getExitItem().setOnAction(e -> Platform.exit());
         window.getResetViewItem().setOnAction(e -> boardView.resetView());
+        window.getFitAllItem().setOnAction(e -> viewFit.fitAll());
+        window.getFitSelectionItem().setOnAction(e -> viewFit.fitSelection());
         window.getUndoItem().setOnAction(e -> undo());
         window.getRedoItem().setOnAction(e -> redo());
         window.getSelectAllItem().setOnAction(e -> boardView.selectAll());
+        window.getSearchItem().setOnAction(e -> search.open());
         window.getCutItem().setOnAction(e -> clipboard.menuCut());
         window.getCopyItem().setOnAction(e -> clipboard.menuCopy());
         window.getPasteItem().setOnAction(e -> clipboard.menuPaste());
@@ -172,6 +182,16 @@ public class MainController {
     /** Copiar, recortar e colar cards (usado pelos roteiros de teste de interface). */
     public ClipboardController getClipboard() {
         return clipboard;
+    }
+
+    /** Zoom para caber tudo / a seleção (usado pelos roteiros de teste de interface). */
+    public ViewFitController getViewFit() {
+        return viewFit;
+    }
+
+    /** Busca de texto (usado pelos roteiros de teste de interface). */
+    public SearchController getSearch() {
+        return search;
     }
 
     /** Navegação entre boards (usado pelos roteiros de teste de interface). */

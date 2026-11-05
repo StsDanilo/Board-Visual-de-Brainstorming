@@ -11,7 +11,8 @@
 > com texto (duplo clique na seta) e os estilos de seta (simples, tracejada, ponta dupla, sem ponta,
 > escolhidos numa mini barra ao lado da barra lateral, com o mouse sobre a ferramenta Conexão) e o
 > copiar, recortar e colar cards (`Ctrl+C` / `Ctrl+X` / `Ctrl+V`) no mesmo board ou em outro, com as setas
-> entre eles, os boards aninhados, as imagens e os links.
+> entre eles, os boards aninhados, as imagens e os links; e o zoom para caber tudo (`Shift+1`) ou a seleção
+> (`Shift+2`) e a busca de texto (`Ctrl+F`), no board da tela ou em todos os boards.
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -132,6 +133,8 @@ sem tocar no modelo.
 | `BoardSnapshot` | "Foto" imutável do board, usada pelo desfazer/refazer. |
 | `CardClip` | O que o `Ctrl+C` guardou (Java puro): foto imutável dos cards copiados e das setas entre eles (com os boards aninhados), independente do board de origem; monta a colagem (`pasteCenteredAt`: ids novos, destravar, posição, links remapeados). 3.25. |
 | `PasteStaircase` | A "escada" do colar (Java puro): colar de novo no mesmo board e lugar desce 24 px por vez. |
+| `BoardSearch` | A busca de texto (Java puro, 3.26): acha cards (texto, painel) e setas pelo texto, sem maiúsculas nem acentos, no board da tela ou em toda a árvore; devolve `Hit`s na ordem (board, caminho, trecho). Não altera nada. |
+| `SearchResults` | A lista de resultados e qual é o atual (Java puro): `next`/`previous` dão a volta, `replace` mantém o atual se ele ainda casa, contador "3 de 12". |
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
 | `BoardNames` | Nome exibido de cada board (pasta do save no principal, 1ª linha do card nos filhos), usado no caminho da tela e no PDF. |
@@ -144,8 +147,8 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainWindow` | Layout da janela: menu (Editar: desfazer, refazer, recortar, copiar, colar, selecionar tudo, com os aceleradores), área do canvas (com a barra de ferramentas por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). |
-| `BoardView` | O canvas: pan/zoom, camadas (seções numa camada atrás das setas), cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção (seção só inteira), posição da barra flutuante. |
+| `MainWindow` | Layout da janela: menu (Editar: desfazer, refazer, recortar, copiar, colar, selecionar tudo, Buscar...; Exibir: redefinir visualização, ajustar tudo à tela, ajustar à seleção; com os aceleradores), área do canvas (com a barra de ferramentas e a caixa de busca por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). |
+| `BoardView` | O canvas: pan/zoom, camadas (seções numa camada atrás das setas), cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção (seção só inteira), posição da barra flutuante, "caber tudo / a seleção" (`fitAll`, `fitSelection`), destaque e "revelar" dos resultados da busca (`setSearchHighlights`, `revealCard`, `revealConnection`). |
 | `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). Seção: fundo translúcido sem clique, anel da borda e faixa do título que pegam o clique, título de uma linha com reticências (`:frame`, 3.23); `hitsScenePoint` diz se um ponto pega o card. |
 | `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
 | `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards e da própria seta: linha (cheia ou tracejada, `:dashed`), pontas conforme o estilo, área de clique larga e invisível (`connection-hit`), destaque de seta selecionada (`:selected`), texto no meio e o campo de edição dele (os dois em `getLabelLayer()`, que vai para uma camada acima de todas as linhas). |
@@ -160,13 +163,14 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `BoardLinkPickerPopup` | Popup com a lista da árvore de boards (indentada, com o caminho de cada um) para escolher o destino do link para outro board; o board do card aparece desabilitado e o destino atual, marcado. |
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar (a dica diz para onde ele leva). |
+| `SearchBarView` | A caixa de busca (3.26), no canto superior direito do canvas: campo, contador, botões ↑ ↓ ×, caixa "Em todos os boards" e a lista de resultados (trecho + caminho; só nessa opção). Só desenha; nenhum botão aceita foco (clicar não tira o cursor do campo). |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
 | `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente; links para boards que não existem mais saem com o marcador quebrado; seções atrás das setas e textos das setas acima das linhas, como na tela. |
 | `PopupButton` | Base de "botão que abre um painelzinho" (`beforeShowPopup`: atualizar as opções logo antes de abrir). |
 | `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
 | `CardPalette` | As 8 cores oferecidas. |
-| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado; camadas da ordem; cadeado aberto e fechado; cada estilo de seta desenhado no próprio estilo, `connectionStyle`). |
+| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado; camadas da ordem; cadeado aberto e fechado; setas ↑ ↓ da busca; cada estilo de seta desenhado no próprio estilo, `connectionStyle`). |
 
 ### `controller/` — o comportamento
 
@@ -186,9 +190,11 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `LockController` | Travar/destravar a seleção: botão de cadeado (com estado misto), item "Travar"/"Destravar" no menu, `Ctrl+L`; um passo no desfazer (3.22). |
 | `TextEditController` | Registra a edição de texto no histórico (sessões de edição); duplo clique num card de imagem abre a legenda, e no título de uma seção abre o título (`Enter` termina). |
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
-| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`); guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. |
+| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`, usado pelo link para outro board e pela busca); avisa quem se registra (`addOnBoardShown`) quando o board da tela muda; guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. |
 | `NavigationPath` | A pilha de níveis da navegação, sem tela (testável): entrar, voltar, ir a um nível, pular (`jumpTo` reconstrói o caminho real do destino e guarda a pilha de origem para o voltar). |
-| `KeyboardController` | Atalhos de teclado (`Delete` exclui a seta selecionada, se houver; senão, os cards). `Ctrl+X/C/V` não são daqui: são aceleradores do menu Editar (3.25). |
+| `ViewFitController` | Shift+1 / Shift+2: ajusta pan e zoom para caber todos os cards / a seleção (3.8), com os avisos da barra de status. A conta é do `alignment/ViewFit`. |
+| `SearchController` | Busca de texto (3.26): abre e fecha a caixa, refaz a busca ao digitar, destaca, anda com Enter / Shift+Enter, centraliza, vai a outro board pelo `jumpTo`; barra o `Ctrl+F` durante a edição de texto (filtro de janela). |
+| `KeyboardController` | Atalhos de teclado (`Delete` exclui a seta selecionada, se houver; senão, os cards). `Ctrl+X/C/V`, `Ctrl+F`, `Shift+1` e `Shift+2` não são daqui: são aceleradores de menu (3.25, 3.26, 3.8). O `Esc` fecha a busca aberta antes de fechar o painel. |
 | `CardContextMenuController` | Menu de clique direito nos cards (clique sem arrastar). Montado na hora a partir de quem se registra (`addContributor`): é onde as próximas funcionalidades plugam itens. |
 | `LinkController` | Link externo: botão Link da barra flutuante, itens do menu de clique direito, popup de edição (com desfazer) e abrir o endereço pelo clipe do card (`Opener`, na aplicação o `HostServices`). |
 | `BoardLinkController` | Link para outro board: botão de seta curva da barra flutuante, itens do menu de clique direito, lista de destinos (com desfazer), ir ao destino pelo marcador e marcador quebrado quando o destino foi excluído. |
@@ -196,7 +202,7 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 
 ### `alignment/` — geometria de caixas (alinhamento e redimensionamento)
 
-Pacote de **Java puro** (nem JavaFX, nem modelo): só retângulos e números. Por isso é fácil de testar
+Pacote de **Java puro** (sem JavaFX; só o `ViewFit` olha o modelo, para montar as caixas): retângulos e números. Por isso é fácil de testar
 e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (ver 5.5).
 
 | Arquivo | Responsabilidade |
@@ -209,6 +215,8 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 | `AlignmentGuides` | O algoritmo: `snap(caixa, linhasX, linhasY, outras, limite)` e o atalho `snapMove`. |
 | `ResizeHandle` | As 8 alças (N, NE, E, SE, S, SW, W, NW), cada uma dizendo qual linha de cada eixo ela puxa. |
 | `BoxResizer` | Nova caixa ao arrastar uma alça: aplica alinhamento nas linhas puxadas, tamanho mínimo e proporção. |
+| `ViewFit` | "Zoom para caber tudo" (3.8): o pan e o zoom que mostram um conjunto de caixas com margem, dentro dos limites de zoom (`fit`), e as caixas de um board (`boxesOf`: cards e textos das setas). Também usa `Connection`/`Board` do modelo. |
+| `ViewReveal` | "Mostrar este ponto" da busca (3.26): pan que centraliza um ponto mantendo o zoom (sobe a 50% se estava menor), e se uma caixa já aparece inteira (`isFullyVisible`). |
 
 ### `persistence/` — o save em disco
 
@@ -466,6 +474,41 @@ existentes e só adiciona/remove o que mudou. A tela não pisca e os `CardView` 
 
 Nenhum dos dois altera o modelo: só mudam duas transformações (`Translate` e `Scale`) aplicadas ao
 grupo que contém tudo. Ver 4.2.
+
+### Zoom para caber tudo (`Shift+1`) e caber a seleção (`Shift+2`)
+
+Itens **Exibir › Ajustar tudo à tela** (`Shift+1`) e **Ajustar à seleção** (`Shift+2`), ao lado de "Redefinir
+visualização" (`Ctrl+0`): ajustam **pan e zoom** para mostrar de uma vez todos os cards do board da tela
+(ou só os selecionados), com margem. Em canvas infinito é fácil se perder; é o atalho do Miro e do Excalidraw.
+
+```
+Shift+1 → ViewFitController.fitAll → BoardView.fitAll
+        → ViewFit.boxesOf(board)                  caixas dos cards + dos textos das setas
+        → ViewFit.fit(caixas, largura, altura, margens, 20%, 300%)   (Java puro)
+        → BoardView.setViewState(pan, zoom)       só a visão
+```
+
+- **A conta** (`alignment/ViewFit.fit`, Java puro, `ViewFitTest`): área útil = tela menos as margens
+  (cima 64, direita 48, baixo 48, **esquerda 96** px: à esquerda flutua a barra de ferramentas, em cima ficam o
+  caminho e a caixa de busca); zoom = o maior que faz a **união** das caixas caber nela (nos dois eixos), limitado a
+  20%–300% (os mesmos limites do zoom manual); pan = centro da união no centro da área útil.
+- **O que conta:** a caixa de todos os cards (comuns, painéis, boards aninhados, **imagens** e **seções**) e, de cada
+  seta **com texto**, uma caixa **estimada** do texto (6,5 px por caractere mais 10 de recuo, até 220 px, 20 de
+  altura; o tamanho real depende da fonte, que o modelo não conhece, mas o centro é o mesmo da tela:
+  `ConnectionGeometry.labelCenter`). Marcadores de link e cadeado **não** contam (cabem na folga da margem).
+  `Shift+2`: os cards selecionados e os textos das setas que ligam dois deles.
+- **Casos:** board vazio = "Redefinir visualização" (100%, pan zero); um card pequeno **não** passa de 300% (um card
+  sozinho amplia até lá); conteúdo tão grande que nem em 20% cabe: fica em 20% **centralizado** (o recorte é igual dos
+  dois lados; a barra de status avisa) em vez de mostrar só o início; `Shift+2` sem seleção só avisa na barra de
+  status; tela ainda sem tamanho (antes do primeiro layout): não faz nada.
+- **Só a visão:** não toca o modelo e **não entra no desfazer**. Cada nível de board aninhado guarda a própria visão
+  (`BoardView.ViewState`, no `NavigationPath`) enquanto está na pilha: o ajuste vale para o board da tela, e voltar a um
+  nível acima o encontra como estava (`ViewFitControllerTest`).
+- **Teclado:** `KeyCode.DIGIT1` / `DIGIT2` com Shift, como aceleradores dos itens do menu (3.16). É a **posição física**
+  da tecla: no ABNT2 é a mesma tecla "1" / "2", que com Shift escreve "!" / "@" (o código da tecla não muda com o
+  Shift). Conferido perguntando ao próprio JavaFX (`getKeyCodeForChar`), nesta máquina (layout ABNT2, 0416): o `KeyCode`
+  do caractere `!` é o `DIGIT1`, o de `@` é o `DIGIT2` e o de `f`/`F` é o `F` do `Ctrl+F`. Com o texto de um card ou o campo da busca em edição, o próprio campo consome o `Shift+dígito`: digitar "!"
+  não ajusta a visão (conferido no roteiro de interface, C). Não validado com a tecla física.
 
 ## 3.9 Salvar e abrir
 
@@ -873,6 +916,9 @@ Divisão de responsabilidades:
 | Ctrl+N/O/S/Shift+S, Ctrl+E, Ctrl+Shift+E, Ctrl+0 | aceleradores de menu | aparecem no menu |
 | Ctrl+Z, Ctrl+Y, Ctrl+A | aceleradores de menu | idem; e só disparam se o texto não usar a tecla |
 | Ctrl+X, Ctrl+C, Ctrl+V | aceleradores do menu Editar → `ClipboardController` | recortar, copiar e colar cards (3.25); com texto em edição são do texto |
+| Shift+1, Shift+2 | aceleradores do menu Exibir → `ViewFitController` | caber tudo / caber a seleção (3.8); `KeyCode.DIGIT1`/`DIGIT2` (posição física, ABNT2 ok); com texto em edição são do texto |
+| Ctrl+F | acelerador do menu Editar → `SearchController`, mais um filtro na janela | abre a busca (3.26); o filtro **barra** o atalho com o texto de um card em edição (só avisa na barra de status) |
+| Enter, Shift+Enter, Esc, Ctrl+F no campo da busca | `SearchController` (filtro no campo) | próximo, anterior, fechar, selecionar o texto; não chegam aos atalhos da janela (3.26) |
 | V R E L P B S I C, Delete, Ctrl+D, Ctrl+Shift+Z, Alt+←, Espaço, Esc | `KeyboardController` | teclas sem item de menu ou com lógica condicional (`S` = Seção, 3.23) |
 | Enter no título de uma seção | `TextEditController` | termina a edição do título (que é de uma linha) |
 | Ctrl+] / Ctrl+[ e Ctrl+PgUp / Ctrl+PgDn (com Shift: topo / fundo) | `KeyboardController` → `StackOrderController.moveFor` | ordem de empilhamento (3.21) |
@@ -897,8 +943,18 @@ card selecionado enquanto você digita o endereço). Enter salva, Esc cancela. A
 link para outro board (3.20) segue a mesma regra: setas mudam a linha marcada, Enter confirma, Esc
 cancela, e letras ou `Delete` não chegam ao board.
 
-`Alt+←` e o botão ← voltam ao board anterior; depois de um link para outro board, ao board de onde você
-saiu (3.11).
+`Alt+←` e o botão ← voltam ao board anterior; depois de um link para outro board (ou de ir a um resultado de outro
+board na busca), ao board de onde você saiu (3.11).
+
+**`Esc`**, em ordem: sai da edição de texto → **fecha a busca** (3.26) se ela estiver aberta (com o foco no canvas;
+no campo da busca o `Esc` é do próprio campo e a fecha) → fecha o painel flutuante → volta para Selecionar → limpa
+a seleção.
+
+**Por que `Ctrl+F` precisa de um filtro e `Shift+1` não:** o acelerador do menu só dispara se o componente com foco
+não usou a tecla. O `TextArea`/`TextField` consome as teclas com `Shift` (é assim que "!" digitado não vira atalho),
+mas **não** usa `Ctrl+F`: sem o filtro (`SearchController.installOn`, na janela, fase de captura), o `Ctrl+F` com o
+texto de um card em edição abriria a busca no meio da digitação. O filtro só age com o foco num campo de texto que
+não é o da própria busca; clicar no item **Editar › Buscar...** abre sempre (o clique encerra a edição ao mover o foco).
 
 `Ctrl+X`, `Ctrl+C` e `Ctrl+V` (recortar, copiar e colar cards, ou a imagem do sistema) são **aceleradores
 do menu Editar**, como `Ctrl+Z` e `Ctrl+A`: com um texto em edição (card, título de seção, texto da seta,
@@ -1720,6 +1776,124 @@ Colar entre **processos** (outro BoardVisual aberto) ou de/para outros programas
 para outro save (os links para fora da parte copiada ficam quebrados em outro save); colar na posição do mouse
 com `Ctrl+V` (só o clique direito no fundo usa a posição); mostrar uma prévia do que está copiado.
 
+
+## 3.26 Busca de texto (`Ctrl+F`)
+
+`Ctrl+F` (ou **Editar › Buscar...**) abre uma caixa de busca no canto superior direito do canvas. Ela acha **cards e
+setas pelo texto**, destaca o que casa e leva a visão até o resultado, como a busca do Miro. É só da tela: **não altera
+o modelo e não entra no desfazer**.
+
+```
+Ctrl+F  → SearchController.open()                  mostra a SearchBarView, cursor no campo de texto
+digitar → BoardSearch.search(raiz, atual, texto, escopo)   resultados (Java puro, sem tela)
+        → SearchResults.replace(...)               a lista e o resultado atual
+        → BoardView.setSearchHighlights(...)       :search-match / :search-current nos cards e nos textos das setas
+        → BoardView.revealCard/revealConnection    só se o atual está no board da tela e fora da área visível
+Enter   → SearchResults.next → (outro board? NavigationController.jumpTo) → centralizar o resultado
+Esc     → fecha a caixa e tira os destaques
+```
+
+### O que é pesquisado (`BoardSearch`, Java puro)
+
+| Campo | De onde vem |
+|---|---|
+| Texto do card | o texto do card; numa **seção**, o título; num **card de imagem**, a legenda; num card com board aninhado, o nome do board |
+| Painel flutuante | o texto detalhado (modo Texto) **ou** os itens da lista (modo Lista); só o conteúdo do modo atual |
+| Texto da seta | o texto de cada seta (`Connection.label`) |
+
+Links, cores e nomes de arquivo de imagem **não** são pesquisados. Um card (ou uma seta) aparece **uma vez** nos
+resultados, mesmo que case em mais de um campo; o trecho mostrado vem do primeiro campo que casa (texto, depois painel).
+
+**Como casa:** o trecho digitado precisa aparecer inteiro, **sem diferenciar maiúsculas nem acentos** ("acao" acha
+"Ação", "CAFÉ" acha "cafe", também com o acento como caractere separado) e com quebras de linha e espaços repetidos
+valendo um espaço só ("dois  mundos" acha "dois\nmundos"). Busca em branco não acha nada. A conta dobra o texto
+caractere a caractere (NFD, sem as marcas, minúsculas) guardando onde cada caractere dobrado estava no original, para o
+**trecho** (uns 24 caracteres antes e 40 depois, com "…" nos cortes) sair do texto original, com os acentos.
+
+### Ordem e escopo
+
+- **Board atual** (padrão): os cards na ordem do board (`Board.getCards()`, a de empilhamento: as seções vêm antes) e,
+  depois, as setas na ordem delas. É uma ordem estável e previsível; mudar a ordem de empilhamento muda a ordem dos resultados.
+- **Em todos os boards** (caixa "Em todos os boards"): o principal e todos os aninhados, em qualquer profundidade, na ordem
+  do PDF (`BoardTree.entries`: o board e, em profundidade, os filhos de cada card na ordem dos cards). Cada resultado
+  (`BoardSearch.Hit`) traz o caminho do principal até o board dele (`Principal › board 2`), o card ou a seta, o campo e o trecho.
+- `SearchResults` guarda a lista e o **atual**; `next`/`previous` dão a volta (depois do último vem o primeiro).
+  Ao refazer a busca o atual **continua o mesmo** se ainda casa (digitar mais uma letra não faz o foco pular); senão passa ao
+  primeiro resultado do board da tela e, se não há nenhum lá, ao primeiro de todos.
+
+### Destaque (`CardView`, `ConnectionView`, `app.css`)
+
+Os resultados ganham as pseudo-classes `:search-match` (casa) e `:search-current` (é o atual, mais forte), como o
+`:selected`: o `BoardView.setSearchHighlights` as aplica só aos resultados que estão no board da tela. Nos cards, borda
+âmbar com anel por fora (o atual: laranja, mais grossa, com brilho); no texto de uma seta, contorno âmbar (a seta também
+fica âmbar). O destaque **vence a seleção** (vem depois dela no CSS).
+
+**Não muda o layout.** Aumentar o `-fx-border-width` do card diminuiria a área de dentro (o `Region` desconta a borda),
+e o texto seria medido e ajustado de novo (3.14). Por isso, como no `:selected`, a borda de dentro continua com a largura
+de sempre (1 px; 1,5 px na seção) e o anel é uma segunda borda por fora (`-fx-border-insets` negativo). O roteiro de
+interface confere que o tamanho do card e da área de texto são idênticos com e sem destaque. Elipse e losango usam uma borda
+única mais um brilho. Seção, imagem e cards com marcadores continuam pegando o clique do mesmo jeito (o destaque não mexe
+no picking, 4.4): o meio vazio da seção destacada ainda é o fundo.
+
+Os destaques são feitos **no momento da busca**: editar um texto com a busca aberta não os atualiza até o próximo passo
+(Enter, digitar, trocar de board).
+
+### Navegar e centralizar
+
+- **Digitar** refaz a busca. Se o atual está no board da tela e **fora da área visível**, a visão vai até ele; se já aparece
+  inteiro, a tela **não se mexe** (nada de a tela pular a cada letra). Digitar **nunca troca de board**.
+- **Enter / Shift+Enter** (ou os botões ↓ ↑) vão ao próximo / anterior e **centralizam** o resultado na tela
+  (`BoardView.revealCard` / `revealConnection`, conta em `ViewReveal.centerOn`). **O zoom não muda**, com uma exceção
+  decidida: abaixo de **50%** o texto dos cards não se lê, então a visão sobe até 50% (`ViewReveal.MIN_READABLE_ZOOM`); acima
+  disso o zoom da pessoa é respeitado (e nunca passa de 300%). Resultado de seta: centraliza o texto da seta.
+- Se o atual está em **outro board** (que ainda não foi visto), o primeiro Enter vai **nele**, em vez de andar para o seguinte.
+- A busca é **refeita a cada passo**: o que mudou nos boards desde a última vez (card novo, card excluído) entra ou sai.
+- O contador mostra **"3 de 12"**; sem resultado aparece **"Nenhum resultado"** em tom discreto (o campo ganha `:no-match`,
+  uma borda avermelhada suave) e nada é destacado; `Enter` sem resultado não faz nada.
+
+### Em todos os boards: ir a outro board (`jumpTo`) e o voltar
+
+Com "Em todos os boards" marcada, a **lista de resultados** aparece abaixo do campo (até 6 linhas visíveis, depois rola):
+o trecho achado (com "Painel: " ou "Seta: " quando não é o texto do card) e, embaixo, o **caminho** do board. Clicar numa
+linha, ou o Enter / Shift+Enter, leva ao resultado pelo `NavigationController.jumpTo` da tarefa 3b (3.11, 3.20): o caminho
+do topo passa a ser o caminho **real** do destino e o botão voltar (← e `Alt+←`) leva ao board de onde se saiu, como nos
+links entre boards. Ir de um resultado a outro em boards diferentes empilha a origem de cada pulo: voltar desfaz um pulo
+por vez, sempre para um board que existe. A troca de board devolve o foco ao canvas (`NavigationController.show`);
+o `SearchController` o devolve ao campo, então o Enter continua andando.
+
+Navegar por outro caminho com a busca aberta (breadcrumb, entrar num card, voltar): o `NavigationController` avisa a busca
+(`addOnBoardShown`), que refaz os destaques para o board novo.
+
+### Teclas e o foco do teclado
+
+O campo é um `TextInputControl`: o `KeyboardController` só age com o foco fora de campos de texto (3.16), então digitar no
+campo **não aciona nada do board** (letras de ferramenta, `Delete`, `Espaço`, `Ctrl+D`, `Ctrl+L`, `Ctrl+Z`, `Ctrl+A`...: o
+roteiro confere que cards, seleção, ferramenta e desfazer ficam como estavam). Os botões da caixa e a lista **não aceitam
+foco**, então clicar neles não tira o cursor do campo. Dentro do campo: `Enter` / `Shift+Enter` navegam, `Esc` fecha,
+`Ctrl+F` seleciona o texto (filtros no campo, que consomem a tecla); com o foco no canvas (a pessoa clicou no board), `Esc`
+também fecha a busca e tira os destaques (antes de fechar o painel flutuante).
+
+Reabrir (`Ctrl+F`) mostra o último texto, selecionado, e refaz os destaques. Fechar não apaga o texto.
+
+### `Ctrl+F` durante a edição de texto
+
+Com o texto de um card (ou o item de um painel, ou o texto de uma seta) em edição, o `Ctrl+F` **não abre a busca**: as teclas
+são do texto, e abrir a busca roubaria o foco no meio da digitação. O filtro de janela consome a tecla e a barra de status
+diz "Termine de editar o texto (Esc) para buscar com Ctrl+F." Depois do `Esc`, o `Ctrl+F` abre. O item **Editar › Buscar...**
+do menu abre sempre.
+
+### A caixa é uma camada fora do `world`
+
+Como a barra flutuante e a caixa de seleção (4.2), a `SearchBarView` fica **fora do `world`**, no `StackPane` do canvas
+(canto superior direito, por cima de tudo): em pixels de tela, sem sofrer pan nem zoom. Aberta, o conteúdo por baixo dela
+(o canto direito do board) fica coberto; o "caber tudo" já deixa uma folga em cima.
+
+### Fora do escopo (ficou o caminho aberto)
+
+Substituir texto; buscar em links, cores ou nomes de arquivo; expressões regulares; destaque que acompanha a edição (hoje os
+destaques são refeitos a cada passo); salvar o último texto buscado; filtrar por tipo de card. O modo apresentação (tarefa 7b)
+e o agrupamento de elementos são outras tarefas.
+
 ---
 
 # Nível 4 — Aprofundamento técnico
@@ -1778,7 +1952,9 @@ Scene
      │   │   │   └─ overlayLayer (Group)     → linha de prévia da conexão
      │   │   ├─ marquee (Rectangle)          ← fora do world: não sofre zoom
      │   │   └─ SelectionToolbarView         ← fora do world: não sofre zoom
-     │   └─ ToolBarView                      ← por cima do canvas, à esquerda
+     │   ├─ ToolBarView                      ← por cima do canvas, à esquerda
+     │   ├─ BreadcrumbView                   ← por cima do canvas, canto superior esquerdo
+     │   └─ SearchBarView                    ← por cima do canvas, canto superior direito (Ctrl+F): fora do world
      └─ bottom: barra de status
 ```
 
@@ -1821,7 +1997,12 @@ panNovo = cursor − mundo · zoomNovo
 
 Se ficassem dentro, cresceriam e encolheriam com o zoom. Fora, elas ficam em pixels de tela e o
 `BoardView` calcula a posição convertendo os cards de mundo para view a cada mudança de
-geometria, pan, zoom ou tamanho da janela.
+geometria, pan, zoom ou tamanho da janela. A caixa de busca (3.26) vai além: nem sabe onde estão os cards; fica
+fixa num canto do `StackPane` e só o `BoardView` (`revealCard`, `fitAll`) converte mundo ↔ tela.
+
+**Centralizar e caber (3.8, 3.26)** usam a mesma conta do zoom em torno do cursor, só que escolhendo o `pan` em vez de o
+manter: `tela = pan + zoom · mundo` → para pôr o ponto do mundo `P` no ponto da tela `T` com o zoom `z`,
+`pan = T − z · P` (`ViewReveal.centerOn`, `ViewFit.fit`).
 
 ## 4.3 Eventos: filtros, handlers e consumo
 
@@ -1940,7 +2121,13 @@ pseudoClassStateChanged(PseudoClass.getPseudoClass("selected"), true);
 Pseudo-classes usadas: `:selected`, `:connection-target`, `:tool-select`, `:tool-rectangle`,
 `:tool-ellipse`, `:tool-diamond`, `:tool-connection`, `:tool-create`, `:panning`, `:space-pan`,
 `:mixed` (cor e cadeado da seleção mista), `:has-board`, `:has-image`, `:broken`, `:locked` (card
-travado), e as nativas `:hover`, `:pressed`, `:focus-within`, `:disabled`.
+travado), `:search-match` / `:search-current` (resultado da busca e o atual, 3.26), `:no-match` (busca sem resultado),
+e as nativas `:hover`, `:pressed`, `:focus-within`, `:disabled`.
+
+**Borda no CSS muda o layout.** `-fx-border-width` entra na área interna do `Region` (o conteúdo é medido descontando a
+borda): engrossar a borda de um card ao destacá-lo faria o texto ser ajustado de novo. O `:selected` e o `:search-match`
+evitam isso com **duas bordas**: a de dentro com a largura de sempre e um anel por fora com `-fx-border-insets` negativo
+(o `Border` só conta o que fica dentro do `Region`).
 
 ### Formatos com `-fx-shape`
 
@@ -2205,6 +2392,8 @@ você estava editando.
 - [ ] Propriedade **derivada** com getter público (`is*`/`has*`, como o `isFrame()` da seção): a rede de segurança
   também a vê; o `fullCard()` precisa deixá-la diferente do padrão (por isso ele usa o formato `FRAME`)
 - [ ] **`CardAllPropertiesTest.fullCard()`**: preencher a propriedade nova com um valor diferente do padrão
+- [ ] Campo de **texto** que o usuário vê (como o texto do card, o detalhe do painel): decidir se a **busca** (3.26) deve
+  achá-lo: `BoardSearch.hitOf` (card) ou `searchBoard` (seta); acrescente o campo à ordem e a um caso do `BoardSearchTest`
 - [ ] Testes: `BoardStorageTest` (salvar/abrir) e `BoardSnapshotTest` (desfazer)
 
 > **Rede de segurança (`CardAllPropertiesTest`):** um card com **todas** as propriedades diferentes do
@@ -2323,7 +2512,9 @@ que também mostra como ter um estado "quebrado" (`CardView.setMarkerBroken`, `I
 
 Para levar o usuário a um board pelo id (busca, atalhos...), use `NavigationController.jumpTo(id)`: ele
 monta o caminho real (`BoardTree.pathTo`) e cuida do voltar (3.11). Para listar boards (com caminho e
-profundidade), `BoardTree.entries(raiz)`.
+profundidade), `BoardTree.entries(raiz)`. A **busca de texto** (3.26) é o segundo usuário: ela guarda o caminho em cada
+resultado e chama `jumpTo`; quem precisa reagir a cada troca de board (como ela) usa
+`NavigationController.addOnBoardShown` (o `setOnBoardShown` é um só e pertence ao `BoardLinkController`).
 
 ## 5.5 Alinhamento: mover × redimensionar
 
@@ -2347,7 +2538,7 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 **[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9), as
 imagens nos cards (3.17), o PNG (3.18), o link externo (3.19), o link para outro board (3.20), a ordem de
 empilhamento (3.21), o lock de item (3.22), as seções (3.23), as setas com texto e estilos (3.24) e o copiar e
-colar entre boards (3.25):
+colar entre boards (3.25), a busca de texto (3.26) e o zoom para caber tudo (3.8):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -2355,7 +2546,7 @@ colar entre boards (3.25):
 
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
-| **Busca global** | `BoardTree.entries` já lista todos os boards com o caminho; buscar também no texto dos cards e ir ao resultado com `NavigationController.jumpTo` (3.20) | Decidir: só nomes de board ou texto dos cards; destacar o card encontrado |
+| ~~Busca de texto + zoom para caber tudo~~ (tarefa 7a) | **Feito** (3.26, 3.8): `BoardSearch` (Java puro) no board atual ou em todos, destaque por pseudo-classe, `jumpTo` para outro board; `Shift+1` / `Shift+2` | Fora: substituir texto, regex, destaque que acompanha a edição |
 | **Link para outro arquivo** | Extensão do link para outro board (3.20): guardar a pasta do save além do id | Primeira versão ficou só na mesma árvore |
 | ~~Frames / seções coloridas~~ (tarefa 4b) | **Feito** (3.23): formato `FRAME`, camada própria atrás dos cards e das setas, conteúdo por geometria | — |
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
@@ -2472,6 +2663,18 @@ colar entre boards (3.25):
 | Colar no centro da área visível; "escada" de 24 px ao colar de novo; clique direito no fundo cola onde se clicou | Posição do mouse com `Ctrl+V`; sempre na posição original | A posição do mouse sem clique não é confiável (a janela pode nem ter recebido movimento); o centro visível é sempre visível |
 | Recortar = copiar + excluir pelo caminho de sempre | Mover o card entre boards | Trivial e seguro: um passo de desfazer, travados ficam, a cópia não depende dos cards excluídos |
 | Itens do menu agem no texto se o campo de texto ainda tem o foco | Sempre nos cards | Quem escolhe Copiar no menu com um texto selecionado espera copiar o texto |
+| "Caber tudo" até 300% e, se nem em 20% cabe, **centralizado** | Teto de 100% (como o Excalidraw); mostrar o início do conteúdo | O pedido era respeitar os limites do zoom atual; centralizar corta igual dos dois lados e avisa na barra de status (3.8) |
+| Margens do "caber tudo" assimétricas (esquerda 96, cima 64, direita e baixo 48) | Margem igual dos quatro lados | A barra de ferramentas flutua à esquerda e o caminho/a caixa de busca em cima: com margem igual, cards ficariam atrás deles |
+| Caixa estimada para o texto da seta no "caber tudo" | Medir o texto de verdade; ignorar os textos | A conta fica em Java puro e testável; o erro da estimativa cabe na folga da margem |
+| `Shift+1` / `Shift+2` / `Ctrl+F` como aceleradores de menu, `KeyCode.DIGIT1`/`DIGIT2`/`F` | Tratar no `KeyboardController`; `KeyCharacterCombination("!")` | Aparecem no menu; a posição física da tecla vale no ABNT2; o campo de texto consome `Shift+dígito` (3.16) |
+| `Ctrl+F` barrado por um filtro de janela durante a edição de texto | Abrir a busca mesmo assim; encerrar a edição e abrir | O `TextArea` não usa `Ctrl+F`, então o acelerador dispararia no meio da digitação; só avisar é o comportamento seguro e previsível (3.26) |
+| Busca: ordem do board (empilhamento), um resultado por card, trecho do primeiro campo que casa | Ordem espacial (de cima para baixo); um resultado por campo | Estável, previsível e barata; o card é a unidade que se destaca e a que se vai ver |
+| Digitar só "revela" o atual se estiver fora da tela e **no board da tela**; Enter centraliza sempre | Centralizar a cada letra; pular de board ao digitar | A tela não anda a cada letra e o board não troca enquanto se digita; o primeiro Enter vai ao atual ainda não visto |
+| Centralizar mantém o zoom, mas sobe a 50% se estava menor | Sempre manter; sempre ajustar para um zoom fixo | A 20% o texto não se lê; fora isso, o zoom é da pessoa (`ViewReveal.MIN_READABLE_ZOOM`) |
+| Busca refeita a cada passo; destaques estáticos entre os passos | Ouvir todas as mudanças do modelo | Barato e sem ouvintes no modelo; o que mudou aparece no próximo Enter/letra |
+| "Em todos os boards" usa o `jumpTo` do link para outro board | Entrar pelos cards (pilha de baixo para cima) | O caminho do topo e o voltar ficam coerentes com os links, sem código novo de navegação |
+| Destaque da busca com a borda de dentro intacta e o anel por fora | Engrossar a borda | O layout (e o ajuste do texto) não muda ao destacar (3.26, 4.5) |
+| Destaque da busca vence o da seleção | Mostrar os dois | O resultado atual precisa se ver mesmo com o card selecionado; selecionar já tem a barra flutuante |
 
 ## B. Armadilhas conhecidas
 
@@ -2619,13 +2822,28 @@ colar entre boards (3.25):
 48. **Sobras de uma rodada anterior mascaram o roteiro.** O roteiro grava saves em uma pasta; se ela já tem
     `imagens/` de antes, o "arquivo já existe no destino" faz parecer que a cópia de imagens funcionou. Apagar a
     pasta de execução no começo de cada rodada.
+49. **Acelerador de menu × campo de texto: depende da tecla.** O acelerador só dispara se o foco não consome a tecla.
+    O `TextArea`/`TextField` consome `Shift+dígito` (digitar "!" não ajusta a visão), mas **não** o `Ctrl+F`:
+    sem o filtro de janela do `SearchController`, o `Ctrl+F` abriria a busca no meio da edição de um card. Antes de
+    pôr um atalho novo num menu, descubra se o campo de texto o consome (o roteiro de interface testa).
+50. **Trocar de board devolve o foco ao canvas.** `NavigationController.show()` faz `view.requestFocus()` (para
+    encerrar a edição de texto do board que sai): ir a um resultado de outro board tira o cursor do campo da busca.
+    O `SearchController.goTo` o devolve; quem navegar por código com um campo de texto aberto precisa fazer o mesmo.
+51. **Borda de CSS muda o layout.** Engrossar `-fx-border-width` faz o `Region` descontar mais da área interna, e o
+    texto do card é medido e ajustado de novo. Destaques novos nos cards devem usar o anel por fora
+    (`-fx-border-insets` negativo), como `:selected` e `:search-match` (4.5); o roteiro compara o layout antes e depois.
+52. **`fx(...)` dentro de `fx(...)` trava o roteiro.** O auxiliar que roda na thread do JavaFX e espera o resultado
+    bloqueia quando já está nela (a thread espera por si mesma, até o tempo limite). Auxiliares de roteiro usados
+    dentro de uma lambda de `fx` não podem chamar `fx` de novo (use a versão que só lê, sem `fx`).
+53. **`NavigationController.setOnBoardShown` é um só.** Quem mais precisa saber da troca de board usa
+    `addOnBoardShown`; sobrescrever o do `BoardLinkController` deixaria os marcadores quebrados desatualizados.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 422 testes, sem abrir janela
+### Automatizados (`mvn test`) — 506 testes, sem abrir janela
 
 (O `BoardRendererPngTest`, o `FrameViewTest`, o `ConnectionViewTest`, o `ConnectionEditControllerTest` e o
-`ClipboardControllerTest` ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
+`ClipboardControllerTest`, o `ViewFitControllerTest` e o `SearchControllerTest` ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
 
 | Classe | Cobre |
 |---|---|
@@ -2636,6 +2854,12 @@ colar entre boards (3.25):
 | `PasteStaircaseTest` | primeira colagem no ponto-base; colar de novo desce 24 px por vez; outro board recomeça; pan (outro ponto-base) recomeça; diferença de subpixel é o mesmo ponto; copiar outra coisa (`reset`) recomeça |
 | `ClipboardImagesTest` | colar no mesmo save reaproveita o arquivo sem copiar; em outro save copia para a pasta de trabalho com o mesmo nome; só os que faltam são copiados; os arquivos guardados sobrevivem à origem mudar ou ser excluída; arquivo que já faltava ao copiar continua faltando; acha na pasta de trabalho e no `imagens/`; copiar de novo substitui; cópia sem imagens e `discard` apagam a pasta; nomes com pasta nunca são lidos |
 | `ClipboardControllerTest` | (JavaFX, com a área de transferência do sistema e as pastas de imagens falsas) copiar e colar no mesmo board (cards, setas com texto e estilo, centro da área visível, selecionados, texto dos cards no sistema, **um** passo no desfazer, copiar não é passo); colar de novo desce um degrau e copiar de novo recomeça; sem nada copiado não faz nada nem cria passo; copiar sem seleção mantém a cópia anterior; a cópia não depende da origem; colar em outro board da árvore (a cópia sobrevive à navegação, o desfazer age no board da tela); card com board aninhado leva o conteúdo; recortar (travados ficam, com aviso; a cópia leva tudo e nasce destravada; um passo para o recorte e outro para a colagem); **prioridade**: imagem que entrou no sistema depois vale, cards copiados depois da imagem valem, só imagem, só texto no sistema não cancela os cards, sistema que recusa o texto (vale a imagem), imagem que não pôde ser lida (valem os cards); `canPaste`; colar num ponto; imagens (mesmo save sem copiar, outro save copia para a pasta de trabalho, arquivo que faltava avisa e cola o card); itens Recortar/Copiar/Colar do Editar com `Ctrl+X/C/V` |
+| `ViewFitTest` | (Java puro) caber tudo: lista vazia = 100% e pan zero; um card pequeno para em 300% e fica no centro; manda o eixo mais apertado e deixa a margem; muitas caixas usam a união; margens assimétricas; conteúdo minúsculo ou enorme (para em 20%, centralizado, `Limit.MIN_ZOOM`); exatamente no limite não é "grande demais"; margens que engolem a janela encolhem; tela de tamanho 0 e caixa sem área dão resultado finito; caixas de todos os tipos de card; texto de seta conta (e alarga o conteúdo); seleção ignora cards de fora e cards não selecionados; texto de seta só com as duas pontas selecionadas |
+| `ViewRevealTest` | (Java puro) centralizar mantém o zoom; zoom abaixo de 50% sobe a 50% (e nunca passa do máximo); exatamente 50% não muda; `isFullyVisible` confere os quatro lados |
+| `ViewFitControllerTest` | (JavaFX, sem janela) `Shift+1` mostra todos os cards (comuns, seção, imagem) dentro dos limites sem mexer no modelo nem no desfazer; board vazio volta a 100%; um card: 300%; board enorme: 20% e aviso; `Shift+2` mostra só a seleção e a mantém; sem seleção só avisa; tela sem tamanho: não faz nada; cada nível aninhado guarda o próprio ajuste ao voltar |
+| `BoardSearchTest` | (Java puro) maiúsculas e acentos (inclusive decompostos), parte de palavra, espaços e quebras de linha, busca em branco, nenhum resultado; texto de card comum, seção, imagem (legenda) e card de board; detalhe do painel de texto, itens do painel de lista, só um resultado por card, painel de outro modo não conta; texto da seta; links, cores e arquivo de imagem não são pesquisados; ordem (cards na ordem do board, depois setas); trecho com contexto e "…"; escopo board atual × todos (recursivo, caminho de cada resultado, ordem do PDF, nome de board filho, setas em boards aninhados); a busca não altera o modelo |
+| `SearchResultsTest` | começa no primeiro; `next`/`previous` dão a volta; sem resultados; um só resultado; o atual sobrevive a uma busca refinada e volta ao primeiro se saiu; `select`; resultados de um board (para destacar) e se o atual está nele |
+| `SearchControllerTest` | (JavaFX, sem janela) digitar destaca e marca o atual (`:search-match` / `:search-current`), refinar mantém o atual, sem resultado avisa e não destaca, acha painel/seta/seção/legenda; Enter / Shift+Enter dão a volta e centralizam sem mudar o zoom, zoom 20% sobe a 50%, digitar não mexe na tela se o resultado já aparece, botões, a busca é refeita a cada passo; Esc fecha e tira os destaques, reabrir mostra o último texto; a busca não muda o modelo nem o desfazer; escopo "todos": lista com caminhos, Enter percorre os boards (e dá a volta), clicar no resultado leva ao board, o voltar leva à origem, digitar não troca de board, primeiro Enter vai ao atual de outro board, navegar com a busca aberta refaz os destaques, resultado que sumiu |
 | `ConnectionGeometryTest` | seta de borda a borda; texto no meio; textos de A→B e B→A lado a lado (horizontal e vertical) |
 | `ConnectionStorageTest` | os quatro estilos e textos salvos e abertos (também em board aninhado); padrão não grava `label`/`style` e mantém a versão 2; fora do padrão grava; save anterior sem os campos e `.json` antigo abrem com seta simples sem texto; quebra de linha vira espaço, estilo desconhecido vira simples |
 | `ConnectionStyleOrderTest` | começa com a seta simples no principal; escolher um extra troca de lugar; escolher o principal não muda nada; sempre os mesmos quatro estilos |
@@ -2851,6 +3075,26 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   aninhados copiados aparecem). **Não validado:** o `Ctrl+V` dentro do campo de texto (leria a área de
   transferência real), a área de transferência real do Windows (copiar no app e colar em outro programa, ou o
   contrário), o clique e as teclas físicas, e o `mvn javafx:run` aberto à mão.
+
+- **Zoom para caber tudo e busca de texto** (3.8, 3.26) foram validados por um roteiro dentro da JVM (picking real,
+  **185 verificações**, janela de 1400×860), **sem `java.awt.Robot` e sem mouse nem teclado do sistema**, só os
+  `MouseEvent`/`KeyEvent` do JavaFX com o alvo do `Scene.pick`. Roteiro: menus Exibir (Ajustar tudo à tela `Shift+1`, Ajustar
+  à seleção `Shift+2`) e Editar (Buscar... `Ctrl+F`) com os aceleradores → board vazio: `Shift+1` volta a 100% e `Shift+2`
+  sem seleção só avisa → um card: 300%, no centro da área útil, fora da barra de ferramentas → board grande (card
+  comum, seção, imagem e uma seta com texto comprido): tudo dentro da tela, inclusive o texto da seta; o item do menu faz o
+  mesmo que o atalho; `Shift+2` com dois cards selecionados mostra só eles; board enorme: 20%, centralizado, aviso →
+  **digitar "!" no texto de um card e no campo da busca não ajusta a visão**; `Ctrl+F` com o texto de um card em edição não
+  abre a busca (avisa) → board aninhado lembra o próprio ajuste → busca: `Ctrl+F` abre com o cursor no campo, caixa no
+  canto superior direito → digitar "ideia" (7 resultados: seção, dois cards, legenda de imagem, item de lista, detalhe de
+  painel e texto de seta) com os destaques no CSS real (cor das bordas conferida), sem mudar o layout dos cards e sem
+  mudar o clique da seção, da imagem → Enter / Shift+Enter (contador, centralização, zoom intacto, dá a volta, zoom de 20%
+  sobe a 50%), botões ↑ ↓ clicados com o picking real → teclas de ferramenta, `Delete`, `Ctrl+D`, `Ctrl+L`, `Ctrl+Z`,
+  `Ctrl+A`, `Shift+1` no campo não agem no board → sem resultado ("Nenhum resultado"), "IDÉIA" acha o mesmo que "ideia" →
+  `Esc` no campo e `Esc` com o foco no canvas fecham e tiram os destaques → "Em todos os boards" (caixa clicada com o
+  picking real): 9 resultados com os caminhos, clicar na linha do neto leva até lá (caminho, destaque, centralizado), o
+  botão voltar leva ao principal → Enter atravessa principal, filho e neto com o cursor sempre no campo → no fim o board
+  principal é idêntico (foto) e nada entrou no desfazer. **Não validado:** o mouse e as teclas físicas (inclusive
+  `Shift+1`/`Shift+2` no teclado ABNT2 de verdade), `Ctrl+F` físico, e o `mvn javafx:run` aberto à mão.
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.

@@ -21,6 +21,8 @@ final class Icons {
     static final String PANEL_TEXT = "M5 7 H19 M5 11 H19 M5 15 H19 M5 19 H13";
     static final String PANEL_LIST = "M4.5 7 H5.5 M9 7 H19 M4.5 12 H5.5 M9 12 H19 M4.5 17 H5.5 M9 17 H19";
     static final String CLOSE = "M7 7 L17 17 M17 7 L7 17";
+    static final String CHEVRON_UP = "M6.5 14.5 L12 9 L17.5 14.5";
+    static final String CHEVRON_DOWN = "M6.5 9.5 L12 15 L17.5 9.5";
     static final String ADD = "M12 6 V18 M6 12 H18";
     /** Dois cards empilhados: "board dentro de board". */
     static final String NESTED_BOARD = "M7.5 4 H20 V15.5 M4 7.5 H16.5 V20 H4 Z";

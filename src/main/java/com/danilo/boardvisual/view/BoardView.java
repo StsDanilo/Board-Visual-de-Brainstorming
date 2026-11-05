@@ -1,7 +1,10 @@
 package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.alignment.Axis;
+import com.danilo.boardvisual.alignment.Box;
 import com.danilo.boardvisual.alignment.Guide;
+import com.danilo.boardvisual.alignment.ViewFit;
+import com.danilo.boardvisual.alignment.ViewReveal;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.Connection;
@@ -63,6 +66,13 @@ public class BoardView extends Pane {
 
     private static final double MIN_ZOOM = 0.2;
     private static final double MAX_ZOOM = 3.0;
+    /** Zoom máximo do "caber tudo": o mesmo do zoom manual (um card sozinho amplia até 300%). */
+    private static final double FIT_MAX_ZOOM = MAX_ZOOM;
+    /**
+     * Folgas do "caber tudo" (pixels de tela): mais espaço à esquerda, onde flutua a barra de
+     * ferramentas, e em cima, onde ficam o caminho do board e a caixa de busca.
+     */
+    private static final ViewFit.Margins FIT_MARGINS = new ViewFit.Margins(64, 48, 48, 96);
     private static final PseudoClass PANNING = PseudoClass.getPseudoClass("panning");
     /** Espaço pressionado: arrastar move a visão. */
     private static final PseudoClass SPACE_PAN = PseudoClass.getPseudoClass("space-pan");
@@ -99,6 +109,12 @@ public class BoardView extends Pane {
 
     private final Map<Card, CardView> cardViews = new HashMap<>();
     private final Map<Connection, ConnectionView> connectionViews = new HashMap<>();
+
+    /** Destaques da busca de texto (só da tela, {@link #setSearchHighlights}). */
+    private Set<Card> searchCards = Set.of();
+    private Card searchCurrentCard;
+    private Set<Connection> searchConnections = Set.of();
+    private Connection searchCurrentConnection;
 
     /** Cards selecionados (um ou vários). */
     private final ObservableSet<Card> selection = FXCollections.observableSet(new LinkedHashSet<>());
@@ -228,6 +244,10 @@ public class BoardView extends Pane {
         }
         selection.clear();
         selectConnection(null);
+        searchCards = Set.of();
+        searchCurrentCard = null;
+        searchConnections = Set.of();
+        searchCurrentConnection = null;
         frameLayer.getChildren().clear();
         cardLayer.getChildren().clear();
         connectionLayer.getChildren().clear();
@@ -762,6 +782,113 @@ public class BoardView extends Pane {
         zoom.set(1);
         pan.setX(0);
         pan.setY(0);
+    }
+
+    /**
+     * Ajusta pan e zoom para mostrar todos os cards do board de uma vez (Shift+1),
+     * com margem; board vazio volta a 100% (como {@link #resetView}). A conta é a
+     * de {@link ViewFit}. Só muda a visão: o modelo e o desfazer não são tocados.
+     *
+     * @return o que foi aplicado; vazio se não há board ou a tela ainda não tem tamanho
+     */
+    public Optional<ViewFit.Result> fitAll() {
+        if (board == null) {
+            return Optional.empty();
+        }
+        if (board.getCards().isEmpty()) {
+            resetView();
+            return Optional.of(ViewFit.reset());
+        }
+        return applyFit(ViewFit.boxesOf(board));
+    }
+
+    /**
+     * Ajusta pan e zoom para mostrar só os cards selecionados (Shift+2).
+     *
+     * @return o que foi aplicado; vazio se nada está selecionado ou a tela ainda não tem tamanho
+     */
+    public Optional<ViewFit.Result> fitSelection() {
+        if (board == null || selection.isEmpty()) {
+            return Optional.empty();
+        }
+        return applyFit(ViewFit.boxesOf(board, selection));
+    }
+
+    // ------------------------------------------------------------ busca de texto
+
+    /**
+     * Destaca os resultados da busca (Ctrl+F): os cards e as setas que casam ficam
+     * marcados ({@code :search-match}) e o resultado atual, mais forte
+     * ({@code :search-current}). Só enfeite da tela: não muda o modelo, não entra no
+     * desfazer e some ao trocar de board ({@link #setBoard}) ou em {@link #clearSearchHighlights}.
+     *
+     * @param currentCard       o resultado atual, se for um card (ou {@code null})
+     * @param currentConnection o resultado atual, se for uma seta (ou {@code null})
+     */
+    public void setSearchHighlights(Collection<Card> cards, Card currentCard,
+                                    Collection<Connection> connections, Connection currentConnection) {
+        searchCards = new HashSet<>(cards);
+        searchCurrentCard = currentCard;
+        searchConnections = new HashSet<>(connections);
+        searchCurrentConnection = currentConnection;
+        applySearchHighlights();
+    }
+
+    /** Tira todos os destaques da busca. */
+    public void clearSearchHighlights() {
+        setSearchHighlights(Set.of(), null, Set.of(), null);
+    }
+
+    /** Se há destaques de busca na tela. */
+    public boolean hasSearchHighlights() {
+        return !searchCards.isEmpty() || !searchConnections.isEmpty();
+    }
+
+    private void applySearchHighlights() {
+        cardViews.forEach((card, view) ->
+                view.setSearchState(searchCards.contains(card), card == searchCurrentCard));
+        connectionViews.forEach((connection, view) ->
+                view.setSearchState(searchConnections.contains(connection), connection == searchCurrentConnection));
+    }
+
+    /**
+     * Leva a visão até o card, centralizando-o na tela sem mudar o zoom (exceto subindo-o
+     * a 50% se estava menor: abaixo disso o texto não se lê, {@link ViewReveal#MIN_READABLE_ZOOM}).
+     *
+     * @param onlyIfHidden se o card já aparece inteiro (e legível), não mexe na visão
+     */
+    public void revealCard(Card card, boolean onlyIfHidden) {
+        reveal(new Box(card.getX(), card.getY(), card.getWidth(), card.getHeight()), onlyIfHidden);
+    }
+
+    /** Igual a {@link #revealCard}, para o texto de uma seta. */
+    public void revealConnection(Connection connection, boolean onlyIfHidden) {
+        if (board != null) {
+            reveal(ViewFit.labelBox(connection, board.hasReverse(connection)), onlyIfHidden);
+        }
+    }
+
+    private void reveal(Box box, boolean onlyIfHidden) {
+        if (getWidth() <= 0 || getHeight() <= 0) {
+            return;
+        }
+        double currentZoom = zoom.get();
+        if (onlyIfHidden && currentZoom >= ViewReveal.MIN_READABLE_ZOOM
+                && ViewReveal.isFullyVisible(box, pan.getX(), pan.getY(), currentZoom, getWidth(), getHeight())) {
+            return;
+        }
+        ViewFit.Result result = ViewReveal.centerOn(box.x() + box.width() / 2, box.y() + box.height() / 2,
+                getWidth(), getHeight(), currentZoom, MAX_ZOOM);
+        setViewState(new ViewState(result.panX(), result.panY(), result.zoom()));
+    }
+
+    private Optional<ViewFit.Result> applyFit(List<Box> boxes) {
+        if (getWidth() <= 0 || getHeight() <= 0) {
+            return Optional.empty();
+        }
+        ViewFit.Result result = ViewFit.fit(boxes, getWidth(), getHeight(), FIT_MARGINS, MIN_ZOOM, FIT_MAX_ZOOM);
+        setViewState(new ViewState(result.panX(), result.panY(), result.zoom()));
+        return Optional.of(result);
     }
 
     // ------------------------------------------------ prévia de conexão

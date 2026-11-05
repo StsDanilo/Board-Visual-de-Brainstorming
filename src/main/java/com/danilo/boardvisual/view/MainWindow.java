@@ -30,6 +30,8 @@ public class MainWindow extends BorderPane {
     private final ToolBarView toolBar = new ToolBarView();
     private final SelectionToolbarView selectionToolbar = new SelectionToolbarView();
     private final BreadcrumbView breadcrumb = new BreadcrumbView();
+    /** Caixa de busca (Ctrl+F), no canto superior direito do canvas; fechada, fica invisível. */
+    private final SearchBarView searchBar = new SearchBarView();
     /** Aviso curto e passageiro na barra de status ({@link #showStatusMessage}). */
     private final Label statusMessage = new Label();
     private final PauseTransition statusMessageTimer = new PauseTransition(Duration.seconds(5));
@@ -43,12 +45,15 @@ public class MainWindow extends BorderPane {
     private final MenuItem exportTransparentPngItem = new MenuItem("Exportar PNG com fundo transparente...");
     private final MenuItem exitItem = new MenuItem("Sair");
     private final MenuItem resetViewItem = new MenuItem("Redefinir visualização");
+    private final MenuItem fitAllItem = new MenuItem("Ajustar tudo à tela");
+    private final MenuItem fitSelectionItem = new MenuItem("Ajustar à seleção");
     private final MenuItem undoItem = new MenuItem("Desfazer");
     private final MenuItem redoItem = new MenuItem("Refazer");
     private final MenuItem cutItem = new MenuItem("Recortar");
     private final MenuItem copyItem = new MenuItem("Copiar");
     private final MenuItem pasteItem = new MenuItem("Colar");
     private final MenuItem selectAllItem = new MenuItem("Selecionar tudo");
+    private final MenuItem searchItem = new MenuItem("Buscar...");
 
     public MainWindow() {
         getStyleClass().add("main-window");
@@ -60,7 +65,10 @@ public class MainWindow extends BorderPane {
         exportPdfItem.setAccelerator(new KeyCodeCombination(KeyCode.E, KeyCombination.SHORTCUT_DOWN));
         exportPngItem.setAccelerator(new KeyCodeCombination(KeyCode.E, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN));
         resetViewItem.setAccelerator(new KeyCodeCombination(KeyCode.DIGIT0, KeyCombination.SHORTCUT_DOWN));
-        // Atalhos de menu só disparam se o componente com foco não usar a tecla:
+        // Shift+1 / Shift+2 pela posição física da tecla (DIGIT1/DIGIT2): no teclado ABNT2 é a mesma
+        // tecla "1" / "2" (que com Shift escreve "!" / "@"); o código da tecla não muda com o Shift.
+        fitAllItem.setAccelerator(new KeyCodeCombination(KeyCode.DIGIT1, KeyCombination.SHIFT_DOWN));
+        fitSelectionItem.setAccelerator(new KeyCodeCombination(KeyCode.DIGIT2, KeyCombination.SHIFT_DOWN));        // Atalhos de menu só disparam se o componente com foco não usar a tecla:
         // editando texto, Ctrl+Z e Ctrl+A continuam agindo no próprio texto.
         undoItem.setAccelerator(new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN));
         redoItem.setAccelerator(new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN));
@@ -69,24 +77,28 @@ public class MainWindow extends BorderPane {
         cutItem.setAccelerator(new KeyCodeCombination(KeyCode.X, KeyCombination.SHORTCUT_DOWN));
         copyItem.setAccelerator(new KeyCodeCombination(KeyCode.C, KeyCombination.SHORTCUT_DOWN));
         pasteItem.setAccelerator(new KeyCodeCombination(KeyCode.V, KeyCombination.SHORTCUT_DOWN));
+        // Ctrl+F: a busca de texto (3.26). Com texto em edição o SearchController barra o atalho (o item do menu, não).
+        searchItem.setAccelerator(new KeyCodeCombination(KeyCode.F, KeyCombination.SHORTCUT_DOWN));
 
         Menu fileMenu = new Menu("Arquivo", null,
                 newItem, openItem, new SeparatorMenuItem(), saveItem, saveAsItem, new SeparatorMenuItem(), exportPdfItem,
                 exportPngItem, exportTransparentPngItem, new SeparatorMenuItem(), exitItem);
         Menu editMenu = new Menu("Editar", null, undoItem, redoItem, new SeparatorMenuItem(),
-                cutItem, copyItem, pasteItem, new SeparatorMenuItem(), selectAllItem);
-        Menu viewMenu = new Menu("Exibir", null, resetViewItem);
+                cutItem, copyItem, pasteItem, new SeparatorMenuItem(), selectAllItem, searchItem);
+        Menu viewMenu = new Menu("Exibir", null, resetViewItem, fitAllItem, fitSelectionItem);
         setTop(new MenuBar(fileMenu, editMenu, viewMenu));
 
         boardView.setSelectionOverlay(selectionToolbar);
         // A mini barra dos estilos de seta fica no mesmo pai da barra de ferramentas, por cima de tudo;
         // ela não entra no layout da StackPane e se posiciona sozinha à direita da barra.
-        StackPane canvasArea = new StackPane(boardView, toolBar, breadcrumb, toolBar.getConnectionStyleBar());
+        StackPane canvasArea = new StackPane(boardView, toolBar, breadcrumb, toolBar.getConnectionStyleBar(), searchBar);
         StackPane.setAlignment(toolBar, Pos.CENTER_LEFT);
         // Margem de cima maior: deixa espaço para o caminho no canto superior esquerdo.
         StackPane.setMargin(toolBar, new Insets(64, 12, 12, 12));
         StackPane.setAlignment(breadcrumb, Pos.TOP_LEFT);
         StackPane.setMargin(breadcrumb, new Insets(12));
+        StackPane.setAlignment(searchBar, Pos.TOP_RIGHT);
+        StackPane.setMargin(searchBar, new Insets(12));
         setCenter(canvasArea);
         setBottom(createStatusBar());
     }
@@ -136,6 +148,7 @@ public class MainWindow extends BorderPane {
     public ToolBarView getToolBar() { return toolBar; }
     public SelectionToolbarView getSelectionToolbar() { return selectionToolbar; }
     public BreadcrumbView getBreadcrumb() { return breadcrumb; }
+    public SearchBarView getSearchBar() { return searchBar; }
     public MenuItem getNewItem() { return newItem; }
     public MenuItem getOpenItem() { return openItem; }
     public MenuItem getSaveItem() { return saveItem; }
@@ -145,10 +158,13 @@ public class MainWindow extends BorderPane {
     public MenuItem getExportTransparentPngItem() { return exportTransparentPngItem; }
     public MenuItem getExitItem() { return exitItem; }
     public MenuItem getResetViewItem() { return resetViewItem; }
+    public MenuItem getFitAllItem() { return fitAllItem; }
+    public MenuItem getFitSelectionItem() { return fitSelectionItem; }
     public MenuItem getUndoItem() { return undoItem; }
     public MenuItem getRedoItem() { return redoItem; }
     public MenuItem getCutItem() { return cutItem; }
     public MenuItem getCopyItem() { return copyItem; }
     public MenuItem getPasteItem() { return pasteItem; }
     public MenuItem getSelectAllItem() { return selectAllItem; }
+    public MenuItem getSearchItem() { return searchItem; }
 }
