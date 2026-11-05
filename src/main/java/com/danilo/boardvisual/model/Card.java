@@ -34,7 +34,8 @@ import java.util.UUID;
  * nome do arquivo na pasta imagens/ do save, e o texto vira a legenda.
  *
  * Qualquer card pode ter ainda um endereço web ({@link #getLink()}), aberto
- * no navegador pelo marcador de clipe.
+ * no navegador pelo marcador de clipe, e um atalho para outro board da árvore
+ * ({@link #getBoardLink()}), aberto pelo marcador de seta curva.
  *
  * Tamanho: {@link #getBaseWidth()}/{@link #getBaseHeight()} guardam o tamanho
  * definido à mão (ao criar ou redimensionar); {@link #getWidth()}/{@link #getHeight()}
@@ -79,6 +80,9 @@ public class Card {
      * {@link #setLink}, que garante que nunca há aqui algo além de http(s) válido.
      */
     private final ReadOnlyStringWrapper link = new ReadOnlyStringWrapper(this, "link", "");
+
+    /** Id do board de destino do atalho para outro board, ou {@code null}. */
+    private final StringProperty boardLink = new SimpleStringProperty(this, "boardLink");
 
     public Card(double x, double y) {
         this(UUID.randomUUID().toString(), x, y);
@@ -300,6 +304,25 @@ public class Card {
         return !getLink().isEmpty();
     }
 
+    // ------------------------------------------------------ link para board
+
+    /**
+     * Id do board de destino do atalho "link para outro board" (qualquer board
+     * da árvore, ver {@link BoardTree}), ou {@code null} = sem atalho. Guarda o
+     * id, não o objeto: renomear o card do destino não quebra o link, e um
+     * destino excluído deixa o id aqui (o marcador aparece "quebrado"; desfazer
+     * a exclusão traz o destino de volta com o mesmo id).
+     */
+    public StringProperty boardLinkProperty() { return boardLink; }
+    public String getBoardLink() { return boardLink.get(); }
+    public void setBoardLink(String boardId) {
+        boardLink.set(boardId == null || boardId.isBlank() ? null : boardId);
+    }
+
+    public boolean hasBoardLink() {
+        return getBoardLink() != null;
+    }
+
     // ---------------------------------------------------------------- formato
 
     /**
@@ -341,6 +364,8 @@ public class Card {
         // Mesmo arquivo: duplicar não copia a imagem de novo.
         copy.setImageFile(getImageFile());
         copy.setLink(getLink());
+        // Mesmo destino: a cópia leva ao mesmo board que o original.
+        copy.setBoardLink(getBoardLink());
         if (hasChildBoard()) {
             copy.setChildBoard(getChildBoard().deepCopy());
         }

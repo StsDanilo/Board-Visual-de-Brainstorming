@@ -3,6 +3,7 @@ package com.danilo.boardvisual.view;
 import com.danilo.boardvisual.alignment.Box;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.Connection;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Group;
@@ -15,6 +16,7 @@ import javafx.scene.transform.Scale;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Desenha um board inteiro numa imagem, fora da tela (para o PDF e o PNG).
@@ -32,6 +34,7 @@ public final class BoardRenderer {
 
     private final List<String> stylesheets;
     private final CardImageLoader imageLoader;
+    private final Predicate<String> boardExists;
 
     public BoardRenderer(List<String> stylesheets) {
         this(stylesheets, CardImageLoader.NONE);
@@ -42,8 +45,18 @@ public final class BoardRenderer {
      *                    devolver imagens já carregadas, porque o snapshot é imediato
      */
     public BoardRenderer(List<String> stylesheets, CardImageLoader imageLoader) {
+        this(stylesheets, imageLoader, boardId -> true);
+    }
+
+    /**
+     * @param boardExists diz se um board (pelo id) ainda está na árvore: os links
+     *                    para boards que não existem mais saem com o marcador
+     *                    "quebrado", como na tela
+     */
+    public BoardRenderer(List<String> stylesheets, CardImageLoader imageLoader, Predicate<String> boardExists) {
         this.stylesheets = List.copyOf(stylesheets);
         this.imageLoader = imageLoader == null ? CardImageLoader.NONE : imageLoader;
+        this.boardExists = boardExists == null ? boardId -> true : boardExists;
     }
 
     /** Com fundo branco (o PDF e o PNG padrão). */
@@ -63,6 +76,9 @@ public final class BoardRenderer {
         for (Card card : board.getCards()) {
             CardView view = new CardView(card, imageLoader);
             view.setTextFontSize(CardTextFit.forScreen().fit(card).fontSize());
+            if (card.hasBoardLink()) {
+                view.setMarkerBroken(CardMarkers.Kind.BOARD_LINK, !boardExists.test(card.getBoardLink()));
+            }
             cards.getChildren().add(view);
         }
         Group content = new Group(connections, cards);

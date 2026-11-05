@@ -16,7 +16,8 @@ import javafx.scene.layout.HBox;
  * Novas ações (bloquear...) entram como mais botões aqui.
  *
  * Os botões de modo (Texto | Lista) só aparecem quando todos os selecionados
- * são painéis flutuantes; o botão Link, só com um card selecionado.
+ * são painéis flutuantes; os botões Link (clipe) e Link para outro board
+ * (seta curva), só com um card selecionado.
  */
 public class SelectionToolbarView extends HBox {
 
@@ -32,6 +33,8 @@ public class SelectionToolbarView extends HBox {
     private final HBox panelModeGroup = new HBox();
     /** Link externo do card selecionado (só com exatamente um card selecionado). */
     private final Button linkButton = new Button();
+    /** Link para outro board do card selecionado (idem). */
+    private final Button boardLinkButton = new Button();
 
     public SelectionToolbarView() {
         getStyleClass().addAll("floating-panel", "selection-toolbar");
@@ -53,8 +56,28 @@ public class SelectionToolbarView extends HBox {
         linkButton.setFocusTraversable(false);
         linkButton.managedProperty().bind(linkButton.visibleProperty());
 
-        getChildren().addAll(colorButton, shapeButton, fontSizeButton, panelModeGroup, linkButton,
+        boardLinkButton.getStyleClass().addAll("tool-button", "link-button", "board-link-button");
+        boardLinkButton.setGraphic(Icons.boardLink());
+        boardLinkButton.setTooltip(new Tooltip(
+                "Link para outro board: escolher, trocar ou remover o board de destino do card"));
+        boardLinkButton.setFocusTraversable(false);
+        boardLinkButton.managedProperty().bind(boardLinkButton.visibleProperty());
+
+        getChildren().addAll(colorButton, shapeButton, fontSizeButton, panelModeGroup, linkButton, boardLinkButton,
                 new Separator(Orientation.VERTICAL), duplicateButton, deleteButton);
+    }
+
+    /**
+     * Botão "Link para outro board" (seta curva), ao lado do botão Link. Mesmas
+     * regras: só com um card selecionado; marcado quando o card já tem destino.
+     */
+    public void showBoardLink(boolean visible, boolean cardHasBoardLink) {
+        boardLinkButton.setVisible(visible);
+        boardLinkButton.pseudoClassStateChanged(SELECTED, visible && cardHasBoardLink);
+    }
+
+    public Button getBoardLinkButton() {
+        return boardLinkButton;
     }
 
     /**

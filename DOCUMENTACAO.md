@@ -4,7 +4,8 @@
 > na arquitetura ou nas funcionalidades deve vir acompanhada da atualização deste arquivo.
 > Estado descrito: até a exportação para PDF (card [3]), o salvamento em pasta (`board.json` + `imagens/`)
 > as imagens nos cards (colar, arrastar, ferramenta Imagem), a exportação do board atual para PNG
-> e o link externo nos cards (marcador de clipe, menu de clique direito).
+> o link externo nos cards (marcador de clipe, menu de clique direito) e o link para outro board
+> (atalho para qualquer board da árvore, com volta ao board de origem).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -30,7 +31,8 @@ liga os cards com **setas**, pinta com cores, seleciona vários de uma vez, desf
 tudo numa **pasta** no computador (um `board.json` mais uma pasta `imagens/`). **Imagens** entram no board
 como cards (colar, arrastar o arquivo ou escolher). Qualquer card pode ter um **link** para um site (um
 clipe no card abre o endereço no navegador). Cards podem abrir um **painel flutuante** (texto ou lista)
-ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade).
+ou conter um **board inteiro dentro deles** (boards aninhados, em qualquer profundidade), e qualquer card
+pode ser um **atalho para outro board** da árvore, mesmo em outro ramo (seta curva no card).
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
 pode virar uma **imagem PNG** (fundo branco ou transparente).
 Não há servidor nem banco de dados.
@@ -103,9 +105,10 @@ sem tocar no modelo.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato, imagem (nome do arquivo), link (endereço web). Tudo como propriedade observável. |
+| `Card` | Um card: id, x, y, largura, altura, tamanho definido à mão, texto, tamanho da fonte, cor (hex), formato, imagem (nome do arquivo), link (endereço web), link para outro board (id do board de destino). Tudo como propriedade observável. |
+| `BoardTree` | Consultas na árvore de boards (Java puro): caminho do principal até um board pelo id, lista de todos os boards com o caminho de cada um (indentada), ids da árvore. Usada pela navegação, pela lista de destinos, pelo marcador quebrado e pelo PDF. |
 | `WebLink` | Regras do endereço web do card (Java puro): aceita só `http`/`https`, normaliza (`exemplo.com` → `https://exemplo.com`), recusa o resto com mensagem; forma ASCII entregue ao navegador e ao PDF. |
-| `CardMarkers` | Marcadores na borda de cima do card (hoje o clipe do link): quais o card tem e onde ficam em cada formato. A mesma conta serve à tela, ao espaço do texto e ao PDF. |
+| `CardMarkers` | Marcadores na borda de cima do card (clipe do link externo, seta curva do link para outro board): quais o card tem e onde ficam em cada formato. A mesma conta serve à tela, ao espaço do texto e ao PDF. |
 | `CardShape` | Enum dos formatos (`RECTANGLE`, `ELLIPSE`, `DIAMOND`) com o tamanho padrão de cada um. |
 | `Connection` | Uma seta: id, card de origem, card de destino. Imutável. |
 | `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada). |
@@ -115,7 +118,8 @@ sem tocar no modelo.
 | `BoardNames` | Nome exibido de cada board (pasta do save no principal, 1ª linha do card nos filhos), usado no caminho da tela e no PDF. |
 
 Um `Card` pode ter um `childBoard` (outro `Board`), o que forma uma **árvore**: o board principal
-contém cards, que contêm boards, que contêm cards... O `board.json` salva essa árvore inteira.
+contém cards, que contêm boards, que contêm cards... O `board.json` salva essa árvore inteira. Cada
+board tem um **id único na árvore** (`Board.getId()`), que é como o link para outro board o encontra.
 
 ### `view/` — a aparência
 
@@ -123,24 +127,25 @@ contém cards, que contêm boards, que contêm cards... O `board.json` salva ess
 |---|---|
 | `MainWindow` | Layout da janela: menu, área do canvas (com a barra de ferramentas por cima), barra de status. |
 | `BoardView` | O canvas: pan/zoom, camadas, cria/remove `CardView`/`ConnectionView` quando o board muda, seleção, caixa de seleção, posição da barra flutuante. |
-| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link), alça de conexão. |
+| `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão. |
 | `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
 | `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards. |
 | `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato; recuo do texto dentro do formato. |
 | `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). |
 | `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica. |
 | `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. |
-| `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens), tamanho do texto, modo do painel (Texto/Lista), link (só com um card), duplicar, excluir. |
+| `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens), tamanho do texto, modo do painel (Texto/Lista), link e link para outro board (só com um card), duplicar, excluir. |
 | `LinkEditorPopup` | Popup pequeno com o campo do endereço do link (Salvar, Cancelar, Remover), com a mensagem de erro da validação. |
+| `BoardLinkPickerPopup` | Popup com a lista da árvore de boards (indentada, com o caminho de cada um) para escolher o destino do link para outro board; o board do card aparece desabilitado e o destino atual, marcado. |
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
-| `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar. |
+| `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar (a dica diz para onde ele leva). |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
-| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente. |
+| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente; links para boards que não existem mais saem com o marcador quebrado. |
 | `PopupButton` | Base de "botão que abre um painelzinho". |
 | `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
 | `CardPalette` | As 8 cores oferecidas. |
-| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link e o ícone de cada marcador). |
+| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado). |
 
 ### `controller/` — o comportamento
 
@@ -156,10 +161,12 @@ contém cards, que contêm boards, que contêm cards... O `board.json` salva ess
 | `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção. |
 | `TextEditController` | Registra a edição de texto no histórico (sessões de edição); duplo clique num card de imagem abre a legenda. |
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
-| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível; guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. |
+| `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`); guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. |
+| `NavigationPath` | A pilha de níveis da navegação, sem tela (testável): entrar, voltar, ir a um nível, pular (`jumpTo` reconstrói o caminho real do destino e guarda a pilha de origem para o voltar). |
 | `KeyboardController` | Atalhos de teclado. |
 | `CardContextMenuController` | Menu de clique direito nos cards (clique sem arrastar). Montado na hora a partir de quem se registra (`addContributor`): é onde as próximas funcionalidades plugam itens. |
 | `LinkController` | Link externo: botão Link da barra flutuante, itens do menu de clique direito, popup de edição (com desfazer) e abrir o endereço pelo clipe do card (`Opener`, na aplicação o `HostServices`). |
+| `BoardLinkController` | Link para outro board: botão de seta curva da barra flutuante, itens do menu de clique direito, lista de destinos (com desfazer), ir ao destino pelo marcador e marcador quebrado quando o destino foi excluído. |
 | `EditHistory` | Pilha de desfazer/refazer. |
 
 ### `alignment/` — geometria de caixas (alinhamento e redimensionamento)
@@ -223,6 +230,7 @@ Main.main()
          │   ├─ new ImageController(...)     ← dá ao BoardView o carregador de imagens; arrastar arquivo
          │   ├─ new CardContextMenuController(...) ← menu de clique direito (vazio; os outros põem itens)
          │   ├─ new LinkController(...)      ← botão Link, itens do menu, clipe do card abre o link
+         │   ├─ new BoardLinkController(...) ← botão de seta curva, itens do menu, seta do card vai ao board
          │   ├─ new KeyboardController(...)  ← instala handlers de tecla na janela
          │   ├─ wireMenu()
          │   └─ newBoard()                   ← navigation.openRoot(new Board("Sem título"))
@@ -352,7 +360,8 @@ tamanho mantendo o centro (a área útil para texto de uma elipse/losango é men
 ## 3.6 Duplicar e excluir
 
 - **Duplicar:** `card.copy()` (id novo, mesmo tamanho/texto/cor/formato), deslocado 24px, e a
-  seleção passa para as cópias — duplicar de novo cria uma "escada". Setas não são copiadas.
+  seleção passa para as cópias — duplicar de novo cria uma "escada". Setas não são copiadas. Os links
+  (para site e para outro board) vão junto: a cópia leva ao mesmo destino.
 - **Excluir:** `board.removeCard(card)`, que antes remove todas as setas ligadas ao card.
   A seleção se ajusta sozinha (o `BoardView` retira da seleção cards que saem do board).
 
@@ -576,13 +585,46 @@ atalho `Alt+←`).
 **Cada nível lembra a própria visão** (`BoardView.ViewState`: pan e zoom). Entrar num filho começa
 em 100%; voltar restaura onde você estava.
 
+**A pilha mora no `NavigationPath`** (classe sem tela, testada no `NavigationPathTest`); o
+`NavigationController` guarda a visão do nível atual, pede a mudança à pilha e, se algo mudou, mostra o
+novo nível (`BoardView.setBoard`, `history.boardChanged`, caminho no topo). Depois de cada troca ele avisa
+quem se registrou em `setOnBoardShown` (o `BoardLinkController` confere os marcadores).
+
+**Pular para qualquer board (link para outro board, 3.20).** `NavigationController.jumpTo(id)`:
+
+```
+BoardTree.pathTo(raiz, id)             ← busca em profundidade a partir do principal
+  vazio?           → NOT_FOUND (destino excluído: nada muda)
+  é o board atual? → SAME_BOARD (nada muda)
+pilha de antes → guardada no nível de chegada (returnPath)
+pilha nova     = caminho real do destino (Principal › Projeto B › Custos);
+                 níveis que já estavam na pilha (ex.: o principal) mantêm a visão guardada
+```
+
+**Voltar (botão ← e `Alt+←`) depois de um pulo (decisão):**
+
+| Onde você está | O voltar leva a |
+|---|---|
+| No board de chegada do pulo | **o board de onde saiu**, com a pilha inteira de antes (cada nível com a sua visão) |
+| Num filho que você abriu a partir do destino | o pai, como sempre; voltando até o destino, o próximo voltar leva à origem |
+| Num nível acima do destino que você clicou no caminho do topo | o pai, como sempre: o nível de chegada saiu da pilha, e a volta à origem foi junto |
+| No principal, chegando por um pulo | a origem (o botão ← aparece mesmo no principal) |
+
+Pulos encadeados voltam um a um. A dica do botão ← diz para onde ele leva ("Voltar para "X", de onde você
+veio"). Se a origem deixou de existir enquanto você estava fora (o card que a continha foi excluído), o
+voltar sobe ao pai; se ela foi excluída e o desfazer a trouxe de volta (objetos novos, mesmos ids), a pilha
+é refeita pelo id. Navegar não entra no desfazer.
+
 **Desfazer por board:** o `EditHistory` guarda pilhas separadas por board (`WeakHashMap<Board, …>`).
 `Ctrl+Z` age só no board da tela. Para isso funcionar, `Board.restore` **não mexe no conteúdo de
 boards filhos de cards que continuam existindo** — senão desfazer uma cor no pai desfaria também o
 que você fez dentro do filho depois. Já um card **recriado** (desfazer uma exclusão) volta com a
 árvore inteira, porque a foto (`BoardSnapshot`) inclui os filhos recursivamente.
 
-**Duplicar** um card-board copia a árvore inteira (`Board.deepCopy`), independente da original.
+**Duplicar** um card-board copia a árvore inteira (`Board.deepCopy`), independente da original. O board
+copiado e **todos os boards dentro dele** ganham ids novos (o id de board é único na árvore; antes, os
+filhos da cópia repetiam os ids, e o `BoardStorage` corrige isso ao abrir saves antigos). Por isso um link
+para outro board, mesmo dentro da cópia, continua apontando para o **original** (3.20).
 
 **Visual:** o card-board tem uma "folha" deslocada atrás dele (CSS com camadas de fundo e insets
 negativos, via pseudo-classe `:has-board`), para parecer uma pilha.
@@ -732,7 +774,7 @@ MainController.exportPdf()
 | Tamanho | O do conteúdo (cards + margem de 32), 1 unidade do board = 1 pt; boards maiores que 14.000 pt são reduzidos (limite do formato PDF) |
 | Caminho no topo | `Principal › board 2 › board 3` em texto de verdade; cada nível anterior é link para a página dele |
 | Board | **Imagem** feita pelo `BoardRenderer`, com 2 pixels por ponto (nítida no zoom e na impressão) |
-| Cards clicáveis | Card de board aninhado → página do filho; painel com conteúdo → primeira página de detalhes; card com link externo → o site (o card todo; se ele já leva a uma página, só a área do clipe, por cima) — 3.19 |
+| Cards clicáveis | Card de board aninhado → página do filho; painel com conteúdo → primeira página de detalhes; card com link para outro board → página do destino (3.20); card com link externo → o site (3.19). O card todo leva ao primeiro destino da ordem página própria › outro board › site; os demais ficam só na área do marcador, por cima |
 | Texto invisível | O texto de cada card, invisível, sobre o card: buscar (`Ctrl+F`) e copiar funcionam. Num card de imagem, só sobre a faixa da legenda (`PdfExporter.textRect`) |
 | Imagens dos cards | Vêm na própria imagem do board: o `BoardRenderer` recebe o mesmo carregador de imagens da tela (`ImageController.loader()`), então inclui as ainda não salvas; imagem que falta sai com o aviso |
 
@@ -777,7 +819,12 @@ Divisão de responsabilidades:
 
 **Popup do link (3.19):** o que se digita no campo do endereço nunca chega a estes atalhos — o popup
 consome todas as teclas no fim do caminho (sem isso, "r" trocaria a ferramenta e `Delete` excluiria o
-card selecionado enquanto você digita o endereço). Enter salva, Esc cancela.
+card selecionado enquanto você digita o endereço). Enter salva, Esc cancela. A **lista de boards** do
+link para outro board (3.20) segue a mesma regra: setas mudam a linha marcada, Enter confirma, Esc
+cancela, e letras ou `Delete` não chegam ao board.
+
+`Alt+←` e o botão ← voltam ao board anterior; depois de um link para outro board, ao board de onde você
+saiu (3.11).
 
 `Ctrl+V` (colar imagem) segue a mesma regra das letras: com texto em edição ele nem chega ao
 `KeyboardController` como atalho (`isEditingText()`), e o texto cola o que estiver na área de
@@ -1004,7 +1051,7 @@ Um botãozinho redondo de **18 px** com o clipe, na borda de cima do card:
   em qualquer ferramenta (com Conexão, não começa uma seta). A dica (tooltip) mostra o endereço.
 - **Não atrapalha:** alça de conexão (fora do card, à direita), botão do painel/board (embaixo), alças
   de redimensionar e barra flutuante (acima do card) ficam livres — conferido no teste de interface.
-- **Reaproveitável (tarefa 3b):** `CardMarkers.Kind` lista os tipos na ordem; um card pode ter vários, lado
+- **Reaproveitável (a tarefa 3b usou assim, 3.20):** `CardMarkers.Kind` lista os tipos na ordem; um card pode ter vários, lado
   a lado. Para um marcador novo: constante em `Kind`, condição em `CardMarkers.of`, propriedade em
   `CardMarkers.dependencies`, ícone em `Icons.marker` e dica em `CardView.setUpMarkers` (os dois `switch`
   são exaustivos: o compilador aponta o que falta), e a ação no controller (`cardView.getMarker(kind)`).
@@ -1029,8 +1076,9 @@ CONTEXT_MENU_REQUESTED  → consumido sobre cards (senão o TextArea abriria o m
 ```
 
 O menu é **montado na hora**: cada controller registra um `Contributor` (`itemsFor(contexto)` → itens), e
-os grupos de contribuidores são separados por uma linha. Hoje só o `LinkController` contribui; a tarefa
-3b (link para outro board) e a ordem de empilhamento entram como novos contribuidores, sem mexer no menu.
+os grupos de contribuidores são separados por uma linha. Hoje contribuem o `LinkController` e o
+`BoardLinkController` (3.20), nessa ordem; a ordem de empilhamento entrará como mais um contribuidor, sem
+mexer no menu.
 O contexto traz o card, o `CardView` e a posição de tela do clique (onde abrir um popup). Clique direito
 no fundo não abre menu.
 
@@ -1045,7 +1093,101 @@ no fundo não abre menu.
 
 ### Fora do escopo
 
-Link para outro board (tarefa 3b, reaproveita o marcador e o menu), ordem de empilhamento, frames.
+Ordem de empilhamento, frames. (O link para outro board, que reaproveita o marcador e o menu, é a 3.20.)
+
+## 3.20 Link para outro board (atalho entre caminhos)
+
+Qualquer card pode ser um **atalho para qualquer board da árvore**, não só o pai ou o filho: no card
+"Orçamento" do board A, um atalho leva direto a `Principal › Projeto B › Custos`. É um atributo do card,
+`Card.boardLink` (o **id** do board de destino; `null` = sem atalho), então mover, duplicar, desfazer,
+salvar e exportar funcionam como para o resto do card. É a continuação do link externo (3.19): mesmo
+marcador, mesmo menu, mesma barra.
+
+### Como adicionar, trocar e remover
+
+| Onde | Como |
+|---|---|
+| **Clique direito** no card | Menu, num grupo próprio abaixo do link externo: "Link para outro board..." (sem atalho) ou "Ir para o board de destino", "Trocar board de destino...", "Remover link para board" |
+| **Botão de seta curva** na barra flutuante | Ao lado do clipe do link externo; aparece só com **um** card selecionado e fica marcado se o card já tem destino. Abre a mesma lista |
+
+**Botão (decisão):** um **segundo botão**, não um botão Link com duas opções. São duas ações diferentes
+(site × board), cada uma a um clique, com o mesmo ícone do marcador que ela cria; um popup intermediário
+"site ou board?" seria um clique a mais sempre.
+
+A **lista** (`BoardLinkPickerPopup`) mostra a árvore inteira (`BoardTree.entries`), na ordem do PDF,
+**indentada** pela profundidade; cada linha tem o nome do board e, embaixo, o **caminho completo** em cinza
+(`Principal › Projeto B › Custos`). O board onde o card está aparece **desabilitado** ("(este board)"); o
+destino atual vem marcado ("(destino atual)", em negrito). Clicar numa linha confirma na hora; com o
+teclado, setas e Enter; Esc ou clicar fora cancela; "Remover link" aparece quando já há destino. Cada
+mudança é **um passo** no desfazer (`history.perform`); escolher o mesmo destino de novo não cria passo.
+
+```
+clique na linha (ou Enter)
+  → BoardLinkController.setBoardLink   history.perform(() -> card.setBoardLink(board.getId()))
+  → CardView escuta card.boardLink     mostra a seta curva ao lado do clipe; o texto desce para baixo da fileira
+```
+
+### O marcador
+
+O mesmo botãozinho de 18 px do clipe (`CardMarkers`, 3.19), com **ícone de seta curva** (sobe e vira para
+a direita, `Icons.BOARD_LINK`). Com os dois links, ficam **lado a lado**: clipe à esquerda, seta à direita
+(ordem de `CardMarkers.Kind`). Texto, alças, PDF e PNG já seguiam a conta do `CardMarkers`.
+
+- **Clique:** vai ao board de destino (`NavigationController.jumpTo`, 3.11), com o **caminho completo no
+  topo**; o voltar leva de volta ao board de onde você saiu. Não seleciona, não arrasta, não entra no texto.
+- **Dica:** o caminho do destino, montado na hora em que a dica aparece (renomear o card do destino muda o
+  caminho na próxima vez).
+
+### Destino guardado pelo id
+
+O destino é o `id` do board (já gravado no JSON desde sempre), não o card nem o nome: **renomear** o card
+do destino não quebra nada (o caminho e a dica mostram o nome novo). O id do board é **único na árvore**:
+`Board.deepCopy` dá ids novos a todos os boards copiados, e o `BoardStorage` dá id novo a um board com id
+repetido ao abrir (saves feitos antes desta versão, em que duplicar um card-board com filhos repetia os
+ids dos filhos; o primeiro na ordem do arquivo mantém o id).
+
+### Destino excluído (marcador quebrado)
+
+Excluir o card que contém o board de destino (ou um card acima dele) **não apaga o link**: o desfazer da
+exclusão traz o board de volta com o **mesmo id**, e o link volta a funcionar sozinho.
+
+| Enquanto o destino não existe | Como |
+|---|---|
+| Marcador | **quebrado**: ícone riscado, borda e ícone vermelhos, esmaecido (`CardView.setMarkerBroken`, pseudo-classe `:broken` no `app.css`) |
+| Dica | "Board de destino não existe mais" |
+| Clique | aviso "Board de destino não existe mais.", com a explicação (desfazer a exclusão traz de volta; clique direito para escolher outro); não navega |
+| Lista de destinos | aviso em vermelho no alto; "Remover link" disponível |
+| PDF | o marcador sai riscado e o card **não** ganha área clicável para o destino |
+| PNG | o marcador sai riscado |
+| Salvar/abrir | o id é mantido como está |
+
+A conferência é feita pelo `BoardLinkController` (`BoardTree.ids` da raiz) quando o board da tela muda,
+quando cards entram ou saem dele (excluir, desfazer, duplicar) e quando o link ou o board filho de um card
+muda. Como só se edita o board da tela, isso cobre todos os casos.
+
+### Duplicar
+
+- **Card com link para outro board:** a cópia leva ao mesmo destino (`Card.copy` copia o id).
+- **Card-board que é destino de algum link:** a cópia ganha boards com ids novos, então os links
+  continuam levando ao **original**. Isso vale também para links **dentro** da cópia que apontavam para
+  boards dentro do original (eles não são "redirecionados" para a cópia). É o comportamento esperado:
+  "duplicar" faz uma variação nova, e quem tinha um atalho para o original continua com ele.
+
+### PDF e PNG
+
+- **PDF:** o marcador vira link para a **página do board de destino** (a 2ª passada do `PdfExporter`
+  já tem todas as páginas; o mapa id → página é montado antes dela). Regra da área clicável:
+  o card todo leva ao **primeiro** destino de: página própria (board aninhado, detalhes) › outro board ›
+  site; os outros ficam só na **área do marcador**, por cima (anotação acrescentada depois). Assim, um
+  card comum com atalho e link externo: o card todo vai ao board, o clipe abre o site.
+- **PNG:** a seta aparece desenhada (o `BoardRenderer` monta os mesmos `CardView`s e recebe do
+  `MainController` quais boards existem, para desenhar o quebrado).
+
+### Limites (primeira versão)
+
+- Só destinos **dentro da mesma árvore** (o mesmo save). Link para outro arquivo/pasta fica de fora.
+- Sem busca na lista (uma tarefa futura de busca global vai reaproveitar `BoardTree.pathTo`).
+- Fora do escopo: ordem de empilhamento, frames, busca global.
 
 ---
 
@@ -1466,13 +1608,15 @@ você estava editando.
 - [ ] `BoardSnapshot.CardState`: novo componente + `of()` + `applyTo()` → **senão desfazer ignora a propriedade**
   (exemplo completo: veja como `panelMode`, `detailText` e `listItems` foram adicionados, ou
   `baseWidth`/`baseHeight`/`fontSize`, com valor padrão para arquivos antigos; os mais recentes são
-  `imageFile` e `link`, que percorreram o checklist inteiro)
+  `imageFile`, `link` e `boardLink`, que percorreram o checklist inteiro)
 - [ ] `BoardFileFormat.CardData`: novo componente → **senão não salva**
 - [ ] `BoardStorage.toData` / `fromData`: mapear, com valor padrão para arquivos antigos
 - [ ] `CardView`: refletir visualmente (pseudo-classe ou variável CSS), se houver efeito visual; se for um
   **marcador** na borda do card (como o clipe do `link`), use `CardMarkers` (3.19) em vez de posicionar à mão
 - [ ] Valor que vem de fora e vai para o sistema (como o `link`): validar no **setter** do modelo (o `link`
   é só leitura por fora) e de novo antes de usar; nunca confiar no que veio do arquivo
+- [ ] Referência a outra parte da árvore (como o `boardLink`): guarde o **id** (não o objeto nem o nome),
+  mantenha o id ao abrir mesmo que o alvo não exista mais, e mostre o estado "quebrado" na tela (3.20)
 - [ ] `app.css`: estilo
 - [ ] Controller: quem altera deve usar `history.perform`
 - [ ] **`CardAllPropertiesTest.fullCard()`**: preencher a propriedade nova com um valor diferente do padrão
@@ -1505,7 +1649,8 @@ a funcionar sem mais nada.
 3. Cursor/estilo em `app.css` usando `:tool-nova`, se preciso.
 
 **Nem toda funcionalidade é uma ferramenta.** Se ela age sobre um card que já existe (ex.: o link
-externo), o lugar é a barra flutuante (5.4) e/ou o menu de clique direito (abaixo), não a barra lateral.
+externo e o link para outro board), o lugar é a barra flutuante (5.4) e/ou o menu de clique direito
+(abaixo), não a barra lateral.
 
 **Ferramenta que é uma ação** (ex.: `Tool.IMAGE`): em vez de esperar um clique no canvas, o controller
 escuta `activeTool` e, quando ela vira a ferramenta, faz a ação e volta para Selecionar — dentro de um
@@ -1518,9 +1663,14 @@ e dica funcionam sem mais nada.
 2. Ação em `SelectionActionsController`, operando sobre `selectedCards()` dentro de `history.perform`.
 3. Atalho em `KeyboardController`, se houver.
 
-Botão que só faz sentido com **um** card (como o Link): esconda com `managed` ligado ao `visible` e
-controle a visibilidade escutando a seleção no controller (ver `SelectionToolbarView.showLink` e
-`LinkController.refreshToolbar`).
+Botão que só faz sentido com **um** card (como o Link e o Link para outro board): esconda com `managed`
+ligado ao `visible` e controle a visibilidade escutando a seleção no controller (ver
+`SelectionToolbarView.showLink`/`showBoardLink` e `LinkController.refreshToolbar`/
+`BoardLinkController.refreshToolbar`).
+
+Popup aberto a partir de um botão ou item de menu (como o `LinkEditorPopup` e o `BoardLinkPickerPopup`):
+classes `root floating-panel popup-panel` no conteúdo, CSS copiado da cena dona (4.5), e consumir todas
+as teclas na raiz (armadilha 29).
 
 ### Item no menu de clique direito
 
@@ -1532,7 +1682,15 @@ controle a visibilidade escutando a seleção no controller (ver `SelectionToolb
 ### Marcador novo no card
 
 Ver o fim de "O marcador" em 3.19 (`CardMarkers.Kind`, `Icons.marker`, `CardView.setUpMarkers`). Texto,
-PDF e alças passam a respeitar o marcador novo sem mais nada.
+PDF e alças passam a respeitar o marcador novo sem mais nada. Exemplo completo: o `BOARD_LINK` (3.20),
+que também mostra como ter um estado "quebrado" (`CardView.setMarkerBroken`, `Icons.marker(kind, broken)`,
+`:broken` no CSS) e uma dica montada pelo controller (`setBoardLinkDescription`).
+
+### Navegar para um board qualquer
+
+Para levar o usuário a um board pelo id (busca, atalhos...), use `NavigationController.jumpTo(id)`: ele
+monta o caminho real (`BoardTree.pathTo`) e cuida do voltar (3.11). Para listar boards (com caminho e
+profundidade), `BoardTree.entries(raiz)`.
 
 ## 5.5 Alinhamento: mover × redimensionar
 
@@ -1553,8 +1711,8 @@ derivada da largura, e o canto oposto à alça fica parado.
 ## 5.6 Mapa das próximas funcionalidades (Trello)
 
 Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
-**[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9) e as
-imagens nos cards (3.17):
+**[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9), as
+imagens nos cards (3.17), o PNG (3.18), o link externo (3.19) e o link para outro board (3.20):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -1562,7 +1720,8 @@ imagens nos cards (3.17):
 
 | Funcionalidade | Onde encaixa | Observações |
 |---|---|---|
-| **Link para outro board** (tarefa 3b) | Segundo marcador em `CardMarkers.Kind` (outro ícone) + contribuidor no `CardContextMenuController`; no PDF, `PdfExporter.markerRect` com o tipo novo e link para a página do board | Um card pode ter os dois marcadores, lado a lado (3.19) |
+| **Busca global** | `BoardTree.entries` já lista todos os boards com o caminho; buscar também no texto dos cards e ir ao resultado com `NavigationController.jumpTo` (3.20) | Decidir: só nomes de board ou texto dos cards; destacar o card encontrado |
+| **Link para outro arquivo** | Extensão do link para outro board (3.20): guardar a pasta do save além do id | Primeira versão ficou só na mesma árvore |
 | **Ordem de empilhamento** | Itens "Trazer para frente/Enviar para trás" como contribuidor do menu de clique direito; a ordem é a da lista `board.getCards()` (salva no arquivo) | Hoje o "trazer para frente" do clique não é salvo (armadilha 10) |
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
@@ -1628,6 +1787,13 @@ imagens nos cards (3.17):
 | PDF: card todo abre o site; se já leva a uma página, só o clipe | Sempre só o clipe | Área grande é mais fácil de clicar no leitor de PDF, sem perder o link interno |
 | Popup consome todas as teclas | Checar "popup aberto" no `KeyboardController` | Uma regra local, sem o atalho precisar conhecer o popup |
 | Abrir pelo `HostServices` passado no construtor | `Desktop.browse` (AWT) ou acesso estático | Sem estático e testável (o roteiro intercepta); o `HostServices` é a via do JavaFX |
+| Link para outro board guarda o **id** do board | Guardar o card ou o nome do destino | Renomear não quebra; o id já estava no JSON; excluir e desfazer volta com o mesmo id (3.20) |
+| Id de board único na árvore (`deepCopy` renova todos; abrir corrige repetidos) | Id único só entre irmãos | A busca por id precisa de um resultado só; a cópia de um card-board é outra coisa, e os links continuam no original (3.20) |
+| Destino excluído: marcador quebrado, link mantido | Apagar o link junto com o destino | O desfazer da exclusão traz o destino de volta, e o link volta a funcionar sem o usuário refazer nada |
+| Segundo botão (seta curva) ao lado do Link | Um botão Link com popup "site ou board?" | Um clique a menos; cada botão tem o ícone do marcador que cria (3.20) |
+| Voltar depois de um pulo = board de onde saiu; caminho no topo = caminho real do destino | Empilhar o destino em cima da origem (caminho "falso") | O topo sempre mostra onde o board está de verdade, e o voltar ainda leva de volta; clicar no caminho acima do destino esquece a origem (3.11) |
+| Lista de destinos com a árvore inteira, indentada, caminho embaixo | Árvore expansível (`TreeView`) | Boards de um save cabem numa lista curta; o caminho em cada linha tira a ambiguidade de nomes iguais em ramos diferentes |
+| Pilha de navegação numa classe sem tela (`NavigationPath`) | Lógica dentro do `NavigationController` | Testável sem janela (busca, reconstrução da pilha, voltar à origem) |
 
 ## B. Armadilhas conhecidas
 
@@ -1701,10 +1867,22 @@ imagens nos cards (3.17):
     com campo de texto deve fazer o mesmo.
 30. **`HostServices` não avisa falhas.** No Windows ele entrega o endereço ao sistema e só imprime o erro no
     console; o aviso do `LinkController` cobre exceções, mas não "o navegador não abriu".
+31. **Ids de board repetidos.** O link para outro board acha o destino pelo id, que precisa ser único na
+    árvore. Quem criar boards copiando outros deve usar `Board.deepCopy` (que renova todos os ids) e nunca
+    reaproveitar uma `BoardSnapshot` de um board que continua na árvore para criar um segundo board. O
+    `BoardStorage` corrige repetições ao abrir, mas só aí.
+32. **Ouvintes nos cards a cada visita.** O `BoardLinkController.attach` roda para cada `CardView` criado, e um
+    card ganha um `CardView` novo a cada vez que o board aparece. O ouvinte é sempre o mesmo objeto, removido
+    antes de ser adicionado; um ouvinte novo a cada `attach` se acumularia no card.
+33. **Roteiro de interface e a janela da frente.** Um roteiro com `java.awt.Robot` só vê coordenadas: se
+    outra janela estiver na frente do app (o Windows nem sempre traz a janela de teste para a frente,
+    principalmente com o usuário usando o computador), o clique cai nela. Conferir a janela da frente
+    **antes de cada clique**, não só antes de digitar; ou usar o roteiro "dentro da JVM" (C), que não usa o
+    mouse e o teclado do sistema.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 193 testes, sem abrir janela
+### Automatizados (`mvn test`) — 235 testes, sem abrir janela
 
 (O `BoardRendererPngTest` liga o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela
 ele é pulado em vez de falhar.)
@@ -1721,7 +1899,7 @@ ele é pulado em vez de falhar.)
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
 | `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
-| `PdfExporterTest` | link externo: card todo com ação URI (endereço ASCII), card de board aninhado mantém o link da página e ganha o do site só no clipe (por cima), área do clipe acompanha a escala, cards sem link sem URI; ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
+| `PdfExporterTest` | link para outro board: o card todo leva à página do destino em outro ramo; card que já leva a uma página vai ao destino só pelo marcador (por cima); card com os dois links e sem página própria (card todo → board, clipe → site); destino excluído sem área clicável; marcadores lado a lado; link externo: card todo com ação URI (endereço ASCII), card de board aninhado mantém o link da página e ganha o do site só no clipe (por cima), área do clipe acompanha a escala, cards sem link sem URI; ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
 | `BoardStorageTest` | link salvo e aberto (card comum, de imagem e de board), card sem link não grava o campo, save anterior sem o campo abre sem link, links maliciosos no arquivo (`javascript:`, `file:`, caminho, rede, `usuário@site`) descartados; salvar/abrir em pasta (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), abrir pela pasta ou pelo `board.json`, `.json` antigo (abre, salva no formato novo sem alterar o antigo, versão decide e não o nome), JSON inválido, pasta incompleta, `board.json` vazio, versão futura, `version` 2 com outro nome, "salvar como" copiando `imagens/`, imagens copiadas antes do JSON (falha na gravação não deixa JSON solto), falha mantém o `board.json` anterior, destino livre × save existente × ocupado; card de imagem salvo e aberto com o arquivo, card sem imagem não grava o campo, save anterior sem o campo abre, imagem faltando (e nome com `../`) não quebra e mantém a referência, imagens de várias origens |
 | `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada; achar o arquivo na ordem das pastas, nomes com pasta recusados |
 | `ImageImporterTest` | (imagens reais geradas no teste) PNG e JPG pequenos copiados byte a byte com nome novo, grande reduzido a 2000 px mantendo a proporção (JPG continua JPG, PNG mantém transparência), GIF e BMP viram PNG, formato pelo conteúdo e não pela extensão, arquivo quebrado/não imagem/inexistente recusado sem sobras, imagem em memória vira PNG, extensões aceitas |
@@ -1730,9 +1908,13 @@ ele é pulado em vez de falhar.)
 | `PngExporterTest` | área com margem e 2 px por unidade, redução pelo lado maior (8.000 px exatos, sem 1 px a mais) e pelo total de pixels, arredondamento, nome sugerido (principal, caminho do aninhado, caracteres proibidos, ponto/espaço no fim, nome reservado, vazio, comprimento), `.png` acrescentado só se faltar, PNG gravado no tamanho previsto e sem `.tmp`, substitui arquivo existente, board vazio recusado sem gravar |
 | `BoardRendererPngTest` | (JavaFX de verdade, CSS do app) clipe desenhado no card com link e ausente no sem link; PNG de board com formatos, cor, seta e card de imagem: tamanho previsto, fundo branco, cor do card, seta entre os cards, imagem do card no lugar certo; a mesma exportação com fundo transparente (canto transparente, card opaco); board de 30.000 unidades reduzido a 8.000 px com os dois extremos desenhados |
 | `WebLinkTest` | aceita `http`/`https`, acrescenta `https://` (inclusive `site:porta` e `//site`), apara e põe o esquema em minúsculas, vazio = sem link; recusa outros esquemas, caminhos e executáveis, espaços e caracteres de controle, usuário antes do site, site sem domínio, porta e `%` inválidos, endereço longo; forma ASCII (site com acento); `Card.setLink` nunca guarda link perigoso |
-| `CardMarkersTest` | sem link, sem marcador; retângulo: canto de cima à direita, fora das alças; elipse e losango: no meio e dentro da silhueta; losango estreito desce o marcador; vários em fila sem sobrepor; texto abaixo; card minúsculo |
+| `BoardTreeTest` | caminho de um board por id em vários níveis e em ramos diferentes, caminho da raiz, id inexistente (e raiz/id nulos), excluir um card tira a subárvore da busca, renomear mantém o id e muda o caminho, lista da árvore na ordem do PDF com profundidade e caminho, ids da árvore; `deepCopy` dá ids novos a todos os boards dentro; duplicar um card-board mantém ids únicos e o link copiado aponta para o original; duplicar copia o link; texto em branco = sem link |
+| `NavigationPathTest` | entrar/voltar como antes; pular monta o caminho real do destino; voltar do destino volta à origem (com a visão dela) e depois ao pai; pulo para o principal ainda tem voltar; filho aberto a partir do destino volta ao destino e depois à origem; clicar num nível acima do destino esquece a origem; pulos encadeados; visão mantida nos níveis em comum; pulo para o próprio board e para board excluído não mudam nada; origem excluída → voltar ao pai; origem excluída e trazida pelo desfazer → pilha refeita pelo id; abrir outro board zera tudo |
+| `BoardLinkControllerTest` | adicionar, trocar e remover são passos de desfazer/refazer; o mesmo destino de novo não é passo; excluir o destino mantém o link (quebrado) e o desfazer o traz de volta; excluir o card com o link e desfazer; duplicar copia o link; duplicar o destino mantém o link no original |
+| `BoardLinkStorageTest` | link para board de outro ramo salvo e aberto (caminho conferido), card sem link não grava o campo, save anterior sem o campo abre sem link, link para board inexistente mantido, ids de board repetidos (saves antigos) renovados ao abrir |
+| `CardMarkersTest` | seta do link para outro board sozinha e depois do clipe (mesma fileira); sem link, sem marcador; retângulo: canto de cima à direita, fora das alças; elipse e losango: no meio e dentro da silhueta; losango estreito desce o marcador; vários em fila sem sobrepor; texto abaixo; card minúsculo |
 | `LinkControllerTest` | adicionar, editar e remover são passos de desfazer/refazer; vazio remove; endereço inválido devolve mensagem e não muda nada; o mesmo link de novo não é passo; duplicar copia o link (painel, imagem); excluir e desfazer traz o link |
-| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile` e `link`): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
+| `CardAllPropertiesTest` | card com todas as propriedades diferentes do padrão (inclusive `imageFile`, `link` e `boardLink`): preenchimento do `fullCard()` (falha se esquecer uma propriedade nova), `copy`, foto/restauração (card novo e existente) e salvar/abrir preservam tudo (5.1) |
 
 Tudo que é **lógica** (modelo, geometria, histórico, persistência) é testável sem interface — é o
 benefício direto da separação em camadas.
@@ -1790,7 +1972,29 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
 - **Cuidado com o foco:** um clique fora da janela do app (coordenada fora da área visível do board)
   ativa outra janela, e as teclas seguintes vão para ela. O roteiro do PNG confere que todo clique cai
   dentro da janela e, antes de digitar num seletor, lê o título da janela da frente (`GetForegroundWindow`
-  por PowerShell) e aborta se não for o seletor do app.
+  por PowerShell) e aborta se não for o seletor do app. **Isso não basta (armadilha 33):** no link para
+  outro board, o app abriu atrás de outra janela e um clique direito do `java.awt.Robot`, dentro do
+  retângulo do app, caiu na janela da frente (nenhuma tecla vazou: a checagem antes de digitar barrou).
+- **Link para outro board** foi validado por um roteiro **dentro da JVM, sem mouse e teclado do sistema**
+  (107 verificações): a janela real do app é aberta (e mandada para trás das outras), o foco da janela é
+  simulado, e o roteiro dispara `MouseEvent`/`KeyEvent` do JavaFX nos nós, que passam pelos mesmos filtros
+  e handlers do uso real (clique direito parado → menu; clique no marcador; teclas na lista e no board;
+  `Ctrl+Z`/`Ctrl+Y`/`Ctrl+D` pelos aceleradores; `Alt+←`). Nada pode cair em outra janela do computador.
+  Roteiro: árvore com dois ramos → clique direito → "Link para outro board..." (lista indentada com o
+  caminho, board atual desabilitado; `r`, `v`, `b` e `Delete` na lista não agem no board) → escolher
+  `Custos` (outro ramo) → seta aparece, dica com o caminho → clicar na seta: caminho completo no topo,
+  voltar (botão e `Alt+←`) volta à origem, navegar não cria passo no desfazer → botão de seta curva da
+  barra com setas + Enter → link externo no mesmo card (os dois marcadores lado a lado, sem cobrir o texto;
+  o clipe continua abrindo o site) → trocar/remover pelo menu e pelo popup, desfazer/refazer → de dentro de
+  um board aninhado, atalho para o principal, entrar num filho a partir do destino e voltar duas vezes;
+  clicar num nível do caminho acima do destino esquece a origem → excluir o card do destino (marcador
+  quebrado, dica e aviso ao clicar, sem navegar) → `Ctrl+Z` (volta a funcionar) → renomear o destino
+  digitando no card (dica e caminho com o nome novo) → duplicar o card com link e o card-board de destino
+  (ids únicos; o link segue no original) → salvar (`MainController.saveTo`), PDF e PNG com o renderer do
+  `MainController` (links das páginas, marcador azul e quebrado vermelho) → reabrir (`showBoard`): links
+  válidos e quebrados como estavam. **Não validado por esse roteiro:** os seletores nativos de arquivo
+  (Salvar/Abrir/Exportar, código não alterado nesta tarefa), o clique físico do mouse (o caminho do evento
+  dentro do JavaFX é o mesmo) e o `mvn javafx:run` no module path.
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.

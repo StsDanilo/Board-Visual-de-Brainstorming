@@ -233,7 +233,17 @@
     -fx-background-color: -bv-accent, rgba(79, 124, 255, 0.14);
 }
 
-/* Botão Link da barra flutuante: marcado quando o card já tem link. */
+/* Link para outro board cujo destino não existe mais: esmaecido, borda de alerta, ícone riscado (CardView). */
+.card-marker:broken {
+    -fx-background-color: -bv-danger, -bv-surface;
+    -fx-opacity: 0.7;
+}
+
+.card-marker:broken .tool-icon {
+    -fx-stroke: -bv-danger;
+}
+
+/* Botões Link e Link para outro board da barra flutuante: marcados quando o card já tem o link. */
 .link-button:selected .tool-icon {
     -fx-stroke: -bv-accent;
 }
@@ -289,6 +299,65 @@
 .link-editor-button.danger:hover {
     -fx-background-color: -bv-danger, -bv-danger-soft;
     -fx-text-fill: -bv-danger;
+}
+
+/* Popup de escolha do board de destino (link para outro board): a árvore, indentada. */
+.board-picker {
+    -fx-pref-width: 400;
+}
+
+.board-picker-hint {
+    -fx-text-fill: -bv-text-muted;
+    -fx-font-size: 12px;
+}
+
+.board-picker-list {
+    -fx-background-color: -bv-border, -bv-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 6, 5;
+    -fx-padding: 1;
+}
+
+.board-picker-list:focused {
+    -fx-background-color: -bv-accent, -bv-surface;
+}
+
+.board-picker-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 0 10 0 10;
+    -fx-cursor: hand;
+}
+
+.board-picker-cell:hover {
+    -fx-background-color: -bv-hover;
+}
+
+.board-picker-cell:selected {
+    -fx-background-color: -bv-accent-soft;
+}
+
+.board-picker-cell:disabled {
+    -fx-opacity: 0.55;
+    -fx-cursor: default;
+}
+
+.board-picker-name {
+    -fx-text-fill: -bv-text;
+    -fx-font-size: 13px;
+}
+
+.board-picker-cell:current-target .board-picker-name {
+    -fx-font-weight: bold;
+}
+
+.board-picker-note {
+    -fx-text-fill: -bv-text-muted;
+    -fx-font-size: 11px;
+}
+
+.board-picker-path {
+    -fx-text-fill: -bv-text-muted;
+    -fx-font-size: 11px;
 }
 
 /* Exportação para PDF (BoardRenderer): só o conteúdo, sem o que é de tela. */

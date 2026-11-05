@@ -18,7 +18,8 @@ import javafx.stage.Stage;
  * - Ctrl+V: cola a imagem da área de transferência do sistema como card.
  * - Ctrl+Shift+Z: refaz (alternativa ao Ctrl+Y do menu).
  * - Espaço (segurado): arrastar move a visão.
- * - Alt+←: volta ao board anterior (boards aninhados).
+ * - Alt+←: volta ao board anterior (boards aninhados; depois de um link para
+ *   outro board, ao board de onde se saiu).
  * - Esc: sai da edição de texto; senão fecha o painel flutuante aberto;
  *   senão volta para Selecionar; senão limpa a seleção.
  *

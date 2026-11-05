@@ -7,7 +7,8 @@ import java.util.List;
 
 /**
  * Marcadores na borda de cima de um card: botõezinhos redondos que indicam
- * algo a mais no card e agem ao clicar (hoje, o link externo: clipe).
+ * algo a mais no card e agem ao clicar (o link externo: clipe; o link para
+ * outro board: seta curva).
  *
  * Fica no modelo, em Java puro, porque três lugares precisam da mesma conta:
  * a tela ({@code CardView}), o espaço do texto ({@code CardGeometry} e
@@ -28,7 +29,13 @@ public final class CardMarkers {
     /** Tipos de marcador, na ordem em que aparecem (da esquerda para a direita). */
     public enum Kind {
         /** Endereço web ({@link Card#getLink()}): clipe; clicar abre no navegador. */
-        LINK
+        LINK,
+        /**
+         * Atalho para outro board da árvore ({@link Card#getBoardLink()}): seta
+         * curva; clicar vai ao board de destino. Aparece mesmo com o destino
+         * excluído (aí "quebrado", ver {@code CardView.setMarkerBroken}).
+         */
+        BOARD_LINK
     }
 
     /** Lado do marcador (é um círculo). */
@@ -67,12 +74,15 @@ public final class CardMarkers {
         if (card.hasLink()) {
             kinds.add(Kind.LINK);
         }
+        if (card.hasBoardLink()) {
+            kinds.add(Kind.BOARD_LINK);
+        }
         return kinds;
     }
 
     /** Propriedades do card que decidem quais marcadores aparecem (para quem precisa reagir a elas). */
     public static Observable[] dependencies(Card card) {
-        return new Observable[] {card.linkProperty()};
+        return new Observable[] {card.linkProperty(), card.boardLinkProperty()};
     }
 
     /** Onde fica cada marcador de {@code kinds} num card desse formato e tamanho. */

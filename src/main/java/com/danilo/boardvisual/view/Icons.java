@@ -33,6 +33,14 @@ final class Icons {
      */
     static final String LINK = "M10 8 V15.5 A2 2 0 0 0 14 15.5 V6 A3 3 0 0 0 8 6 V17 A4 4 0 0 0 16 17 V9";
 
+    /**
+     * Seta curva (sobe e vira para a direita): "atalho para outro lugar". É o
+     * ícone do link para outro board, diferente do clipe do link externo.
+     */
+    static final String BOARD_LINK = "M5 20 V14.5 A6.5 6.5 0 0 1 11.5 8 H19.5 M15.5 4 L19.5 8 L15.5 12";
+    /** Traço em diagonal por cima de um ícone: "não existe mais". */
+    static final String STRIKE = " M3.5 3.5 L20.5 20.5";
+
     private Icons() {
     }
 
@@ -43,10 +51,24 @@ final class Icons {
         return icon;
     }
 
+    /** Ícone do link para outro board (seta curva), no tamanho dos ícones das barras. */
+    static SVGPath boardLink() {
+        return create(BOARD_LINK);
+    }
+
     /** Ícone de cada marcador de card (switch exaustivo: marcador novo precisa de ícone). */
     static SVGPath marker(CardMarkers.Kind kind) {
+        return marker(kind, false);
+    }
+
+    /**
+     * @param broken o destino do marcador não existe mais: o ícone vem riscado
+     *               (só o link para outro board pode ficar assim)
+     */
+    static SVGPath marker(CardMarkers.Kind kind, boolean broken) {
         SVGPath icon = switch (kind) {
             case LINK -> link();
+            case BOARD_LINK -> create(broken ? BOARD_LINK + STRIKE : BOARD_LINK);
         };
         // O marcador tem 18 px: o ícone de 24 px encolhe para caber.
         icon.setScaleX(0.62);

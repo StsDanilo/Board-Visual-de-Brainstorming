@@ -30,7 +30,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -47,8 +49,9 @@ import java.util.Optional;
  * Em cada página de board: o caminho no topo (cada nível anterior é um link),
  * o board como imagem, e áreas clicáveis por cima — card de board aninhado
  * leva à página do filho, painel flutuante leva à página de detalhes, card com
- * link externo abre o endereço no navegador (o card todo, ou só o clipe se o
- * card já leva a outra página). Uma
+ * link externo abre o endereço no navegador, card com link para outro board
+ * leva à página daquele board (o card todo, ou só o marcador se o card já
+ * leva a outra página; ordem de prioridade em {@code drawBoardPage}). Uma
  * camada de texto invisível por cima dos cards permite buscar e copiar.
  * Os marcadores do PDF (barra lateral) espelham a mesma árvore.
  *
@@ -134,9 +137,14 @@ public final class PdfExporter {
                     }
                 }
             }
+            // Página de cada board pelo id (destinos dos links para outros boards).
+            Map<String, PDPage> pagesById = new HashMap<>();
+            for (BoardNode node : order) {
+                pagesById.putIfAbsent(node.board.getId(), node.page);
+            }
             // 2ª passada: desenhar.
             for (BoardNode node : order) {
-                drawBoardPage(document, node);
+                drawBoardPage(document, node, pagesById);
                 for (PanelDetails details : node.details) {
                     drawDetailsPages(document, details);
                 }
@@ -158,7 +166,8 @@ public final class PdfExporter {
 
     // ------------------------------------------------------------ página do board
 
-    private void drawBoardPage(PDDocument document, BoardNode node) throws IOException {
+    private void drawBoardPage(PDDocument document, BoardNode node, Map<String, PDPage> pagesById)
+            throws IOException {
         PDPage page = node.page;
         try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
             if (node.image == null) {
@@ -179,19 +188,34 @@ public final class PdfExporter {
             for (Card card : node.board.getCards()) {
                 PDRectangle rect = node.rectOf(card);
                 writeInvisibleText(cs, card.getText(), textRect(card, rect, node.scale));
+                // O card todo leva à página dele (board aninhado, detalhes) ou, se não
+                // tem, à do link para outro board, ou, se nem isso, ao site. Os destinos
+                // que não ficaram com o card todo vão só na área do marcador, por cima.
                 PDPage target = node.linkTarget(card);
+                PDPage boardTarget = boardLinkTarget(card, pagesById);
+                Optional<String> uri = WebLink.toBrowserUri(card.getLink());
                 if (target != null) {
                     link(page, rect, target);
                 }
-                // Link externo: o card todo abre o endereço; se o card já leva a outra
-                // página (board aninhado, detalhes), só o clipe abre (anotação por cima).
-                Optional<String> uri = WebLink.toBrowserUri(card.getLink());
+                if (boardTarget != null) {
+                    link(page, target == null ? rect : markerRect(card, rect, node.scale, CardMarkers.Kind.BOARD_LINK),
+                            boardTarget);
+                }
                 if (uri.isPresent()) {
-                    uriLink(page, target == null ? rect : markerRect(card, rect, node.scale, CardMarkers.Kind.LINK),
+                    boolean wholeCard = target == null && boardTarget == null;
+                    uriLink(page, wholeCard ? rect : markerRect(card, rect, node.scale, CardMarkers.Kind.LINK),
                             uri.get());
                 }
             }
         }
+    }
+
+    /**
+     * Página do board de destino do link para outro board, ou {@code null}
+     * (sem link, ou destino que não existe mais na árvore: sem área clicável).
+     */
+    private static PDPage boardLinkTarget(Card card, Map<String, PDPage> pagesById) {
+        return card.hasBoardLink() ? pagesById.get(card.getBoardLink()) : null;
     }
 
     /**

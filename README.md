@@ -43,11 +43,19 @@ mvn test
   › "Adicionar link..." (ou o botão Link da barra flutuante) e digite o endereço. O card mostra um
   clipe na borda de cima; clicar nele abre o endereço no navegador (a dica mostra o endereço). Só
   aceita `http://` e `https://` (sem esquema, assume `https://`). No PDF o card vira link para o site
+- Link para outro board: qualquer card pode ser um atalho para **qualquer board da árvore**, mesmo em
+  outro caminho (ex.: do card "Orçamento" direto para `Principal › Projeto B › Custos`). Clique direito no
+  card › "Link para outro board..." (ou o botão de seta curva da barra flutuante) e escolha o destino na
+  lista da árvore, que mostra o caminho de cada board. O card ganha uma seta curva ao lado do clipe;
+  clicar nela abre o destino com o caminho completo no topo, e o botão voltar (`Alt+←`) leva de volta
+  ao board de onde você saiu. Renomear o destino não quebra o link; se o destino for excluído, a seta
+  aparece riscada em vermelho (desfazer a exclusão faz o link voltar a funcionar). No PDF o card vira
+  link para a página do destino
 - Menu de clique direito nos cards (clique sem arrastar; arrastar com o direito continua movendo a visão)
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Imagem, Conexão e cor dos novos cards
-- Barra flutuante da seleção: cor, formato, tamanho do texto, link (com um card selecionado), duplicar e excluir
+- Barra flutuante da seleção: cor, formato, tamanho do texto, link e link para outro board (com um card selecionado), duplicar e excluir
 - Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`);
   saves antigos (um `.json` solto) continuam abrindo e viram pasta no primeiro "Salvar"
 - Exportar para PDF navegável: uma página por board, cards de board aninhado e caminho do topo
@@ -67,7 +75,7 @@ mvn test
 | `I` | Inserir imagem (abre o seletor de arquivo) |
 | `Ctrl+V` | Colar imagem (fora da edição de texto) |
 | Duplo clique na imagem | Escrever a legenda |
-| `Alt+←` | Voltar ao board anterior |
+| `Alt+←` | Voltar ao board anterior (depois de um link para outro board: ao board de onde você saiu) |
 | `C` | Conexão |
 | `Delete` / `Backspace` | Excluir seleção |
 | `Ctrl+D` | Duplicar seleção |
@@ -77,8 +85,10 @@ mvn test
 | `Esc` | Sair da edição de texto → fechar painel flutuante → voltar para Selecionar → limpar seleção |
 | `Espaço` + arrastar | Mover a visão (também: botão do meio ou direito) |
 | `Shift` + clique | Somar/retirar card da seleção |
-| Clique direito no card (sem arrastar) | Menu do card: adicionar, editar, abrir ou remover o link |
+| Clique direito no card (sem arrastar) | Menu do card: adicionar, editar, abrir ou remover o link; escolher, trocar, ir para ou remover o link para outro board |
 | Clique no clipe do card | Abrir o link no navegador |
+| Clique na seta curva do card | Ir para o board de destino |
+| Na lista de boards | Setas para escolher, `Enter` confirma, `Esc` cancela |
 | `Alt` + arrastar card ou alça | Mover/redimensionar sem alinhamento automático |
 | `Shift` + arrastar canto | Redimensionar mantendo a proporção (retângulo) |
 | `Ctrl+N` / `Ctrl+O` | Novo board / abrir |
@@ -108,7 +118,8 @@ MeuBoard/
 
 - **Salvar como** (`Ctrl+Shift+S`): o nome digitado vira o nome da pasta.
 - Links dos cards ficam no `board.json`; um endereço que não seja `http(s)` (arquivo editado à mão)
-  é descartado ao abrir.
+  é descartado ao abrir. O link para outro board guarda o id do board de destino (mantido ao abrir
+  mesmo que o destino não exista mais).
 - **Abrir** (`Ctrl+O`): escolha o `board.json` dentro da pasta do board.
 - **Saves antigos** (um `.json` solto) abrem normalmente. O primeiro "Salvar" pede a pasta nova e não
   mexe no arquivo antigo.

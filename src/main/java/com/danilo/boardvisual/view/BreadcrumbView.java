@@ -79,6 +79,16 @@ public class BreadcrumbView extends HBox {
         backButton.setVisible(names.size() > 1);
     }
 
+    /**
+     * Mostra ou esconde o botão de voltar, com a dica dele. Chamado depois de
+     * {@link #setPath}: depois de um link para outro board há para onde voltar
+     * mesmo no board principal (o board de onde se saiu).
+     */
+    public void setBack(boolean visible, String tooltip) {
+        backButton.setVisible(visible);
+        backButton.getTooltip().setText(tooltip);
+    }
+
     /** Chamado com o índice do nível clicado (0 = board principal). */
     public void setOnNavigate(IntConsumer handler) {
         onNavigate = handler == null ? index -> { } : handler;

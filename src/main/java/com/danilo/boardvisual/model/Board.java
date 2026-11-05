@@ -108,15 +108,41 @@ public class Board {
 
     /**
      * Cópia independente do board inteiro (cards, setas e boards filhos, em
-     * qualquer profundidade). O board copiado ganha id novo; os objetos
-     * internos são todos novos, mas reaproveitam os ids da foto (ids só
-     * precisam ser únicos dentro do próprio board). Usada ao duplicar um card
-     * que contém um board.
+     * qualquer profundidade). Usada ao duplicar um card que contém um board.
+     *
+     * Ids: o board copiado e <b>todos os boards dentro dele</b> ganham ids
+     * novos, porque o id de um board é único na árvore inteira (o "link para
+     * outro board" acha o destino por ele, {@link BoardTree}). Por isso um link
+     * para outro board continua apontando para o <b>original</b>, mesmo dentro
+     * da cópia. Cards e setas reaproveitam os ids da foto (ids de card só
+     * precisam ser únicos dentro do próprio board).
      */
     public Board deepCopy() {
         Board copy = new Board(getName());
         copy.restore(snapshot());
+        copy.renewChildBoardIds();
         return copy;
+    }
+
+    /**
+     * Troca cada board filho (em qualquer profundidade) por um board de id
+     * novo com o mesmo conteúdo. Os cards e setas mudam de board, não são
+     * recriados.
+     */
+    private void renewChildBoardIds() {
+        for (Card card : cards) {
+            Board old = card.getChildBoard();
+            if (old == null) {
+                continue;
+            }
+            Board fresh = new Board(old.getName());
+            fresh.cards.setAll(old.cards);
+            fresh.connections.setAll(old.connections);
+            old.connections.clear();
+            old.cards.clear();
+            fresh.renewChildBoardIds();
+            card.setChildBoard(fresh);
+        }
     }
 
     // ------------------------------------------------------ desfazer/refazer

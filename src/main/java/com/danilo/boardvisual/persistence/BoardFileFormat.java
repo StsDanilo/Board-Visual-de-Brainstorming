@@ -43,12 +43,16 @@ final class BoardFileFormat {
      * link (endereço web, null = sem link) veio com o link externo, do mesmo
      * jeito: sem novo bump de versão, ausente nos saves anteriores e nos cards
      * sem link. Ao abrir, um link que não seja http(s) válido é descartado.
+     *
+     * boardLink (id do board de destino do atalho para outro board, null =
+     * sem atalho) veio com o link para outro board, também sem bump. Um id que
+     * não existe mais na árvore é mantido (o marcador aparece "quebrado").
      */
     record CardData(String id, double x, double y, double width, double height,
                     Double baseWidth, Double baseHeight, Double fontSize,
                     String text, String color, String shape,
                     String panelMode, String detailText, List<String> listItems,
-                    String imageFile, String link, BoardData childBoard) {
+                    String imageFile, String link, String boardLink, BoardData childBoard) {
     }
 
     record ConnectionData(String id, String sourceId, String targetId) {

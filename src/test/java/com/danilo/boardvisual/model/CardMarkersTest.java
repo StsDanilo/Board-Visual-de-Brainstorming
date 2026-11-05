@@ -26,6 +26,20 @@ class CardMarkersTest {
     }
 
     @Test
+    void boardLinkAddsTheCurvedArrowAfterTheClip() {
+        Card card = new Card(0, 0);
+        card.setBoardLink("algum-board");
+        assertEquals(List.of(CardMarkers.Kind.BOARD_LINK), CardMarkers.of(card), "sozinho");
+
+        card.setLink("exemplo.com");
+        List<CardMarkers.Spot> spots = CardMarkers.layout(card);
+        assertEquals(List.of(CardMarkers.Kind.LINK, CardMarkers.Kind.BOARD_LINK), CardMarkers.of(card),
+                "os dois lado a lado, clipe primeiro");
+        assertEquals(spots.get(0).y(), spots.get(1).y());
+        assertTrue(spots.get(1).x() > spots.get(0).x() + CardMarkers.SIZE);
+    }
+
+    @Test
     void rectangleMarkerSitsInTheTopRightCornerAwayFromTheResizeHandles() {
         CardMarkers.Spot spot = CardMarkers.layout(CardShape.RECTANGLE, 200, 120, ONE).get(0);
 

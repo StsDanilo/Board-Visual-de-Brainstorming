@@ -20,7 +20,9 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -147,7 +149,7 @@ public class BoardStorage {
             }
             folder = file.toAbsolutePath().getParent();
         }
-        return new LoadedBoard(fromData(data), folder);
+        return new LoadedBoard(fromData(data, new HashSet<>()), folder);
     }
 
     /** Diz se {@code folder} serve de destino para um save (ver {@link Target}). */
@@ -175,6 +177,7 @@ public class BoardStorage {
                         c.getText(), c.getColor(), c.getShape().name(),
                         c.getPanelMode().name(), c.getDetailText(), c.getListItemTexts(), c.getImageFile(),
                         c.hasLink() ? c.getLink() : null,
+                        c.getBoardLink(),
                         c.hasChildBoard() ? toData(c.getChildBoard()) : null))
                 .toList();
         List<ConnectionData> connections = board.getConnections().stream()
@@ -183,8 +186,17 @@ public class BoardStorage {
         return new BoardData(BoardFileFormat.CURRENT_VERSION, board.getId(), board.getName(), cards, connections);
     }
 
-    private static Board fromData(BoardData data) {
-        Board board = data.id() == null ? new Board(data.name()) : new Board(data.id(), data.name());
+    /**
+     * @param seenBoardIds ids de board já usados na árvore. O id de um board é
+     *                     único na árvore inteira (o link para outro board acha o
+     *                     destino por ele); saves feitos antes disso podem ter ids
+     *                     repetidos (duplicar um card-board com filhos reaproveitava
+     *                     os ids dos filhos). O repetido ganha id novo.
+     */
+    private static Board fromData(BoardData data, Set<String> seenBoardIds) {
+        boolean usableId = data.id() != null && !data.id().isBlank() && !seenBoardIds.contains(data.id());
+        Board board = usableId ? new Board(data.id(), data.name()) : new Board(data.name());
+        seenBoardIds.add(board.getId());
 
         if (data.cards() != null) {
             for (CardData cd : data.cards()) {
@@ -215,8 +227,11 @@ public class BoardStorage {
                 if (cd.link() != null && !cd.link().isBlank() && !card.hasLink()) {
                     System.err.println("Link inválido descartado ao abrir o card " + cd.id());
                 }
+                // Mantido mesmo se o board de destino não existir mais: o marcador
+                // aparece "quebrado", e o dado não se perde.
+                card.setBoardLink(cd.boardLink());
                 if (cd.childBoard() != null) {
-                    card.setChildBoard(fromData(cd.childBoard()));
+                    card.setChildBoard(fromData(cd.childBoard(), seenBoardIds));
                 }
                 board.addCard(card);
             }

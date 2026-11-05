@@ -3,6 +3,7 @@ package com.danilo.boardvisual.controller;
 import com.danilo.boardvisual.export.PdfExporter;
 import com.danilo.boardvisual.export.PngExporter;
 import com.danilo.boardvisual.model.Board;
+import com.danilo.boardvisual.model.BoardTree;
 import com.danilo.boardvisual.persistence.BoardImages;
 import com.danilo.boardvisual.persistence.BoardStorage;
 import com.danilo.boardvisual.view.BoardRenderer;
@@ -47,6 +48,7 @@ public class MainController {
     private final ImageController images;
     private final CardContextMenuController contextMenu;
     private final LinkController links;
+    private final BoardLinkController boardLinks;
 
     /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
     private Path currentFolder;
@@ -81,6 +83,7 @@ public class MainController {
         images = new ImageController(stage, boardView, activeTool, history);
         contextMenu = new CardContextMenuController(boardView);
         links = new LinkController(boardView, window.getSelectionToolbar(), history, linkOpener, contextMenu);
+        boardLinks = new BoardLinkController(boardView, window.getSelectionToolbar(), history, navigation, contextMenu);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
                 canvasController, panelController, navigation, images, this);
         CardTextFitController textFitController = new CardTextFitController();
@@ -92,6 +95,7 @@ public class MainController {
             panelController.attach(cardView);
             navigation.attach(cardView);
             links.attach(cardView);
+            boardLinks.attach(cardView);
         });
 
         wireMenu();
@@ -123,6 +127,25 @@ public class MainController {
     /** Link externo dos cards (usado pelos roteiros de teste de interface). */
     public LinkController getLinks() {
         return links;
+    }
+
+    /** Link para outro board (usado pelos roteiros de teste de interface). */
+    public BoardLinkController getBoardLinks() {
+        return boardLinks;
+    }
+
+    /** Navegação entre boards (usado pelos roteiros de teste de interface). */
+    public NavigationController getNavigation() {
+        return navigation;
+    }
+
+    /**
+     * Desenha boards fora da tela (PDF e PNG) como a tela: mesmo CSS, mesmas
+     * imagens e o mesmo marcador quebrado nos links para boards que não existem mais.
+     */
+    private BoardRenderer renderer() {
+        return new BoardRenderer(stage.getScene().getStylesheets(), images.loader(),
+                BoardTree.ids(navigation.getRoot())::contains);
     }
 
     public void undo() {
@@ -275,7 +298,7 @@ public class MainController {
         if (!path.getFileName().toString().toLowerCase().endsWith(".pdf")) {
             path = path.resolveSibling(path.getFileName() + ".pdf");
         }
-        BoardRenderer renderer = new BoardRenderer(stage.getScene().getStylesheets(), images.loader());
+        BoardRenderer renderer = renderer();
         try {
             new PdfExporter(renderer::render).export(navigation.getRoot(), path);
         } catch (IOException | RuntimeException e) {
@@ -307,7 +330,7 @@ public class MainController {
         if (file == null) {
             return;
         }
-        BoardRenderer renderer = new BoardRenderer(stage.getScene().getStylesheets(), images.loader());
+        BoardRenderer renderer = renderer();
         PngExporter exporter = new PngExporter((b, bounds, scale, bg) ->
                 renderer.render(b, bounds, scale, bg == PngExporter.Background.TRANSPARENT));
         try {

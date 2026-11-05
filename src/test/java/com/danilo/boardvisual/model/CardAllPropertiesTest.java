@@ -52,6 +52,7 @@ class CardAllPropertiesTest {
         card.setListItemTexts(List.of("um", "dois"));
         card.setImageFile("foto-do-card.png");
         card.setLink("https://exemplo.com.br/página?q=ideias#topo");
+        card.setBoardLink("id-do-board-de-destino");
 
         Board child = new Board("board-filho", "");
         Card inside = new Card("dentro-1", 5, 6);

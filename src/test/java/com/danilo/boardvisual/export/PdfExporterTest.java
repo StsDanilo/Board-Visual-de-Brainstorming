@@ -309,4 +309,115 @@ class PdfExporterTest {
             }
         }
     }
+
+    // ------------------------------------------------------ link para outro board
+
+    /**
+     * Na página do "Etapa" (dentro de Projeto), um card com atalho para o board
+     * de "Projeto": o card todo leva à página do destino, em outro ramo da árvore.
+     */
+    @Test
+    void cardWithBoardLinkLeadsToTheDestinationPage() throws IOException {
+        Board root = sample();
+        Card project = root.getCards().get(0);
+        Board stageBoard = project.getChildBoard().getCards().get(0).getChildBoard();
+        Card shortcut = new Card(0, 0);
+        shortcut.setText("Atalho");
+        shortcut.setBoardLink(project.getChildBoard().getId());
+        stageBoard.addCard(shortcut);
+
+        try (PDDocument document = exporter.build(root)) {
+            // 0 principal, 1 detalhes de Tarefas, 2 Projeto, 3 detalhes de Notas, 4 Etapa
+            // Antes vêm os links do caminho no topo (Principal, Projeto); o do card é o último.
+            List<PDAnnotationLink> all = links(document.getPage(4));
+            PDAnnotationLink toProject = all.get(all.size() - 1);
+            assertEquals(2, pageIndex(document, toProject), "o atalho leva à página de Projeto");
+            assertEquals(shortcut.getWidth(), toProject.getRectangle().getWidth(), 1e-3, "o card todo");
+        }
+    }
+
+    @Test
+    void cardThatAlreadyLeadsToAPageGoesToTheBoardLinkOnlyFromTheMarker() throws IOException {
+        Board root = new Board("Misto");
+        Card holder = new Card(0, 0);
+        holder.setText("Projeto");
+        holder.setChildBoard(new Board(""));
+        Card other = new Card(400, 0);
+        other.setText("Outro");
+        other.setChildBoard(new Board(""));
+        holder.setBoardLink(other.getChildBoard().getId());
+        root.addCard(holder);
+        root.addCard(other);
+
+        try (PDDocument document = exporter.build(root)) {
+            // 0 principal, 1 Projeto, 2 Outro
+            List<PDAnnotationLink> holderLinks = new ArrayList<>();
+            for (PDAnnotationLink link : links(document.getPage(0))) {
+                if (link.getRectangle().getLowerLeftX() < 300) {
+                    holderLinks.add(link);
+                }
+            }
+            assertEquals(2, holderLinks.size());
+            PDAnnotationLink toChild = holderLinks.get(0);
+            PDAnnotationLink toOther = holderLinks.get(1); // depois = por cima
+            assertEquals(1, pageIndex(document, toChild), "o card continua levando ao board filho");
+            assertEquals(2, pageIndex(document, toOther), "o marcador leva ao destino do atalho");
+            assertEquals(CardMarkers.SIZE, toOther.getRectangle().getWidth(), 1e-3, "só a área do marcador");
+        }
+    }
+
+    @Test
+    void boardLinkAndWebLinkShareACardWithoutOwnPage() throws IOException {
+        Board root = new Board("Dois links");
+        Card target = new Card(400, 0);
+        target.setChildBoard(new Board(""));
+        Card both = new Card(0, 0);
+        both.setLink("exemplo.com");
+        both.setBoardLink(target.getChildBoard().getId());
+        root.addCard(both);
+        root.addCard(target);
+
+        try (PDDocument document = exporter.build(root)) {
+            List<PDAnnotationLink> mine = new ArrayList<>();
+            for (PDAnnotationLink link : links(document.getPage(0))) {
+                if (link.getRectangle().getLowerLeftX() < 300) {
+                    mine.add(link);
+                }
+            }
+            assertEquals(2, mine.size());
+            assertEquals(1, pageIndex(document, mine.get(0)), "o card todo vai ao board do atalho");
+            assertEquals(both.getWidth(), mine.get(0).getRectangle().getWidth(), 1e-3);
+            assertTrue(mine.get(1).getAction() instanceof PDActionURI, "o clipe, por cima, abre o site");
+            assertEquals(CardMarkers.SIZE, mine.get(1).getRectangle().getWidth(), 1e-3);
+            PDRectangle clip = PdfExporter.markerRect(both, mine.get(0).getRectangle(), 1, CardMarkers.Kind.LINK);
+            assertEquals(clip.getLowerLeftX(), mine.get(1).getRectangle().getLowerLeftX(), 1e-3);
+        }
+    }
+
+    @Test
+    void boardLinkToADeletedBoardHasNoClickableArea() throws IOException {
+        Board root = new Board("Quebrado");
+        Card card = new Card(0, 0);
+        card.setBoardLink("board-que-nao-existe");
+        root.addCard(card);
+
+        try (PDDocument document = exporter.build(root)) {
+            assertEquals(List.of(), links(document.getPage(0)));
+        }
+    }
+
+    @Test
+    void markerRectsOfACardWithBothMarkersAreSideBySide() {
+        Card card = new Card(0, 0);
+        card.setLink("exemplo.com");
+        card.setBoardLink("algum-board");
+        PDRectangle cardRect = new PDRectangle(0, 0, 200, 120);
+
+        PDRectangle clip = PdfExporter.markerRect(card, cardRect, 1, CardMarkers.Kind.LINK);
+        PDRectangle arrow = PdfExporter.markerRect(card, cardRect, 1, CardMarkers.Kind.BOARD_LINK);
+
+        assertEquals(clip.getUpperRightY(), arrow.getUpperRightY(), 1e-3, "mesma fileira");
+        assertEquals(CardMarkers.SIZE + CardMarkers.SPACING, arrow.getLowerLeftX() - clip.getLowerLeftX(), 1e-3,
+                "clipe à esquerda, seta à direita");
+    }
 }

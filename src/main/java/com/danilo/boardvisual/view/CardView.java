@@ -9,6 +9,8 @@ import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.DoubleBinding;
 import javafx.beans.property.ReadOnlyBooleanProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import javafx.css.PseudoClass;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
@@ -48,7 +50,8 @@ import java.util.Map;
  *  │       └─ textArea
  *  ├─ panelButton             abre o painel flutuante (só em cards com painel)
  *  ├─ boardButton             entra no board filho (só em cards com board aninhado)
- *  ├─ marcadores              botõezinhos na borda de cima (clipe do link), ver {@link CardMarkers}
+ *  ├─ marcadores              botõezinhos na borda de cima (clipe do link, seta do link para outro board),
+ *  │                          ver {@link CardMarkers}
  *  └─ connectorHandle         alça para criar conexões
  * </pre>
  */
@@ -59,6 +62,7 @@ public class CardView extends Region {
     private static final PseudoClass PANEL_OPEN = PseudoClass.getPseudoClass("panel-open");
     private static final PseudoClass HAS_BOARD = PseudoClass.getPseudoClass("has-board");
     private static final PseudoClass HAS_IMAGE = PseudoClass.getPseudoClass("has-image");
+    private static final PseudoClass BROKEN = PseudoClass.getPseudoClass("broken");
     private static final String SHAPE_CLASS_PREFIX = "shape-";
     /** Texto de exemplo do card vazio (também usado para ajustar a fonte automática). */
     public static final String PROMPT_TEXT = "Escreva uma ideia...";
@@ -85,6 +89,8 @@ public class CardView extends Region {
     private final Label missingImage = new Label("Imagem não encontrada");
     /** Marcadores na borda de cima, um botão por tipo (ver {@link CardMarkers}). */
     private final Map<CardMarkers.Kind, Button> markers = new EnumMap<>(CardMarkers.Kind.class);
+    /** Dica do marcador do link para outro board (o controller põe o caminho do destino). */
+    private final StringProperty boardLinkDescription = new SimpleStringProperty("Ir para o board de destino");
 
     public CardView(Card card) {
         this(card, CardImageLoader.NONE);
@@ -272,7 +278,7 @@ public class CardView extends Region {
     }
 
     /**
-     * Marcadores na borda de cima (hoje só o clipe do link). Um botão por tipo,
+     * Marcadores na borda de cima (clipe do link, seta do link para outro board). Um botão por tipo,
      * criado sempre e mostrado só quando o card tem aquele marcador; a posição
      * vem de {@link CardMarkers#layout}, a mesma conta usada pelo texto e pelo PDF.
      * O tamanho é fixado aqui, não no CSS (o app.css venceria o código, 4.5).
@@ -290,6 +296,8 @@ public class CardView extends Region {
             Tooltip tooltip = new Tooltip();
             tooltip.textProperty().bind(switch (kind) {
                 case LINK -> Bindings.concat("Abrir no navegador:\n", card.linkProperty());
+                // O caminho do destino depende da árvore inteira: quem sabe é o controller.
+                case BOARD_LINK -> boardLinkDescription;
             });
             marker.setTooltip(tooltip);
             markers.put(kind, marker);
@@ -298,6 +306,30 @@ public class CardView extends Region {
             dependency.addListener(obs -> applyMarkers());
         }
         applyMarkers();
+    }
+
+    /**
+     * Marca o marcador como "quebrado" (o destino não existe mais): ícone
+     * riscado e pseudo-classe {@code :broken} (esmaecido, borda de alerta, no
+     * app.css). Quem sabe se o destino existe é o controller (ou o
+     * {@link BoardRenderer}, no PDF e no PNG).
+     */
+    public void setMarkerBroken(CardMarkers.Kind kind, boolean broken) {
+        Button marker = markers.get(kind);
+        if (marker.getPseudoClassStates().contains(BROKEN) == broken) {
+            return;
+        }
+        marker.pseudoClassStateChanged(BROKEN, broken);
+        marker.setGraphic(Icons.marker(kind, broken));
+    }
+
+    public boolean isMarkerBroken(CardMarkers.Kind kind) {
+        return markers.get(kind).getPseudoClassStates().contains(BROKEN);
+    }
+
+    /** Texto da dica do marcador do link para outro board (ex.: o caminho do destino). */
+    public void setBoardLinkDescription(String text) {
+        boardLinkDescription.set(text);
     }
 
     private void applyMarkers() {

@@ -22,7 +22,8 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
                             double baseWidth, double baseHeight, double fontSize,
                             String text, String color, CardShape shape,
                             PanelMode panelMode, String detailText, List<String> listItems,
-                            String imageFile, String link, String childBoardId, BoardSnapshot childBoard) {
+                            String imageFile, String link, String boardLink,
+                            String childBoardId, BoardSnapshot childBoard) {
 
         public CardState {
             listItems = List.copyOf(listItems);
@@ -34,7 +35,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
                     card.getBaseWidth(), card.getBaseHeight(), card.getFontSize(),
                     card.getText(), card.getColor(), card.getShape(),
                     card.getPanelMode(), card.getDetailText(), card.getListItemTexts(), card.getImageFile(),
-                    card.getLink(),
+                    card.getLink(), card.getBoardLink(),
                     child == null ? null : child.getId(), child == null ? null : child.snapshot());
         }
 
@@ -54,6 +55,7 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
             card.setListItemTexts(listItems);
             card.setImageFile(imageFile);
             card.setLink(link);
+            card.setBoardLink(boardLink);
             applyChildBoardTo(card);
         }
 
