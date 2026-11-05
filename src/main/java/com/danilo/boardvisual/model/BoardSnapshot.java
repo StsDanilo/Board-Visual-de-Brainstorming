@@ -89,11 +89,22 @@ public record BoardSnapshot(List<CardState> cards, List<ConnectionState> connect
         }
     }
 
-    public record ConnectionState(String id, String sourceId, String targetId) {
+    /**
+     * Uma seta: as pontas (fixas) e o que muda nela (texto e estilo). Texto e
+     * estilo entram na comparação, então editar o texto ou trocar o estilo é
+     * um passo do desfazer.
+     */
+    public record ConnectionState(String id, String sourceId, String targetId, String label, ConnectionStyle style) {
 
         static ConnectionState of(Connection connection) {
             return new ConnectionState(connection.getId(),
-                    connection.getSource().getId(), connection.getTarget().getId());
+                    connection.getSource().getId(), connection.getTarget().getId(),
+                    connection.getLabel(), connection.getStyle());
+        }
+
+        void applyTo(Connection connection) {
+            connection.setLabel(label);
+            connection.setStyle(style);
         }
     }
 }

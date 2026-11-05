@@ -80,6 +80,8 @@ public class BoardView extends Pane {
     /** Seções (frames): sempre atrás dos cards comuns e das setas ({@link Card#isFrame()}). */
     private final Group frameLayer = new Group();
     private final Group connectionLayer = new Group();
+    /** Textos das setas: acima de todas as linhas, abaixo dos cards ({@link ConnectionView#getLabelLayer()}). */
+    private final Group connectionLabelLayer = new Group();
     private final Group cardLayer = new Group();
     private final Group overlayLayer = new Group();
 
@@ -117,10 +119,19 @@ public class BoardView extends Pane {
             change.getRemoved().forEach(this::removeConnectionView);
             change.getAddedSubList().forEach(this::addConnectionView);
         }
+        updateReverseConnections();
     };
+
+    /**
+     * Seta selecionada (no máximo uma). Estado só da tela: não é salvo e não
+     * entra no desfazer. Seta e cards não ficam selecionados juntos.
+     */
+    private final ReadOnlyObjectWrapper<Connection> selectedConnection =
+            new ReadOnlyObjectWrapper<>(this, "selectedConnection");
 
     private Board board;
     private Consumer<CardView> cardViewInitializer = cardView -> { };
+    private Consumer<ConnectionView> connectionViewInitializer = connectionView -> { };
     private CardImageLoader imageLoader = CardImageLoader.NONE;
 
     private Region selectionOverlay;
@@ -150,7 +161,7 @@ public class BoardView extends Pane {
         overlayLayer.getChildren().add(connectionPreview);
         overlayLayer.setMouseTransparent(true);
 
-        world.getChildren().addAll(frameLayer, connectionLayer, cardLayer, overlayLayer);
+        world.getChildren().addAll(frameLayer, connectionLayer, connectionLabelLayer, cardLayer, overlayLayer);
 
         marquee.getStyleClass().add("selection-marquee");
         marquee.setManaged(false);
@@ -174,8 +185,17 @@ public class BoardView extends Pane {
             }
             if (change.wasAdded()) {
                 getCardView(change.getElementAdded()).ifPresent(v -> v.setSelected(true));
+                selectConnection(null); // selecionar um card tira a seleção da seta
             }
             trackSelectionForOverlay();
+        });
+        selectedConnection.addListener((obs, old, connection) -> {
+            if (old != null) {
+                getConnectionView(old).ifPresent(v -> v.setSelected(false));
+            }
+            if (connection != null) {
+                getConnectionView(connection).ifPresent(v -> v.setSelected(true));
+            }
         });
         zoom.addListener(overlayUpdater);
         pan.xProperty().addListener(overlayUpdater);
@@ -207,9 +227,11 @@ public class BoardView extends Pane {
             board.getConnections().removeListener(connectionsListener);
         }
         selection.clear();
+        selectConnection(null);
         frameLayer.getChildren().clear();
         cardLayer.getChildren().clear();
         connectionLayer.getChildren().clear();
+        connectionLabelLayer.getChildren().clear();
         cardViews.clear();
         connectionViews.clear();
 
@@ -219,8 +241,26 @@ public class BoardView extends Pane {
         }
         board.getCards().forEach(this::addCardView);
         board.getConnections().forEach(this::addConnectionView);
+        updateReverseConnections();
         board.getCards().addListener(cardsListener);
         board.getConnections().addListener(connectionsListener);
+    }
+
+    /**
+     * Chamado para cada {@link ConnectionView} criado (seleção e edição do texto
+     * da seta), como {@link #setCardViewInitializer}.
+     */
+    public void setConnectionViewInitializer(Consumer<ConnectionView> initializer) {
+        connectionViewInitializer = initializer == null ? connectionView -> { } : initializer;
+    }
+
+    public Optional<ConnectionView> getConnectionView(Connection connection) {
+        return Optional.ofNullable(connectionViews.get(connection));
+    }
+
+    /** Marca as setas que têm a seta contrária (A→B e B→A): os textos delas se afastam. */
+    private void updateReverseConnections() {
+        connectionViews.forEach((connection, view) -> view.setReverse(board.hasReverse(connection)));
     }
 
     /**
@@ -315,12 +355,18 @@ public class BoardView extends Pane {
         ConnectionView view = new ConnectionView(connection);
         connectionViews.put(connection, view);
         connectionLayer.getChildren().add(view);
+        connectionLabelLayer.getChildren().add(view.getLabelLayer());
+        connectionViewInitializer.accept(view);
     }
 
     private void removeConnectionView(Connection connection) {
+        if (connection == selectedConnection.get()) {
+            selectConnection(null);
+        }
         ConnectionView view = connectionViews.remove(connection);
         if (view != null) {
             connectionLayer.getChildren().remove(view);
+            connectionLabelLayer.getChildren().remove(view.getLabelLayer());
         }
     }
 
@@ -354,8 +400,35 @@ public class BoardView extends Pane {
         selection.addAll(wanted);
     }
 
+    /** Limpa a seleção de cards e a de seta. */
     public void clearSelection() {
         selection.clear();
+        selectConnection(null);
+    }
+
+    // ------------------------------------------------------ seleção de seta
+
+    /**
+     * Seleciona a seta (destaque azul), tirando a seleção dos cards;
+     * {@code null} limpa. Uma seta fora do board na tela é ignorada.
+     */
+    public void selectConnection(Connection connection) {
+        if (connection != null && !connectionViews.containsKey(connection)) {
+            return;
+        }
+        if (connection != null) {
+            selection.clear();
+        }
+        selectedConnection.set(connection);
+    }
+
+    public ReadOnlyObjectProperty<Connection> selectedConnectionProperty() {
+        return selectedConnection.getReadOnlyProperty();
+    }
+
+    /** A seta selecionada, ou {@code null}. */
+    public Connection getSelectedConnection() {
+        return selectedConnection.get();
     }
 
     // ------------------------------------------- barra flutuante da seleção

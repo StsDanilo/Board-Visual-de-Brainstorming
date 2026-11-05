@@ -199,8 +199,36 @@ public class Board {
      * seção ou conexão repetida).
      */
     public Optional<Connection> connect(Card source, Card target) {
+        return connect(source, target, ConnectionStyle.DEFAULT);
+    }
+
+    /**
+     * Como {@link #connect(Card, Card)}, com a seta já nascendo no estilo
+     * informado (o escolhido na barra de ferramentas). As regras são as mesmas
+     * para todos os estilos: uma linha sem ponta de A para B também impede
+     * outra de A para B, e B→A continua permitida.
+     */
+    public Optional<Connection> connect(Card source, Card target, ConnectionStyle style) {
         Connection connection = new Connection(source, target);
+        connection.setStyle(style);
         return addConnection(connection) ? Optional.of(connection) : Optional.empty();
+    }
+
+    /** Remove a seta (os cards ficam). */
+    public boolean removeConnection(Connection connection) {
+        return connections.remove(connection);
+    }
+
+    public Optional<Connection> findConnection(String connectionId) {
+        return connections.stream().filter(c -> c.getId().equals(connectionId)).findFirst();
+    }
+
+    /**
+     * Se existe a seta no sentido contrário (B→A para uma A→B). As duas ficam
+     * sobre a mesma reta; a tela afasta os textos delas para não se cobrirem.
+     */
+    public boolean hasReverse(Connection connection) {
+        return isConnected(connection.getTarget(), connection.getSource());
     }
 
     /**
@@ -309,12 +337,20 @@ public class Board {
             applyOrder(order);
         }
 
+        // Setas que continuam existindo são atualizadas no lugar (texto e estilo),
+        // como os cards; as que faltam são recriadas.
         for (BoardSnapshot.ConnectionState state : snapshot.connections()) {
-            boolean present = connections.stream().anyMatch(c -> c.getId().equals(state.id()));
+            Optional<Connection> present = findConnection(state.id());
+            if (present.isPresent()) {
+                state.applyTo(present.get());
+                continue;
+            }
             Optional<Card> source = findCard(state.sourceId());
             Optional<Card> target = findCard(state.targetId());
-            if (!present && source.isPresent() && target.isPresent()) {
-                addConnection(new Connection(state.id(), source.get(), target.get()));
+            if (source.isPresent() && target.isPresent()) {
+                Connection connection = new Connection(state.id(), source.get(), target.get());
+                state.applyTo(connection);
+                addConnection(connection);
             }
         }
     }

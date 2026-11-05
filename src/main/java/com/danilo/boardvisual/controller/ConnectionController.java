@@ -1,10 +1,12 @@
 package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.model.Card;
+import com.danilo.boardvisual.model.ConnectionStyle;
 import com.danilo.boardvisual.view.BoardView;
 import com.danilo.boardvisual.view.CardView;
 import com.danilo.boardvisual.view.Tool;
 import javafx.beans.property.ObjectProperty;
+import javafx.beans.value.ObservableValue;
 import javafx.geometry.Point2D;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -22,19 +24,28 @@ import java.util.Optional;
  *   atalho rápido sem trocar de ferramenta.
  *
  * Enquanto arrasta, mostra uma prévia tracejada e destaca o card de destino.
+ * Pelos dois caminhos, a seta nasce no estilo do ícone principal da
+ * ferramenta Conexão (o escolhido na barra de ferramentas).
  */
 public class ConnectionController {
 
     private final BoardView view;
     private final ObjectProperty<Tool> activeTool;
+    private final ObservableValue<ConnectionStyle> newConnectionStyle;
     private final EditHistory history;
 
     private CardView source;
     private CardView highlighted;
 
-    public ConnectionController(BoardView view, ObjectProperty<Tool> activeTool, EditHistory history) {
+    /**
+     * @param newConnectionStyle estilo das setas criadas (o do ícone principal
+     *                           da ferramenta Conexão, {@code ToolBarView.connectionStyleProperty})
+     */
+    public ConnectionController(BoardView view, ObjectProperty<Tool> activeTool,
+                                ObservableValue<ConnectionStyle> newConnectionStyle, EditHistory history) {
         this.view = view;
         this.activeTool = activeTool;
+        this.newConnectionStyle = newConnectionStyle;
         this.history = history;
     }
 
@@ -74,8 +85,9 @@ public class ConnectionController {
             if (source != cardView) {
                 return;
             }
-            targetAt(e).ifPresent(target ->
-                    history.perform(() -> view.getBoard().connect(cardView.getCard(), target.getCard())));
+            ConnectionStyle style = newConnectionStyle.getValue();
+            targetAt(e).ifPresent(target -> history.perform(
+                    () -> view.getBoard().connect(cardView.getCard(), target.getCard(), style)));
             view.hideConnectionPreview();
             highlight(null);
             source = null;

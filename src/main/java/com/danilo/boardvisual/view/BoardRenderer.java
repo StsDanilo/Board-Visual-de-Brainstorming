@@ -69,8 +69,13 @@ public final class BoardRenderer {
      */
     public BufferedImage render(Board board, Box bounds, double pixelsPerUnit, boolean transparent) {
         Group connections = new Group();
+        Group labels = new Group(); // textos das setas acima de todas as linhas, como na tela
         for (Connection connection : board.getConnections()) {
-            connections.getChildren().add(new ConnectionView(connection));
+            // Com o texto e o estilo da seta, como na tela.
+            ConnectionView view = new ConnectionView(connection);
+            view.setReverse(board.hasReverse(connection));
+            connections.getChildren().add(view);
+            labels.getChildren().add(view.getLabelLayer());
         }
         // Como na tela: seções atrás das setas, cards comuns na frente (BoardView).
         Group frames = new Group();
@@ -83,7 +88,7 @@ public final class BoardRenderer {
             }
             (card.isFrame() ? frames : cards).getChildren().add(view);
         }
-        Group content = new Group(frames, connections, cards);
+        Group content = new Group(frames, connections, labels, cards);
         Group root = new Group(content);
         root.getStyleClass().add("board-export");
         Scene scene = new Scene(root);

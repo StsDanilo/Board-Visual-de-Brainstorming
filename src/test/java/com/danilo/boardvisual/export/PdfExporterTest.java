@@ -242,6 +242,43 @@ class PdfExporterTest {
         assertEquals(List.of("Meu board", ""), rendered);
     }
 
+    /** O texto das setas fica buscável e copiável, no meio da seta (como na tela). */
+    @Test
+    void connectionLabelIsSearchableInTheMiddleOfTheArrow() throws IOException {
+        Board board = new Board("Setas");
+        Card a = new Card(0, 0);
+        a.setText("Causa");
+        Card b = new Card(600, 0);
+        b.setText("Efeito");
+        board.addCard(a);
+        board.addCard(b);
+        board.connect(a, b, com.danilo.boardvisual.model.ConnectionStyle.DASHED).orElseThrow().setLabel("leva a");
+        Card c = new Card(0, 400);
+        board.addCard(c);
+        board.connect(a, c); // sem texto: nada a escrever
+
+        try (PDDocument document = exporter.build(board)) {
+            String text = new PDFTextStripper().getText(document);
+            assertTrue(text.contains("leva a"), text);
+
+            // O texto fica entre os dois cards (o stripper só lê a área pedida).
+            org.apache.pdfbox.text.PDFTextStripperByArea byArea = new org.apache.pdfbox.text.PDFTextStripperByArea();
+            float pageHeight = document.getPage(0).getMediaBox().getHeight();
+            float scale = 1; // board pequeno: 1 ponto por unidade
+            com.danilo.boardvisual.alignment.Box bounds = PdfExporter.contentBounds(board);
+            float midX = (float) ((a.getX() + a.getWidth() + b.getX()) / 2 - bounds.x()) * scale;
+            float midY = (float) (a.getCenterY() - bounds.y()) * scale;
+            // Na página, o y do stripper conta de cima; a imagem fica abaixo do cabeçalho.
+            float top = PdfExporter.HEADER_HEIGHT + midY - 12;
+            byArea.addRegion("meio", new java.awt.geom.Rectangle2D.Float(
+                    (float) (document.getPage(0).getMediaBox().getWidth() - bounds.width()) / 2 + midX - 60,
+                    top, 120, 24));
+            byArea.extractRegions(document.getPage(0));
+            assertTrue(byArea.getTextForRegion("meio").contains("leva a"),
+                    "no meio da seta: '" + byArea.getTextForRegion("meio") + "' (página " + pageHeight + ")");
+        }
+    }
+
     @Test
     void longPanelTextContinuesOnNextPages() throws IOException {
         Board root = new Board("Longo");

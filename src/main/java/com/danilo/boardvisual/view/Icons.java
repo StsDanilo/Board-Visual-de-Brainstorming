@@ -2,7 +2,11 @@ package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
+import com.danilo.boardvisual.model.ConnectionStyle;
 import com.danilo.boardvisual.model.PanelMode;
+import javafx.scene.Group;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
 
 /** Ícones de linha (paths SVG em área 24x24), estilizados pela classe {@code tool-icon}. */
@@ -101,6 +105,41 @@ final class Icons {
             case LIST -> PANEL_LIST;
             case NONE -> null;
         };
+    }
+
+    /** Linha diagonal de baixo-esquerda a cima-direita: o corpo dos ícones de seta. */
+    private static final String STYLE_LINE = "M5 19 L19 5";
+    /** Ponta em cima à direita (a mesma do ícone {@link #CONNECTION}). */
+    private static final String STYLE_END_TIP = "M11.5 5 H19 V12.5";
+    /** Ponta embaixo à esquerda: a mesma, girada 180°. */
+    private static final String STYLE_START_TIP = "M12.5 19 H5 V11.5";
+
+    /**
+     * Ícone de cada estilo de seta, desenhado com o próprio estilo (tracejada,
+     * ponta dupla, sem ponta). Switch exaustivo: estilo novo precisa de ícone.
+     * É um grupo: a linha tracejada leva o tracejado, as pontas ficam cheias.
+     */
+    static Group connectionStyle(ConnectionStyle style) {
+        SVGPath line = create(STYLE_LINE);
+        Group icon = new Group(line);
+        switch (style) {
+            case ARROW -> icon.getChildren().add(create(STYLE_END_TIP));
+            case DASHED -> {
+                line.getStyleClass().add("dashed");
+                icon.getChildren().add(create(STYLE_END_TIP));
+            }
+            case DOUBLE -> icon.getChildren().addAll(create(STYLE_END_TIP), create(STYLE_START_TIP));
+            case LINE -> {
+                // só a linha
+            }
+        }
+        // Mesma área de 24x24 em todos (sem isso, a linha sem ponta fica menor que as outras).
+        Rectangle frame = new Rectangle(0, 0, 24, 24);
+        frame.setFill(Color.TRANSPARENT);
+        frame.setMouseTransparent(true);
+        icon.getChildren().add(0, frame);
+        icon.getStyleClass().add("connection-style-icon");
+        return icon;
     }
 
     static SVGPath create(String path) {

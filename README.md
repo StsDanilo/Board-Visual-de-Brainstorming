@@ -30,6 +30,16 @@ mvn test
 - Alinhamento simplificado: ao arrastar ou redimensionar, bordas e centros grudam nos de outros cards, com linhas guia
   (segure `Alt` para posicionar livremente)
 - Conexões entre cards (ferramenta Conexão ou alça na borda do card)
+- Estilos de seta: simples, tracejada, ponta dupla ou linha sem ponta. O ícone da ferramenta Conexão
+  desenha o estilo das setas novas; ao lado dele aparecem os outros estilos (com a ferramenta ativa, com o
+  mouse em cima ou com uma seta selecionada). Clicar num deles troca de lugar com o principal e vale para
+  as próximas setas, pela ferramenta ou pela alça. Com uma seta selecionada, esses botões mudam o estilo
+  dela (o ícone principal aplica o estilo dele na seta)
+- Setas com texto: clique na seta para selecioná-la (fica azul; `Delete` exclui) e duplo clique na seta
+  (ou no texto dela) para escrever, por exemplo, "leva a" ou "depende de". `Enter` ou clicar fora confirma,
+  `Esc` cancela. O texto fica no meio da seta, numa linha (até 60 caracteres; longo demais termina em "…"),
+  acompanha os cards ao mover e aparece no PNG e no PDF (buscável). Com A→B e B→A, os dois textos ficam
+  lado a lado; acima da linha se clica numa seta, abaixo na outra
 - Canvas com pan e zoom
 - Painel flutuante: card com um botão que abre um painel ao lado, em modo texto (detalhamento)
   ou lista (itens editáveis); o modo é trocado pela barra do card selecionado
@@ -77,7 +87,8 @@ mvn test
 - Menu de clique direito nos cards (clique sem arrastar; arrastar com o direito continua movendo a visão)
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
-- Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Seção, Imagem, Conexão e cor dos novos cards
+- Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Seção, Imagem, Conexão
+  (com os estilos de seta ao lado) e cor dos novos cards
 - Barra flutuante da seleção: cor, formato, tamanho do texto, link e link para outro board (com um card selecionado),
   ordem (camadas), travar (cadeado), duplicar e excluir (só seções selecionadas: sem formato nem tamanho do texto)
 - Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`);
@@ -103,7 +114,9 @@ mvn test
 | Duplo clique na imagem | Escrever a legenda |
 | `Alt+←` | Voltar ao board anterior (depois de um link para outro board: ao board de onde você saiu) |
 | `C` | Conexão |
-| `Delete` / `Backspace` | Excluir seleção (cards travados ficam) |
+| Clique na seta | Selecionar a seta |
+| Duplo clique na seta ou no texto dela | Escrever o texto da seta (`Enter` confirma, `Esc` cancela) |
+| `Delete` / `Backspace` | Excluir a seta selecionada; senão, a seleção de cards (cards travados ficam) |
 | `Ctrl+D` | Duplicar seleção |
 | `Ctrl+]` ou `Ctrl+PgUp` | Trazer para frente (um nível) |
 | `Ctrl+[` ou `Ctrl+PgDn` | Enviar para trás (um nível) |

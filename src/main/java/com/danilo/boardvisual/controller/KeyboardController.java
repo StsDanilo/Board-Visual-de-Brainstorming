@@ -16,7 +16,8 @@ import java.util.Optional;
  * Atalhos de teclado do canvas.
  *
  * - Letra de cada ferramenta (definida em {@link Tool}): ativa a ferramenta.
- * - Delete / Backspace: exclui a seleção (menos os cards travados).
+ * - Delete / Backspace: exclui a seta selecionada, se houver
+ *   ({@link ConnectionEditController}); senão, a seleção de cards (menos os travados).
  * - Ctrl+L: trava / destrava a seleção ({@link LockController}).
  * - Ctrl+D: duplica a seleção.
  * - Ctrl+V: cola a imagem da área de transferência do sistema como card.
@@ -28,10 +29,11 @@ import java.util.Optional;
  * - Alt+←: volta ao board anterior (boards aninhados; depois de um link para
  *   outro board, ao board de onde se saiu).
  * - Esc: sai da edição de texto; senão fecha o painel flutuante aberto;
- *   senão volta para Selecionar; senão limpa a seleção.
+ *   senão volta para Selecionar; senão limpa a seleção (de cards e de seta).
+ *   No campo do texto da seta, o Esc é do próprio campo (cancela a edição).
  *
- * Enquanto o texto de um card está sendo editado, só o Esc funciona: as
- * outras teclas pertencem ao texto (digitar "v" não pode trocar de ferramenta).
+ * Enquanto o texto de um card (ou de uma seta) está sendo editado, só o Esc
+ * funciona: as outras teclas pertencem ao texto (digitar "v" não pode trocar de ferramenta).
  * Ctrl+Z, Ctrl+Y, Ctrl+A e os atalhos de arquivo ficam nos menus.
  */
 public class KeyboardController {
@@ -47,12 +49,15 @@ public class KeyboardController {
     private final ImageController images;
     private final StackOrderController stackOrder;
     private final LockController locks;
+    private final ConnectionEditController connectionEdits;
 
     public KeyboardController(Stage stage, BoardView view, ObjectProperty<Tool> activeTool,
                               SelectionActionsController selectionActions, CanvasController canvas,
                               PanelController panels, NavigationController navigation, ImageController images,
-                              StackOrderController stackOrder, LockController locks, MainController main) {
+                              StackOrderController stackOrder, LockController locks,
+                              ConnectionEditController connectionEdits, MainController main) {
         this.stage = stage;
+        this.connectionEdits = connectionEdits;
         this.stackOrder = stackOrder;
         this.locks = locks;
         this.view = view;
@@ -127,7 +132,12 @@ public class KeyboardController {
         }
         switch (e.getCode()) {
             case SPACE -> canvas.setSpaceDown(true);
-            case DELETE, BACK_SPACE -> selectionActions.deleteSelection();
+            case DELETE, BACK_SPACE -> {
+                // Seta selecionada: exclui a seta (seta e cards não ficam selecionados juntos).
+                if (!connectionEdits.deleteSelected()) {
+                    selectionActions.deleteSelection();
+                }
+            }
             default -> {
                 for (Tool tool : Tool.values()) {
                     if (tool.getShortcut() == e.getCode()) {

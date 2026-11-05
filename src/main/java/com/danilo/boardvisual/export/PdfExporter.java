@@ -5,6 +5,8 @@ import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.BoardNames;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardMarkers;
+import com.danilo.boardvisual.model.Connection;
+import com.danilo.boardvisual.model.ConnectionGeometry;
 import com.danilo.boardvisual.model.Frames;
 import com.danilo.boardvisual.model.PanelMode;
 import com.danilo.boardvisual.model.WebLink;
@@ -53,7 +55,8 @@ import java.util.Optional;
  * link externo abre o endereço no navegador, card com link para outro board
  * leva à página daquele board (o card todo, ou só o marcador se o card já
  * leva a outra página; ordem de prioridade em {@code drawBoardPage}). Uma
- * camada de texto invisível por cima dos cards permite buscar e copiar.
+ * camada de texto invisível por cima dos cards (e do texto das setas) permite
+ * buscar e copiar.
  * Os marcadores do PDF (barra lateral) espelham a mesma árvore.
  *
  * A imagem de cada board vem de fora ({@link BoardImageRenderer}): quem sabe
@@ -81,6 +84,14 @@ public final class PdfExporter {
     static final double MAX_IMAGE_PIXELS = 40_000_000;
     /** Tamanho da página de um board vazio. */
     static final Box EMPTY_BOARD = new Box(0, 0, 480, 280);
+
+    // Texto das setas como na tela (ConnectionView e app.css), em unidades do board.
+    /** Altura (fonte de 12 px + o espaço em volta). */
+    static final double LABEL_HEIGHT = 18;
+    /** Largura máxima (depois disso a tela termina com "…"). */
+    static final double LABEL_MAX_WIDTH = 220;
+    /** Espaço dos dois lados do texto. */
+    static final double LABEL_PADDING = 10;
 
     private static final float PADDING = 24;
     private static final float MIN_PAGE_WIDTH = 320;
@@ -211,7 +222,26 @@ public final class PdfExporter {
                             uri.get());
                 }
             }
+            // O texto das setas também fica buscável e copiável (a imagem já o mostra).
+            for (Connection connection : node.board.getConnections()) {
+                if (connection.hasLabel()) {
+                    writeInvisibleText(cs, connection.getLabel(),
+                            labelRect(connection, node.board.hasReverse(connection), node));
+                }
+            }
         }
+    }
+
+    /**
+     * Onde fica o texto da seta na página: a mesma conta da tela
+     * ({@link ConnectionGeometry#labelCenter}), com a largura medida na fonte do
+     * PDF (próxima da da tela) e limitada como na tela.
+     */
+    private static PDRectangle labelRect(Connection connection, boolean reverse, BoardNode node) {
+        double width = Math.min(LABEL_MAX_WIDTH,
+                PdfText.width(PdfText.REGULAR, 12, connection.getLabel()) + LABEL_PADDING);
+        ConnectionGeometry.Point center = ConnectionGeometry.labelCenter(connection, width, LABEL_HEIGHT, reverse);
+        return node.rectOf(center.x() - width / 2, center.y() - LABEL_HEIGHT / 2, width, LABEL_HEIGHT);
     }
 
     /**
@@ -488,10 +518,15 @@ public final class PdfExporter {
 
         /** Retângulo do card na página (PDF: origem embaixo à esquerda). */
         PDRectangle rectOf(Card card) {
-            float x = imageX + (float) ((card.getX() - bounds.x()) * scale);
-            float top = (float) ((card.getY() - bounds.y()) * scale);
-            float width = (float) (card.getWidth() * scale);
-            float height = (float) (card.getHeight() * scale);
+            return rectOf(card.getX(), card.getY(), card.getWidth(), card.getHeight());
+        }
+
+        /** Retângulo do board (x, y, largura, altura) na página. */
+        PDRectangle rectOf(double boardX, double boardY, double boardWidth, double boardHeight) {
+            float x = imageX + (float) ((boardX - bounds.x()) * scale);
+            float top = (float) ((boardY - bounds.y()) * scale);
+            float width = (float) (boardWidth * scale);
+            float height = (float) (boardHeight * scale);
             return new PDRectangle(x, imageHeight - top - height, width, height);
         }
 

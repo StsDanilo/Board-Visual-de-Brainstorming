@@ -51,6 +51,7 @@ public class MainController {
     private final BoardLinkController boardLinks;
     private final StackOrderController stackOrder;
     private final LockController locks;
+    private final ConnectionEditController connectionEdits;
 
     /** Pasta do save atual; nula se o board nunca foi salvo ou veio de um .json antigo. */
     private Path currentFolder;
@@ -75,7 +76,8 @@ public class MainController {
                 boardView, activeTool, window.getToolBar().currentColorProperty(), history);
         CardDragController cardDragController = new CardDragController(boardView, activeTool, history);
         new CardResizeController(boardView, activeTool, history);
-        ConnectionController connectionController = new ConnectionController(boardView, activeTool, history);
+        ConnectionController connectionController = new ConnectionController(
+                boardView, activeTool, window.getToolBar().connectionStyleProperty(), history);
         TextEditController textEditController = new TextEditController(history);
         selectionActionsController = new SelectionActionsController(
                 boardView, window.getToolBar(), window.getSelectionToolbar(), history);
@@ -89,8 +91,9 @@ public class MainController {
         stackOrder = new StackOrderController(boardView, window.getSelectionToolbar(), history, contextMenu);
         locks = new LockController(boardView, window.getSelectionToolbar(), history, contextMenu);
         selectionActionsController.setNotifier(window::showStatusMessage);
+        connectionEdits = new ConnectionEditController(boardView, history);
         keyboardController = new KeyboardController(stage, boardView, activeTool, selectionActionsController,
-                canvasController, panelController, navigation, images, stackOrder, locks, this);
+                canvasController, panelController, navigation, images, stackOrder, locks, connectionEdits, this);
         CardTextFitController textFitController = new CardTextFitController();
         boardView.setCardViewInitializer(cardView -> {
             textFitController.attach(cardView);
@@ -102,6 +105,10 @@ public class MainController {
             links.attach(cardView);
             boardLinks.attach(cardView);
         });
+        boardView.setConnectionViewInitializer(connectionEdits::attach);
+        // Seta selecionada: os botões de estilo da barra mudam a seta.
+        window.getToolBar().connectionSelectedProperty().bind(boardView.selectedConnectionProperty().isNotNull());
+        window.getToolBar().setOnConnectionStylePicked(connectionEdits::applyStyleToSelected);
 
         wireMenu();
         newBoard();
@@ -147,6 +154,11 @@ public class MainController {
     /** Travar/destravar cards (usado pelos roteiros de teste de interface). */
     public LockController getLocks() {
         return locks;
+    }
+
+    /** Seleção, exclusão e texto das setas (usado pelos roteiros de teste de interface). */
+    public ConnectionEditController getConnectionEdits() {
+        return connectionEdits;
     }
 
     /** Navegação entre boards (usado pelos roteiros de teste de interface). */

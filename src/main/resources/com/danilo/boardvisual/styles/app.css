@@ -489,6 +489,72 @@
     -fx-fill: -bv-connection;
 }
 
+/* Estilo "tracejada" (pseudo-classe aplicada pela ConnectionView). */
+.connection:dashed .connection-line {
+    -fx-stroke-dash-array: 8 6;
+}
+
+/*
+ * Área de clique da seta: linha larga e invisível por cima da visível. Só existe
+ * com a ferramenta Selecionar; nas outras, clicar sobre a seta age no fundo
+ * (criar card, mover a visão) como antes.
+ */
+.connection-hit {
+    -fx-stroke: transparent;
+    -fx-stroke-width: 14;
+    -fx-stroke-line-cap: butt;
+    -fx-cursor: hand;
+}
+
+.board-view:tool-create .connection-hit,
+.board-view:tool-connection .connection-hit {
+    visibility: hidden;
+}
+
+.board-view:tool-select .connection:hover .connection-line {
+    -fx-stroke: derive(-bv-connection, -30%);
+}
+
+.board-view:tool-select .connection:hover .connection-arrow {
+    -fx-fill: derive(-bv-connection, -30%);
+}
+
+/* Seta selecionada (Delete exclui, duplo clique edita o texto). */
+.connection:selected .connection-line,
+.board-view:tool-select .connection:selected:hover .connection-line {
+    -fx-stroke: -bv-accent;
+}
+
+.connection:selected .connection-arrow,
+.board-view:tool-select .connection:selected:hover .connection-arrow {
+    -fx-fill: -bv-accent;
+}
+
+/* Texto da seta: horizontal, com fundo da cor do canvas para não se misturar com a linha. */
+.connection-label {
+    -fx-background-color: -bv-background;
+    -fx-background-radius: 4;
+    -fx-padding: 1 5 1 5;
+    -fx-text-fill: -bv-text;
+    -fx-font-size: 12px;
+}
+
+/* Contorno por fundo em camadas (e não borda): o tamanho do texto não muda ao selecionar. */
+.connection-label-group:selected .connection-label {
+    -fx-background-color: -bv-accent, -bv-background;
+    -fx-background-insets: 0, 1.5;
+}
+
+.connection-label-editor {
+    -fx-font-size: 12px;
+    -fx-padding: 2 6 2 6;
+}
+
+/* No PDF e no PNG o fundo é branco (ou transparente): o texto da seta usa fundo branco. */
+.board-export .connection-label {
+    -fx-background-color: white;
+}
+
 .connection-preview {
     -fx-stroke: -bv-accent;
     -fx-stroke-width: 2;
@@ -534,6 +600,23 @@
 
 .tool-button:selected .tool-icon {
     -fx-stroke: -bv-accent;
+}
+
+/* Ferramenta Conexão + botões dos outros estilos de seta, ao lado dela. */
+.connection-tool-row {
+    -fx-spacing: 4;
+}
+
+.connection-style-extras {
+    -fx-spacing: 2;
+    -fx-padding: 0 0 0 4;
+    -fx-border-color: -bv-border;
+    -fx-border-width: 0 0 0 1;
+}
+
+/* Ícone da seta tracejada: só a linha leva o tracejado, a ponta fica cheia. */
+.tool-icon.dashed {
+    -fx-stroke-dash-array: 2.5 3.5;
 }
 
 /* ------------------------------------------------ painéis flutuantes / cores */

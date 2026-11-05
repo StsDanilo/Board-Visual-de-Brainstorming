@@ -61,6 +61,14 @@ final class BoardFileFormat {
                     String imageFile, String link, String boardLink, Boolean locked, BoardData childBoard) {
     }
 
-    record ConnectionData(String id, String sourceId, String targetId) {
+    /**
+     * label (texto no meio da seta) e style (nome de um {@code ConnectionStyle})
+     * vieram com as setas com texto e os estilos de seta, sem novo bump de
+     * versão. Só são gravados fora do padrão: seta sem texto não grava
+     * {@code label}, seta simples não grava {@code style}. Ausentes (saves
+     * anteriores) = seta sem texto, seta simples; estilo desconhecido também
+     * vira seta simples.
+     */
+    record ConnectionData(String id, String sourceId, String targetId, String label, String style) {
     }
 }

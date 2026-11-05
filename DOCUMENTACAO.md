@@ -6,8 +6,10 @@
 > as imagens nos cards (colar, arrastar, ferramenta Imagem), a exportação do board atual para PNG
 > o link externo nos cards (marcador de clipe, menu de clique direito), o link para outro board
 > (atalho para qualquer board da árvore, com volta ao board de origem), a ordem de empilhamento salva
-> (trazer para frente / enviar para trás), o lock de item (card travado, com cadeado) e as seções
-> (frames: área colorida com título, atrás dos cards, que leva junto o que está dentro dela).
+> (trazer para frente / enviar para trás), o lock de item (card travado, com cadeado), as seções
+> (frames: área colorida com título, atrás dos cards, que leva junto o que está dentro dela), as setas
+> com texto (duplo clique na seta) e os estilos de seta (simples, tracejada, ponta dupla, sem ponta,
+> escolhidos na barra lateral).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -38,6 +40,8 @@ pode ser um **atalho para outro board** da árvore, mesmo em outro ramo (seta cu
 Você escolhe quais cards ficam **por cima** de quais (a ordem é salva) e pode **travar** um card
 (cadeado) para não movê-lo nem excluí-lo sem querer. **Seções** (frames) são áreas coloridas com título,
 sempre atrás dos cards, que organizam o board por tema: arrastar a seção leva junto o que está dentro dela.
+As setas podem ter um **texto** no meio ("leva a", "depende de") e um **estilo** (simples, tracejada,
+ponta dupla ou linha sem ponta), escolhido ao lado da ferramenta Conexão.
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
 pode virar uma **imagem PNG** (fundo branco ou transparente).
 Não há servidor nem banco de dados.
@@ -117,8 +121,10 @@ sem tocar no modelo.
 | `CardMarkers` | Marcadores na borda de cima do card (clipe do link externo, seta curva do link para outro board): quais o card tem e onde ficam em cada formato. A mesma conta serve à tela, ao espaço do texto e ao PDF. |
 | `CardShape` | Enum dos formatos (`RECTANGLE`, `ELLIPSE`, `DIAMOND`) com o tamanho padrão de cada um, e `FRAME`, a **seção** (3.23): não é um formato do seletor, só a ferramenta Seção cria. |
 | `Frames` | Regras das seções (Java puro): conteúdo por geometria (centro dentro da área), o que um arrasto de seções leva junto (`carriedBy`, sem repetir card, seção dentro de seção), caixa de seleção (seção só inteira) e as camadas (`layered`: seções antes dos cards). Altura da faixa do título. |
-| `Connection` | Uma seta: id, card de origem, card de destino. Imutável. |
-| `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada, sem seta de/para seção). A ordem da lista de cards é a **ordem de empilhamento** (o último fica por cima); `reorder` a muda por permutação (3.21). As seções ficam sempre no começo da lista (atrás dos cards): `addCard`, `reorder` e `restore` mantêm isso (3.23). |
+| `Connection` | Uma seta: id, card de origem, card de destino (fixos) e, mutáveis e observáveis, o **texto** (`label`, uma linha, `""` = sem texto) e o **estilo** (`style`) (3.24). |
+| `ConnectionStyle` | Enum dos estilos de seta: `ARROW` (simples, o padrão), `DASHED` (tracejada), `DOUBLE` (ponta dupla), `LINE` (sem ponta); cada um diz se é tracejado e onde tem ponta. |
+| `ConnectionGeometry` | Geometria da seta (Java puro, sem JavaFX): onde ela toca a borda de cada formato (`borderPoint`), início, ponta e o centro do texto (`labelCenter`, que afasta os textos de A→B e B→A). Usada pela tela e pelo PDF. |
+| `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada, sem seta de/para seção). `connect(a, b, estilo)`, `removeConnection`, `findConnection`, `hasReverse` (existe B→A). A ordem da lista de cards é a **ordem de empilhamento** (o último fica por cima); `reorder` a muda por permutação (3.21). As seções ficam sempre no começo da lista (atrás dos cards): `addCard`, `reorder` e `restore` mantêm isso (3.23). |
 | `BoardSnapshot` | "Foto" imutável do board, usada pelo desfazer/refazer. |
 | `PanelMode` | Enum do painel flutuante: `NONE` (card comum), `TEXT`, `LIST`. |
 | `ListItem` | Um item da lista de um painel (objeto com `textProperty`, para binding por linha). |
@@ -136,11 +142,12 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `BoardView` | O canvas: pan/zoom, camadas (seções numa camada atrás das setas), cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção (seção só inteira), posição da barra flutuante. |
 | `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). Seção: fundo translúcido sem clique, anel da borda e faixa do título que pegam o clique, título de uma linha com reticências (`:frame`, 3.23); `hitsScenePoint` diz se um ponto pega o card. |
 | `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
-| `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards. |
-| `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato; recuo do texto dentro do formato. |
+| `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards e da própria seta: linha (cheia ou tracejada, `:dashed`), pontas conforme o estilo, área de clique larga e invisível (`connection-hit`), destaque de seta selecionada (`:selected`), texto no meio e o campo de edição dele (os dois em `getLabelLayer()`, que vai para uma camada acima de todas as linhas). |
+| `ConnectionStyleOrder` | Ordem dos estilos de seta na barra (Java puro): a posição 0 é o ícone principal; escolher um extra troca de lugar com ele. |
+| `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato (delega a `ConnectionGeometry`); recuo do texto dentro do formato. |
 | `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). Seção: fonte fixa do título, nunca cresce. |
 | `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica (inclusive `FRAME`, a Seção, tecla `S`). |
-| `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. |
+| `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. Ao lado da ferramenta Conexão, os botões dos outros estilos de seta (aparecem com a ferramenta ativa, com o mouse em cima ou com uma seta selecionada); o ícone da Conexão desenha o estilo das setas novas (`connectionStyleProperty`). |
 | `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens; desabilitado se todos estão travados), tamanho do texto, modo do painel (Texto/Lista), link e link para outro board (só com um card), ordem (camadas), cadeado (travar/destravar, com estado misto), duplicar, excluir. |
 | `StackOrderButton` | Botão "Ordem" (camadas) da barra flutuante: popup com as quatro ações da ordem de empilhamento e os atalhos; as que não mudariam nada aparecem desabilitadas. |
 | `LinkEditorPopup` | Popup pequeno com o campo do endereço do link (Salvar, Cancelar, Remover), com a mensagem de erro da validação. |
@@ -148,12 +155,12 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `FloatingPanelView` | O painel aberto ao lado de um card: cabeçalho + corpo de texto ou lista. |
 | `BreadcrumbView` | Caminho no canto superior esquerdo (`Principal › board 2 › board 3`), com links e botão voltar (a dica diz para onde ele leva). |
 | `ResizeHandlesView` | As 8 alças de redimensionamento em volta do card selecionado (em pixels de tela). |
-| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente; links para boards que não existem mais saem com o marcador quebrado; seções atrás das setas, como na tela. |
+| `BoardRenderer` | Desenha um board inteiro numa imagem, fora da tela, para o PDF (3.15) e o PNG (3.18); fundo branco ou transparente; links para boards que não existem mais saem com o marcador quebrado; seções atrás das setas e textos das setas acima das linhas, como na tela. |
 | `PopupButton` | Base de "botão que abre um painelzinho" (`beforeShowPopup`: atualizar as opções logo antes de abrir). |
 | `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
 | `CardPalette` | As 8 cores oferecidas. |
-| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado; camadas da ordem; cadeado aberto e fechado). |
+| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado; camadas da ordem; cadeado aberto e fechado; cada estilo de seta desenhado no próprio estilo, `connectionStyle`). |
 
 ### `controller/` — o comportamento
 
@@ -165,7 +172,8 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `CardDragController` | Mouse no card: selecionar, Shift+clique, arrastar (inclusive em grupo; travados ficam parados), com alinhamento. Clicar não muda a ordem de empilhamento. Arrastar uma seção leva os cards de dentro (`draggedCards`); as seções só são referência de alinhamento quando o gesto envolve uma seção (`alignmentReferences`). |
 | `CardResizeController` | Redimensionar o card selecionado pelas alças, com alinhamento das bordas puxadas (card de imagem: proporção da imagem; seção: 8 alças, mínimo fixo, sem mexer no conteúdo). Card travado não ganha alças. |
 | `CardTextFitController` | Reaplica a fonte e o crescimento de cada card quando o texto, a fonte ou o tamanho mudam. |
-| `ConnectionController` | Criar setas arrastando de um card a outro (seções ficam de fora: não começam nem recebem setas). |
+| `ConnectionController` | Criar setas arrastando de um card a outro (seções ficam de fora: não começam nem recebem setas), no estilo do ícone principal da ferramenta Conexão. |
+| `ConnectionEditController` | Setas prontas: clique seleciona, `Delete` exclui, duplo clique abre o campo do texto (`Enter`/clicar fora confirmam, `Esc` cancela), estilo da seta selecionada pela barra lateral (`applyStyleToSelected`); cada mudança é um passo no desfazer (3.24). |
 | `SelectionActionsController` | Cor, formato, tamanho do texto, duplicar e excluir aplicados à seleção (travados: sem formato, sem excluir, com aviso na barra de status; cópia de travado nasce destravada; cópias entram no topo da pilha; seção: sem formato nem tamanho do texto, duplicar/excluir só a seção). |
 | `StackOrderController` | Ordem de empilhamento: botão Ordem, quatro itens no menu de clique direito, atalhos (`moveFor`); cada mudança é um passo no desfazer (3.21). |
 | `LockController` | Travar/destravar a seleção: botão de cadeado (com estado misto), item "Travar"/"Destravar" no menu, `Ctrl+L`; um passo no desfazer (3.22). |
@@ -173,7 +181,7 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `PanelController` | Abrir/fechar painéis, itens da lista, troca de modo com confirmação. |
 | `NavigationController` | Boards aninhados: entrar, voltar, ir direto a um nível, pular para qualquer board da árvore pelo id (`jumpTo`); guarda o board principal e sabe qual board está na tela e o caminho de nomes até ele. Mostra o resultado; a pilha fica no `NavigationPath`. |
 | `NavigationPath` | A pilha de níveis da navegação, sem tela (testável): entrar, voltar, ir a um nível, pular (`jumpTo` reconstrói o caminho real do destino e guarda a pilha de origem para o voltar). |
-| `KeyboardController` | Atalhos de teclado. |
+| `KeyboardController` | Atalhos de teclado (`Delete` exclui a seta selecionada, se houver; senão, os cards). |
 | `CardContextMenuController` | Menu de clique direito nos cards (clique sem arrastar). Montado na hora a partir de quem se registra (`addContributor`): é onde as próximas funcionalidades plugam itens. |
 | `LinkController` | Link externo: botão Link da barra flutuante, itens do menu de clique direito, popup de edição (com desfazer) e abrir o endereço pelo clipe do card (`Opener`, na aplicação o `HostServices`). |
 | `BoardLinkController` | Link para outro board: botão de seta curva da barra flutuante, itens do menu de clique direito, lista de destinos (com desfazer), ir ao destino pelo marcador e marcador quebrado quando o destino foi excluído. |
@@ -208,7 +216,7 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `PdfExporter` | Monta o PDF: páginas na ordem da árvore, caminho no topo, links (entre páginas e para sites), páginas de detalhes, marcadores. Seção: texto invisível só na faixa do título, links só nos marcadores (não cobrem os cards de dentro). |
+| `PdfExporter` | Monta o PDF: páginas na ordem da árvore, caminho no topo, links (entre páginas e para sites), páginas de detalhes, marcadores. Seção: texto invisível só na faixa do título, links só nos marcadores (não cobrem os cards de dentro). Texto das setas também invisível no meio da seta (buscável). |
 | `PdfText` | Fonte padrão do PDF (Helvetica), medida e quebra de linha, troca de caracteres sem suporte. |
 | `PngExporter` | PNG de um board: área e escala (com os limites de tamanho), nome sugerido do arquivo, gravação segura. Sem JavaFX (3.18). |
 
@@ -243,6 +251,8 @@ Main.main()
          │   ├─ new BoardLinkController(...) ← botão de seta curva, itens do menu, seta do card vai ao board
          │   ├─ new StackOrderController(...)← botão Ordem, itens do menu (trazer para frente...)
          │   ├─ new LockController(...)      ← botão de cadeado, item Travar/Destravar do menu
+         │   ├─ new ConnectionEditController(...) ← selecionar/excluir setas, texto e estilo da seta pronta
+         │   │                                  (registrado no "inicializador" de ConnectionView do BoardView)
          │   ├─ new KeyboardController(...)  ← instala handlers de tecla na janela
          │   ├─ wireMenu()
          │   └─ newBoard()                   ← navigation.openRoot(new Board("Sem título"))
@@ -327,12 +337,15 @@ Duas formas de começar, ambas no `ConnectionController`:
 ```
 PRESSED  → marca o card de origem; mostra uma linha tracejada de prévia
 DRAGGED  → atualiza a ponta da prévia; destaca o card sob o mouse (pseudo-classe :connection-target)
-RELEASED → se soltou sobre outro card: history.perform(() -> board.connect(origem, destino))
+RELEASED → se soltou sobre outro card: history.perform(() -> board.connect(origem, destino, estilo))
            esconde a prévia
 ```
 
+O `estilo` é o do ícone principal da ferramenta Conexão (`ToolBarView.connectionStyleProperty`), pelos
+dois caminhos (ferramenta e alça). Texto, estilo, seleção e exclusão de setas prontas: 3.24.
+
 `Board.connect` recusa: ligar um card a ele mesmo, cards fora do board e seta repetida
-(A→B duas vezes). B→A é permitido — é outra seta.
+(A→B duas vezes, em qualquer estilo). B→A é permitido — é outra seta.
 
 Os eventos são tratados com **filtros** no `CardView` para serem capturados **antes** do campo de
 texto (senão, pressionar no texto posicionaria o cursor em vez de começar a seta). Ver 4.3.
@@ -348,7 +361,8 @@ A seleção mora no `BoardView` como um `ObservableSet<Card>`. Formas de alterá
 | Clique no fundo | `CanvasController` — limpa |
 | Arrastar o fundo | `CanvasController` — caixa de seleção |
 | Ctrl+A | menu Editar → `boardView.selectAll()` |
-| Esc (sem edição, sem painel aberto, na ferramenta Selecionar) | `KeyboardController` — limpa |
+| Esc (sem edição, sem painel aberto, na ferramenta Selecionar) | `KeyboardController` — limpa (cards e seta) |
+| Clique numa seta | `ConnectionEditController` — seleciona a seta e limpa os cards (3.24) |
 
 **Caixa de seleção:** no press, guarda o ponto inicial e (se Shift) a seleção atual. A cada
 arrasto: desenha o retângulo e define `seleção = seleçãoInicial ∪ cardsQueTocamORetângulo`. Uma
@@ -850,6 +864,8 @@ Divisão de responsabilidades:
 | Enter no título de uma seção | `TextEditController` | termina a edição do título (que é de uma linha) |
 | Ctrl+] / Ctrl+[ e Ctrl+PgUp / Ctrl+PgDn (com Shift: topo / fundo) | `KeyboardController` → `StackOrderController.moveFor` | ordem de empilhamento (3.21) |
 | Ctrl+L | `KeyboardController` → `LockController` | travar / destravar (3.22); a letra L sozinha continua sendo o Losango |
+| Delete / Backspace com uma seta selecionada | `KeyboardController` → `ConnectionEditController.deleteSelected` | exclui a seta (senão, os cards selecionados) (3.24) |
+| Enter / Esc no campo do texto da seta | `ConnectionEditController` (filtro no campo) | confirma / cancela; não chegam aos atalhos da janela (3.24) |
 
 **Colchetes no teclado ABNT2 (verificado):** o JavaFX 21 no Windows dá a `KeyCode` pela **posição** da tecla
 no teclado americano (tabela de teclas virtuais do glass). No ABNT2, a tecla `[` (ao lado do `´`) é a
@@ -1472,7 +1488,99 @@ baixo do fundo translúcido). O `BoardRenderer` (PDF e PNG) faz o mesmo.
 
 ### Fora do escopo
 
-"Agrupar elementos" (3.21/5.6), setas com texto, copiar/colar entre boards, estilos de seta.
+"Agrupar elementos" (3.21/5.6), copiar/colar entre boards. (Setas com texto e estilos de seta vieram
+depois: 3.24.)
+
+## 3.24 Setas com texto e estilos de seta
+
+Uma seta pode ter um **texto** no meio ("leva a", "depende de") e um **estilo**: seta simples (o padrão),
+tracejada, ponta dupla ou linha sem ponta. A `Connection` deixou de ser imutável: origem, destino e id
+continuam fixos; `label` e `style` são propriedades observáveis, e a `ConnectionView` acompanha por binding.
+
+### Selecionar uma seta (o mínimo para editar)
+
+Antes, setas não eram clicáveis. Agora (`ConnectionEditController`):
+
+- **Clique** na seta seleciona a seta (linha e pontas azuis, contorno azul no texto) e tira a seleção dos
+  cards; selecionar um card tira a seleção da seta. Nunca há seta e cards selecionados juntos, e no
+  máximo uma seta. Com a seta selecionada a barra flutuante não aparece (ela é dos cards).
+- **`Delete`/`Backspace`** exclui a seta selecionada (os cards ficam), num passo do desfazer.
+- **`Esc`**, clicar no fundo ou num card limpa a seleção da seta.
+- A seleção de seta mora no `BoardView` (`selectConnection`, `selectedConnectionProperty`): é estado só da
+  tela, não é salva e não entra no desfazer. Uma seta que sai do board (excluída, desfeita, troca de board)
+  sai da seleção.
+- **Área de clique:** a linha visível tem 2 px; por cima dela há uma linha **transparente de 14 px**
+  (`.connection-hit`) só para o clique. A linha e as pontas são `mouseTransparent`. A área de clique só
+  existe na ferramenta **Selecionar** (CSS: `visibility: hidden` em `:tool-create` e `:tool-connection`);
+  nas outras, clicar sobre a seta age no fundo, como antes (ex.: criar um card ali). As setas ficam atrás
+  dos cards, então perto das pontas, dentro do card, o clique é do card. A caixa de seleção começada no
+  fundo atravessa setas normalmente; começar o arrasto exatamente sobre uma seta seleciona a seta.
+
+### Escrever o texto
+
+- **Duplo clique** na seta (ou no próprio texto) abre um campo no meio dela, com o texto atual selecionado.
+- **`Enter`** confirma; **clicar fora** (perder o foco) também confirma, como o texto dos cards; **`Esc`**
+  cancela (o campo consome `Enter` e `Esc` num filtro: não chegam aos atalhos da janela).
+- Cada confirmação que muda o texto é **um passo** no desfazer (`history.perform` ao confirmar; cancelar ou
+  confirmar sem mudança não cria passo). Espaços nas pontas são tirados; texto vazio = seta sem texto.
+- Enquanto o campo tem o foco, as letras são do texto (`isEditingText()`, 3.16): "r" não troca de
+  ferramenta e `Delete` apaga letra, não a seta.
+- **Limites:** o campo aceita até **60 caracteres** (`Connection.MAX_LABEL_LENGTH`); o texto mostrado tem
+  no máximo **220 px** e termina em "…" se não couber (uma linha só; quebras de linha vindas de um arquivo
+  editado à mão viram espaço). O texto **nunca** muda o tamanho dos cards.
+
+### Aparência do texto
+
+- Horizontal, centrado no meio da seta (`ConnectionGeometry.labelCenter`), fonte de 12 px, com fundo da cor
+  do canvas (`.connection-label`) para não se misturar com a linha; no PDF/PNG o fundo é branco.
+- O texto e o campo ficam num grupo à parte (`ConnectionView.getLabelLayer()`), que o `BoardView` (e o
+  `BoardRenderer`) põem numa **camada acima de todas as linhas** e abaixo dos cards. Dentro da própria
+  `ConnectionView`, a linha de uma seta desenhada depois passaria por cima do texto (aconteceu com A→B e B→A).
+
+### A→B e B→A (armadilha 11)
+
+As duas setas ficam sobre a mesma reta. O `BoardView` marca cada uma com `setReverse` (`Board.hasReverse`):
+
+- **Textos:** cada um anda, ao longo da reta, para o lado do próprio destino, o suficiente para ficarem
+  lado a lado (6 px de folga) em vez de um por cima do outro. Se a contrária é excluída, o texto volta ao meio.
+- **Área de clique:** cada uma vai para o **seu lado** da linha (7 px, metade da largura), à esquerda de quem
+  anda no sentido da seta: acima da linha pega uma, abaixo pega a outra. Sem isso, só a de cima seria clicável.
+
+### Estilos (barra de ferramentas lateral)
+
+- O ícone da ferramenta **Conexão** desenha o **estilo principal**: o das setas novas, criadas pela
+  ferramenta **ou pela alça** do card. Ao lado dele ficam **botões extras** com os outros três estilos,
+  cada um desenhado no próprio estilo (`Icons.connectionStyle`).
+- **Quando os extras aparecem:** com a ferramenta Conexão ativa, com o mouse sobre ela (ou sobre eles), ou
+  com uma seta selecionada. A barra fica mais larga enquanto eles aparecem (acabamento visual fica para depois).
+- **Clicar num extra troca de lugar** com o principal (`ConnectionStyleOrder.choose`): o escolhido vira o
+  principal e o antigo principal vai para a posição do escolhido. São sempre os mesmos quatro estilos.
+- **Sem seta selecionada**, clicar num extra também ativa a ferramenta Conexão. **Com uma seta selecionada**,
+  clicar num extra troca de lugar **e aplica o estilo na seta** (um passo no desfazer), sem trocar de
+  ferramenta; e clicar no **ícone principal** aplica o estilo principal na seta em vez de ativar a ferramenta
+  (a tecla `C` continua ativando). Ligação: `ToolBarView.connectionSelectedProperty` (ligada à seleção do
+  `BoardView`) e `setOnConnectionStylePicked` → `ConnectionEditController.applyStyleToSelected`.
+- O estilo principal **não** é lembrado entre sessões do app (decisão do Danilo): ao abrir, é a seta simples.
+- **Desenho** (`ConnectionView`): tracejada = `:dashed` → `-fx-stroke-dash-array: 8 6`; as pontas são o
+  mesmo triângulo, a da origem girada 180°; a linha termina na **base** de cada ponta que existe (na ponta
+  dupla, nas duas; na linha sem ponta, chega às bordas).
+- As regras do `Board.connect` não mudam com o estilo: uma linha sem ponta de A para B também impede outra A→B.
+
+### Salvar, desfazer, PDF e PNG
+
+- Arquivo: `ConnectionData` ganhou `label` e `style`, gravados só fora do padrão (sem texto / seta simples =
+  campo ausente). Saves anteriores (e o `.json` antigo) abrem com seta simples sem texto; um estilo
+  desconhecido vira seta simples. Sem bump de versão.
+- Desfazer: `BoardSnapshot.ConnectionState` guarda texto e estilo; `Board.restore` atualiza no lugar as setas
+  que continuam existindo (como os cards) e recria as que faltam já com texto e estilo.
+- Duplicar um card continua **não** copiando setas.
+- PNG e PDF usam as mesmas `ConnectionView`s (estilo e texto aparecem). No PDF o texto da seta também vai como
+  **texto invisível** no meio da seta (`PdfExporter.labelRect`, mesma conta da tela, largura medida na
+  Helvetica): dá para buscar e copiar.
+
+### Fora do escopo
+
+Curvas, espessura, cor da seta, mudar a ponta (origem/destino) de uma seta pronta, texto em mais de uma linha.
 
 ---
 
@@ -1501,8 +1609,8 @@ Três formas usadas no projeto:
 
 ```java
 ObjectBinding<Point2D> start = Bindings.createObjectBinding(
-        () -> CardGeometry.borderPoint(source, target.getCenterX(), target.getCenterY()),
-        deps);   // deps = x, y, width, height, shape dos DOIS cards
+        () -> point(ConnectionGeometry.start(connection)),
+        deps);   // deps = x, y, width, height, shape dos DOIS cards (+ o estilo, nas partes que dependem dele)
 line.startXProperty().bind(Bindings.createDoubleBinding(() -> start.get().getX(), start));
 ```
 
@@ -1526,7 +1634,8 @@ Scene
      │   ├─ BoardView (Pane) ─────────────────────── recortado (clip) ao tamanho visível
      │   │   ├─ world (Group) ── transforms: [Translate pan, Scale zoom]
      │   │   │   ├─ frameLayer (Group)       → CardView das seções (3.23)
-     │   │   │   ├─ connectionLayer (Group)  → ConnectionView...
+     │   │   │   ├─ connectionLayer (Group)  → ConnectionView... (linha, pontas, área de clique)
+     │   │   │   ├─ connectionLabelLayer     → texto de cada seta + campo de edição (3.24)
      │   │   │   ├─ cardLayer (Group)        → CardView...
      │   │   │   └─ overlayLayer (Group)     → linha de prévia da conexão
      │   │   ├─ marquee (Rectangle)          ← fora do world: não sofre zoom
@@ -1536,7 +1645,8 @@ Scene
 ```
 
 As setas ficam numa camada **abaixo** dos cards, por isso passam "por trás" deles, e **acima** das seções,
-por isso passam por cima do fundo delas (3.23).
+por isso passam por cima do fundo delas (3.23). Os textos das setas ficam numa camada própria entre as
+linhas e os cards: nenhuma linha passa por cima de um texto (3.24).
 
 ### Quatro sistemas de coordenadas
 
@@ -1733,7 +1843,10 @@ O `TextArea` não tem propriedade de alinhamento, mas desenha o conteúdo com um
 
 ## 4.6 Geometria
 
-### Onde a seta toca o card (`CardGeometry.borderPoint`)
+### Onde a seta toca o card (`ConnectionGeometry.borderPoint`)
+
+A conta mora no modelo (`ConnectionGeometry`, Java puro) porque o PDF também precisa dela (texto
+invisível das setas, 3.24); `CardGeometry.borderPoint` só a repassa como `Point2D` para a tela.
 
 A partir do centro `(cx, cy)`, na direção `(dx, dy)` do outro card, procuramos `t` tal que
 `(cx + t·dx, cy + t·dy)` esteja **no contorno**. Com `a = largura/2` e `b = altura/2`:
@@ -1746,7 +1859,14 @@ A partir do centro `(cx, cy)`, na direção `(dx, dy)` do outro card, procuramos
 
 A ponta da seta é um triângulo desenhado apontando para +x com a ponta na origem; ele é
 **transladado** até o ponto de contato e **girado** pelo ângulo `atan2(dy, dx)`. A linha termina na
-base do triângulo (não na ponta) para não "vazar" à frente dele.
+base do triângulo (não na ponta) para não "vazar" à frente dele. Na ponta dupla, a ponta da origem é o
+mesmo triângulo girado `ângulo + 180°`, e a linha também começa na base dela; na linha sem ponta, a linha
+vai de borda a borda (3.24).
+
+**Centro do texto da seta (`ConnectionGeometry.labelCenter`):** o meio entre início e ponta. Com a seta
+contrária (B→A), o texto anda ao longo da reta para o lado do próprio destino: `largura/2 / |cos|` se a reta
+é mais deitada, `altura/2 / |sin|` se é mais em pé, mais 6 px. Assim as duas caixas horizontais ficam lado a
+lado, encostadas, em qualquer inclinação.
 
 ### Área do texto dentro do formato (`CardGeometry.contentInsets`)
 
@@ -1801,7 +1921,8 @@ irrelevante e a robustez compensa.
       existe? → aplicar os valores no MESMO objeto Card
       não?    → criar Card com o id da foto e adicionar
 4. Pôr os cards na ordem da foto (ordem de empilhamento, 3.21), por permutação: mesmos objetos
-5. Para cada conexão da foto que não existe: recriar ligando aos cards pelos ids
+5. Para cada conexão da foto: existe? → aplicar texto e estilo no MESMO objeto Connection
+                              não?    → recriar ligando aos cards pelos ids, já com texto e estilo
 ```
 
 A ordem dos cards faz parte da foto (é uma lista): mudar só a ordem já é uma "mudança" para o
@@ -1954,6 +2075,11 @@ você estava editando.
 > demais falham apontando o lugar esquecido (`copy`, `CardState` ou `toData`/`fromData`).
 > Propriedades que o `Card` expõe só por outro caminho (sem getter com esses prefixos) não são vistas.
 >
+> **Propriedade de seta (`Connection`)**, como o `label` e o `style` (3.24): o mesmo checklist, trocando
+> `CardState` por `BoardSnapshot.ConnectionState` (+ `applyTo`), `CardData` por `ConnectionData` e
+> `CardView` por `ConnectionView`. Não há `copy` de seta (duplicar card não copia setas). A rede de
+> segurança é o `ConnectionAllPropertiesTest`: preencha a propriedade em `fullConnection()`.
+>
 > **Antes de criar uma propriedade, veja se não é um formato.** A seção (3.23) foi feita como o formato
 > `CardShape.FRAME`, sem propriedade nova: o checklist inteiro (cópia, foto, arquivo) já estava coberto pelo
 > `shape`. Uma propriedade só compensa quando o valor é independente do resto (como o `locked`).
@@ -1989,6 +2115,12 @@ do texto), o `PdfExporter` (texto e links) e o picking no `CardView`. Procure po
 **Ferramenta que cria um card de formato próprio** (ex.: `Tool.FRAME`, a Seção): basta dar o formato à
 constante; o `CanvasController.createCardAt` cria o card no clique, seleciona e abre o texto, e o
 `Board.addCard` o põe na camada certa. O que a ferramenta tem de especial fica nas regras do formato (5.2).
+
+**Variações de uma ferramenta** (como os estilos de seta da Conexão, 3.24): em vez de uma ferramenta por
+variação, uma fileira (`HBox`) com o botão da ferramenta e botões extras ao lado (`ToolBarView.createConnectionRow`);
+a ordem fica numa classe de lógica pura testável (`ConnectionStyleOrder`) e o valor escolhido sai por uma
+propriedade (`connectionStyleProperty`) que o controller lê. Estilo novo: constante em `ConnectionStyle`,
+caso em `Icons.connectionStyle` (switch exaustivo) e, se o desenho mudar, na `ConnectionView`.
 
 **Nem toda funcionalidade é uma ferramenta.** Se ela age sobre um card que já existe (ex.: o link
 externo, o link para outro board, a ordem de empilhamento e o travar), o lugar é a barra flutuante (5.4)
@@ -2067,7 +2199,7 @@ derivada da largura, e o canto oposto à alça fica parado.
 Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-requisitos / Libera").
 **[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9), as
 imagens nos cards (3.17), o PNG (3.18), o link externo (3.19), o link para outro board (3.20), a ordem de
-empilhamento (3.21), o lock de item (3.22) e as seções (3.23):
+empilhamento (3.21), o lock de item (3.22), as seções (3.23) e as setas com texto e estilos (3.24):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -2080,7 +2212,7 @@ empilhamento (3.21), o lock de item (3.22) e as seções (3.23):
 | ~~Frames / seções coloridas~~ (tarefa 4b) | **Feito** (3.23): formato `FRAME`, camada própria atrás dos cards e das setas, conteúdo por geometria | — |
 | **[4] Notas "post-it" no PDF** | `PDAnnotationText` sobre o card do painel, na 2ª passada do `PdfExporter.drawBoardPage` (o `rectOf(card)` já dá a posição) | Expansão opcional: só texto simples, comportamento varia por leitor, não imprime. Pode virar uma opção ao exportar |
 | **Múltiplos boards** | `NavigationController.openRoot` já troca o board principal; `EditHistory.clear()` já existe | Decidir: abas, lista lateral ou só "abrir recente" |
-| **Setas com texto** | `Connection.label` (propriedade); `ConnectionView` com `Label` posicionado no meio por binding; `BoardSnapshot.ConnectionState` e `ConnectionData` | Hoje `Connection` é imutável — label será a primeira parte mutável |
+| ~~Setas com texto + estilos de seta~~ (tarefa 5) | **Feito** (3.24): `Connection.label`/`style`, seleção de seta, estilos na barra lateral (também na seta selecionada) | Curvas e espessura ficaram para depois: seriam mais um componente na `ConnectionView` e um campo em `ConnectionData` (checklist em 5.1) |
 | **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem. **Recomendação (depois da 4b):** manter separado das seções e fazer pequeno. A seção já resolve "juntar por tema e mover junto" pelo espaço; o que ela não resolve é juntar cards **espalhados** ou **sem área visível** (ex.: dois cards em cantos opostos que devem andar juntos). Se esse caso não aparecer no uso, descartar o card. Se aparecer, `groupId` no card (5.1) + `CardDragController.draggedCards` incluindo os do mesmo grupo (o mesmo ponto em que a seção soma o conteúdo). Não reaproveitar a seção para isso: ela é geometria, o grupo seria vínculo salvo |
 | **Aviso de alterações não salvas** | Comparar `board.snapshot()` com a foto do último salvamento | O snapshot já resolve a detecção |
 | **Exportar SVG** (tarefa 8) | Item ao lado dos de PNG no menu `Arquivo`; pode reaproveitar `PngExporter.Background` e `suggestedFileName` | Vetorial: não dá para usar o snapshot; desenhar formatos e setas à mão |
@@ -2170,6 +2302,16 @@ empilhamento (3.21), o lock de item (3.22) e as seções (3.23):
 | Duplicar/excluir a seção age só nela | Levar o conteúdo junto | O conteúdo não é dela (geometria); excluir sem querer não apaga os cards |
 | Link da seção no PDF só no marcador | Área inteira clicável | A área cobriria os cards de dentro e competiria com os links deles |
 | Título da seção: rótulo de uma linha com reticências; campo só na edição | `TextArea` sempre visível | Título longo fica legível sem rolagem nem crescer; a faixa do título pega o clique para arrastar |
+| Seleção de seta mínima (uma seta; exclusiva com a dos cards) | Seta na mesma seleção dos cards; várias setas | É o menor conjunto que torna a seta editável (duplo clique, Delete, estilo); a barra flutuante e as ações dos cards não precisam saber de setas (3.24) |
+| Área de clique larga e transparente só na ferramenta Selecionar | Clique na linha de 2 px; área sempre ativa | Fácil de acertar sem roubar os cliques de criar card ou de mover a visão nas outras ferramentas |
+| Texto da seta: uma linha, 60 caracteres, até 220 px com "…" | Quebrar em duas linhas; crescer à vontade | Mais simples; nunca empurra cards nem cobre a seta inteira (3.24) |
+| Confirmar o texto da seta com `history.perform` | Sessão de edição (`beginEdit`/`endEdit`) | O campo abre e fecha sob controle do controller; `Esc` cancela sem passo, e cada confirmação é um passo |
+| Textos das setas numa camada própria acima das linhas | Texto dentro da `ConnectionView` | A linha de outra seta (ex.: a contrária) desenhada depois cortava o texto (3.24) |
+| A→B e B→A: textos lado a lado e área de clique de cada lado da linha | Curvar as duas setas | Sem mudar o desenho das setas (curva ficou fora do escopo), as duas continuam legíveis e clicáveis |
+| Estilos ao lado do ícone Conexão, trocando de lugar com o principal | Seletor na barra flutuante; ferramenta por estilo | Decisão do Danilo: na barra lateral, com o ícone mostrando o estilo das setas novas (3.24) |
+| Com seta selecionada, os botões de estilo mudam a seta | Estilo só para setas novas | Aprovado pelo Danilo; usa a mesma barra, sem botão novo |
+| Estilo principal não é lembrado entre sessões | Preferência do usuário salva | Decisão do Danilo |
+| Geometria da seta em `model/ConnectionGeometry` (Java puro) | Conta só na `view` | O PDF (texto invisível) usa a mesma conta sem depender da tela |
 
 ## B. Armadilhas conhecidas
 
@@ -2194,7 +2336,10 @@ empilhamento (3.21), o lock de item (3.22) e as seções (3.23):
     os nós. E mude a lista por **permutação** (`cards.sort`), não com `setAll`/remover+adicionar: senão a tela
     recria os `CardView`s (perde foco, painel aberto e seleção visual), e quem escuta a lista acha que cards
     saíram e entraram.
-11. **Setas A→B e B→A** ficam sobrepostas (parecem uma seta de duas pontas).
+11. **Setas A→B e B→A** ficam sobrepostas (parecem uma seta de duas pontas, e com a ponta dupla da 3.24
+    nem dá para diferenciar). Para continuarem usáveis (3.24): os textos ficam lado a lado (cada um anda para
+    o lado do próprio destino) e a área de clique de cada uma fica do seu lado da linha (acima pega uma,
+    abaixo a outra). Um texto muito longo numa seta curta pode passar por cima de um card.
 12. **Largura/altura × tamanho definido à mão:** para mudar o tamanho "de verdade", use
     `Card.resize`; `setWidth`/`setHeight` sozinhos são desfeitos pelo recálculo do texto (3.14).
 13. **Mudar o visual do texto** (borda do `.card`, barra de rolagem, fonte, espaçamento de linha no
@@ -2286,17 +2431,33 @@ empilhamento (3.21), o lock de item (3.22) e as seções (3.23):
 41. **A barra flutuante cobre o título de uma seção logo acima do card selecionado.** É o comportamento
     normal da barra (fica acima da seleção); clicar fora ou no outro lado do título resolve. Um roteiro de
     interface com picking real precisa escolher o ponto (o do 4b clica no título à direita).
+42. **O texto da seta não é filho da `ConnectionView`.** Ele fica em `getLabelLayer()`, que o `BoardView` e o
+    `BoardRenderer` põem na camada dos textos. Quem mostrar uma `ConnectionView` em outro lugar (teste, outra
+    exportação) precisa pôr também esse grupo na cena; senão o texto não aparece (nem é medido). O destaque
+    de seleção do texto usa `.connection-label-group:selected`, não `.connection:selected`.
+43. **Hover não sai em evento sintético.** Os botões de estilo aparecem com o mouse sobre a Conexão
+    (`hoverProperty`), que o JavaFX só atualiza com o mouse de verdade; disparar `MOUSE_ENTERED` num nó não
+    muda o hover. O roteiro de interface (C) não consegue conferir esse caminho.
+44. **Pick da seta no meio de outra.** O texto de uma seta fica por cima da área de clique das outras (camada
+    acima): um duplo clique sobre o texto de A→B, mesmo que caia sobre a linha de B→A, edita A→B.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 321 testes, sem abrir janela
+### Automatizados (`mvn test`) — 362 testes, sem abrir janela
 
-(O `BoardRendererPngTest` e o `FrameViewTest` ligam o JavaFX, sem janela, para desenhar de verdade; num
-ambiente sem tela eles são pulados em vez de falhar.)
+(O `BoardRendererPngTest`, o `FrameViewTest`, o `ConnectionViewTest` e o `ConnectionEditControllerTest`
+ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
 
 | Classe | Cobre |
 |---|---|
 | `BoardTest` | regras de conexão, remoção em cascata, cópia de card |
+| `ConnectionTest` | seta nova sem texto e simples; texto de uma linha, nunca nulo; pontas e tracejado de cada estilo; estilo pelo nome (desconhecido = simples); `connect` com estilo mantém as regras (repetida em outro estilo, B→A, para si, seção, fora do board); excluir seta mantém os cards; contrária nos dois sentidos; duplicar card não copia setas; desfazer exclusão de card traz a seta com texto e estilo |
+| `ConnectionAllPropertiesTest` | seta com todas as propriedades fora do padrão (`fullConnection()`, falha se esquecer uma nova): foto/restauração em board novo e na seta existente (atualizada no lugar), texto e estilo mudam a foto, `deepCopy`, salvar/abrir |
+| `ConnectionGeometryTest` | seta de borda a borda; texto no meio; textos de A→B e B→A lado a lado (horizontal e vertical) |
+| `ConnectionStorageTest` | os quatro estilos e textos salvos e abertos (também em board aninhado); padrão não grava `label`/`style` e mantém a versão 2; fora do padrão grava; save anterior sem os campos e `.json` antigo abrem com seta simples sem texto; quebra de linha vira espaço, estilo desconhecido vira simples |
+| `ConnectionStyleOrderTest` | começa com a seta simples no principal; escolher um extra troca de lugar; escolher o principal não muda nada; sempre os mesmos quatro estilos |
+| `ConnectionViewTest` | (JavaFX, CSS do app) pontas e início/fim da linha de cada estilo, tracejado no CSS, ponta da origem girada; texto no meio acompanhando mover/redimensionar; texto longo limitado sem mudar os cards; A→B e B→A com textos lado a lado e áreas de clique em lados opostos; seleção de seta exclusiva com a de cards, limpa ao excluir; PNG com o texto e o tracejado |
+| `ConnectionEditControllerTest` | (JavaFX) Enter confirma num passo do desfazer (sem espaços nas pontas), Esc cancela sem passo, vazio tira o texto, limite de 60 no campo, Delete exclui a seta selecionada e o desfazer a traz com texto e estilo, estilo da seta selecionada pela barra num passo (o mesmo estilo não é passo; sem seta, não age) |
 | `CardShapeTest` | criação por formato, troca de formato mantendo o centro/tamanho |
 | `CardGeometryTest` | ponto de contato da seta em cada formato |
 | `AlignmentGuidesTest` | grudar borda/centro, candidato mais próximo, limite, guias atravessando várias caixas, redimensionar (só bordas puxadas) |
@@ -2306,7 +2467,7 @@ ambiente sem tela eles são pulados em vez de falhar.)
 | `PanelCardTest` | modos do painel, conteúdo apagado na troca, cópia independente, foto/restauração do painel |
 | `NestedBoardTest` | restauração não mexe em filhos existentes, exclusão+desfazer traz a árvore, cópia profunda |
 | `EditHistoryTest` | desfazer/refazer, ação sem mudança, gesto longo, sessões de edição, histórico separado por board |
-| `PdfExporterTest` | seção: texto invisível só na faixa do título; título buscável, link da seção só no marcador, cards de dentro com os links inteiros (card com site e card-board), nenhuma área clicável do tamanho da seção; link para outro board: o card todo leva à página do destino em outro ramo; card que já leva a uma página vai ao destino só pelo marcador (por cima); card com os dois links e sem página própria (card todo → board, clipe → site); destino excluído sem área clicável; marcadores lado a lado; link externo: card todo com ação URI (endereço ASCII), card de board aninhado mantém o link da página e ganha o do site só no clipe (por cima), área do clipe acompanha a escala, cards sem link sem URI; ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
+| `PdfExporterTest` | texto da seta buscável, no meio da seta; seção: texto invisível só na faixa do título; título buscável, link da seção só no marcador, cards de dentro com os links inteiros (card com site e card-board), nenhuma área clicável do tamanho da seção; link para outro board: o card todo leva à página do destino em outro ramo; card que já leva a uma página vai ao destino só pelo marcador (por cima); card com os dois links e sem página própria (card todo → board, clipe → site); destino excluído sem área clicável; marcadores lado a lado; link externo: card todo com ação URI (endereço ASCII), card de board aninhado mantém o link da página e ganha o do site só no clipe (por cima), área do clipe acompanha a escala, cards sem link sem URI; ordem das páginas, links dos cards e do caminho, "voltar ao board", marcadores, texto buscável, continuação de detalhes longos, caracteres sem suporte, arquivo gravado sem sobra de temporário, texto invisível de card de imagem só na faixa da legenda |
 | `BoardStorageTest` | link salvo e aberto (card comum, de imagem e de board), card sem link não grava o campo, save anterior sem o campo abre sem link, links maliciosos no arquivo (`javascript:`, `file:`, caminho, rede, `usuário@site`) descartados; salvar/abrir em pasta (painéis, boards aninhados em 3 níveis, fonte e tamanho definido à mão), abrir pela pasta ou pelo `board.json`, `.json` antigo (abre, salva no formato novo sem alterar o antigo, versão decide e não o nome), JSON inválido, pasta incompleta, `board.json` vazio, versão futura, `version` 2 com outro nome, "salvar como" copiando `imagens/`, imagens copiadas antes do JSON (falha na gravação não deixa JSON solto), falha mantém o `board.json` anterior, destino livre × save existente × ocupado; card de imagem salvo e aberto com o arquivo, card sem imagem não grava o campo, save anterior sem o campo abre, imagem faltando (e nome com `../`) não quebra e mantém a referência, imagens de várias origens |
 | `BoardImagesTest` | limpeza só dos arquivos não referenciados (com arquivos falsos), conjunto vazio, nome citado que não existe, sem pasta `imagens/`, subpastas e resto do save intactos; cópia sem sobras temporárias, cópia desatualizada substituída, idêntica mantida, nada criado sem imagens, origem = destino não muda nada; achar o arquivo na ordem das pastas, nomes com pasta recusados |
 | `ImageImporterTest` | (imagens reais geradas no teste) PNG e JPG pequenos copiados byte a byte com nome novo, grande reduzido a 2000 px mantendo a proporção (JPG continua JPG, PNG mantém transparência), GIF e BMP viram PNG, formato pelo conteúdo e não pela extensão, arquivo quebrado/não imagem/inexistente recusado sem sobras, imagem em memória vira PNG, extensões aceitas |
@@ -2458,6 +2619,26 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   card de dentro). **Não validado:** o clique e as teclas físicas (o caminho do evento dentro do JavaFX é o
   mesmo, e o alvo agora vem do picking real), os seletores nativos de arquivo (código não alterado) e o
   `mvn javafx:run` aberto à mão (o roteiro rodou no module path equivalente).
+- **Setas com texto e estilos de seta** (3.24) foram validadas pelo mesmo tipo de roteiro (dentro da JVM,
+  picking real, **141 verificações**, no classpath; janela de 1400×860). Roteiro: seis cards pela tecla `R` →
+  barra: ícone da Conexão desenha a seta simples, extras escondidos em Selecionar, tecla `C` mostra os extras
+  (ordem e ícone de cada um conferidos) → setas pela **ferramenta** nos quatro estilos, escolhendo cada estilo
+  pelo botão (troca de lugar, ícone principal redesenhado, ferramenta continua Conexão) → setas pela **alça**
+  nos quatro estilos (`Esc`, escolher, voltar); B→A contrária; B→A repetida recusada → clique na seta seleciona
+  (cards fora da seleção, sem barra flutuante, destaque); clicar num card, `Esc` ou no fundo limpa; A→B e B→A:
+  acima da linha pega uma, abaixo a outra; dentro do card, sobre o fim da seta, o clique é do card; na
+  ferramenta Retângulo, sobre a seta é fundo; caixa de seleção cruzando setas → `Delete` exclui a seta (um
+  passo), `Ctrl+Z`/`Ctrl+Y` → seta selecionada + botões de estilo (aparecem em Selecionar): extra muda a seta
+  (e vira o principal, ferramenta continua Selecionar, um passo), ícone principal aplica o estilo dele sem
+  ativar a ferramenta, `Ctrl+Z`; sem seta, o ícone ativa Conexão → duplo clique na linha abre o campo com
+  foco; letras e `R`/`C`/`V` não trocam de ferramenta; Backspace apaga letra, não a seta; `Enter` confirma
+  (um passo); texto no meio, afastado do da contrária; `Esc` cancela (sem passo); clicar fora confirma; duplo
+  clique no texto abre com o texto atual; `Ctrl+Z`/`Ctrl+Y` do texto; texto longo limitado (60 caracteres,
+  220 px), cards do mesmo tamanho → mover e redimensionar cards: textos acompanham, seta de borda a borda →
+  `Ctrl+D` não copia setas → salvar (`style`, `label`, versão 2), PNG (texto aparece), PDF (textos buscáveis)
+  → reabrir (estilos, textos e contrária na tela). **Não validado:** os botões de estilo aparecendo **com o
+  mouse em cima** da Conexão (o hover não sai de evento sintético, armadilha 43), clique e teclas físicas, e o
+  `mvn javafx:run` aberto à mão.
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.

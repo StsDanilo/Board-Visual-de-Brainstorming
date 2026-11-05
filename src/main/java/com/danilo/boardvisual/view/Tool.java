@@ -17,7 +17,8 @@ public enum Tool {
 
     SELECT("Selecionar", KeyCode.V, null, PanelMode.NONE, Icons.SELECT,
             "Clique para selecionar (Shift soma)  ·  Arraste o fundo para selecionar vários  ·  "
-                    + "Espaço+arrastar ou botão direito: mover a visão  ·  Roda do mouse: zoom"),
+                    + "Espaço+arrastar ou botão direito: mover a visão  ·  Roda do mouse: zoom  ·  "
+                    + "Duplo clique numa seta: texto da seta"),
     RECTANGLE("Retângulo", KeyCode.R, CardShape.RECTANGLE, PanelMode.NONE, Icons.shape(CardShape.RECTANGLE),
             "Clique no canvas para criar um card retangular"),
     ELLIPSE("Elipse", KeyCode.E, CardShape.ELLIPSE, PanelMode.NONE, Icons.shape(CardShape.ELLIPSE),
@@ -43,7 +44,8 @@ public enum Tool {
             "Escolha uma imagem (PNG, JPG, GIF, BMP)  ·  Também dá para colar (Ctrl+V) ou arrastar o arquivo "
                     + "para o canvas  ·  Duplo clique na imagem escreve a legenda"),
     CONNECTION("Conexão", KeyCode.C, null, PanelMode.NONE, Icons.CONNECTION,
-            "Arraste de um card até outro para conectá-los");
+            "Arraste de um card até outro para conectá-los  ·  "
+                    + "Os botões ao lado do ícone escolhem o estilo das setas novas");
 
     private final String label;
     private final KeyCode shortcut;

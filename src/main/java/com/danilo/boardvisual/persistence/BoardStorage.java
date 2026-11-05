@@ -4,6 +4,7 @@ import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardShape;
 import com.danilo.boardvisual.model.Connection;
+import com.danilo.boardvisual.model.ConnectionStyle;
 import com.danilo.boardvisual.model.PanelMode;
 import com.danilo.boardvisual.persistence.BoardFileFormat.BoardData;
 import com.danilo.boardvisual.persistence.BoardFileFormat.CardData;
@@ -182,7 +183,9 @@ public class BoardStorage {
                         c.hasChildBoard() ? toData(c.getChildBoard()) : null))
                 .toList();
         List<ConnectionData> connections = board.getConnections().stream()
-                .map(c -> new ConnectionData(c.getId(), c.getSource().getId(), c.getTarget().getId()))
+                .map(c -> new ConnectionData(c.getId(), c.getSource().getId(), c.getTarget().getId(),
+                        c.getLabel().isEmpty() ? null : c.getLabel(), // sem texto não grava o campo
+                        c.getStyle() == ConnectionStyle.DEFAULT ? null : c.getStyle().name()))
                 .toList();
         return new BoardData(BoardFileFormat.CURRENT_VERSION, board.getId(), board.getName(), cards, connections);
     }
@@ -252,6 +255,9 @@ public class BoardStorage {
                     Connection connection = cd.id() == null
                             ? new Connection(source.get(), target.get())
                             : new Connection(cd.id(), source.get(), target.get());
+                    // Saves anteriores não têm os campos: seta sem texto, seta simples.
+                    connection.setLabel(cd.label());
+                    connection.setStyle(ConnectionStyle.fromName(cd.style()));
                     board.addConnection(connection);
                 }
             }

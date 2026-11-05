@@ -3,6 +3,7 @@ package com.danilo.boardvisual.view;
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.CardMarkers;
 import com.danilo.boardvisual.model.CardShape;
+import com.danilo.boardvisual.model.ConnectionGeometry;
 import com.danilo.boardvisual.model.Frames;
 import javafx.beans.Observable;
 import javafx.geometry.Insets;
@@ -23,27 +24,9 @@ final class CardGeometry {
      * ({@code towardX}, {@code towardY}) cruza a borda do card.
      */
     static Point2D borderPoint(Card card, double towardX, double towardY) {
-        double cx = card.getCenterX();
-        double cy = card.getCenterY();
-        double dx = towardX - cx;
-        double dy = towardY - cy;
-        if (dx == 0 && dy == 0) {
-            return new Point2D(cx, cy);
-        }
-        // t: quanto andar na direção (dx, dy) a partir do centro até tocar a borda.
-        double a = card.getWidth() / 2;
-        double b = card.getHeight() / 2;
-        double t = switch (card.getShape()) {
-            // Seções não têm setas; a conta é a do retângulo, por completude.
-            case RECTANGLE, FRAME -> Math.min(
-                    dx == 0 ? Double.POSITIVE_INFINITY : a / Math.abs(dx),
-                    dy == 0 ? Double.POSITIVE_INFINITY : b / Math.abs(dy));
-            // (x/a)² + (y/b)² = 1
-            case ELLIPSE -> 1 / Math.sqrt((dx / a) * (dx / a) + (dy / b) * (dy / b));
-            // |x|/a + |y|/b = 1
-            case DIAMOND -> 1 / (Math.abs(dx) / a + Math.abs(dy) / b);
-        };
-        return new Point2D(cx + dx * t, cy + dy * t);
+        // A conta fica no modelo (ConnectionGeometry): o PDF também precisa dela.
+        ConnectionGeometry.Point p = ConnectionGeometry.borderPoint(card, towardX, towardY);
+        return new Point2D(p.x(), p.y());
     }
 
     /** Tamanho (diâmetro) do botão que abre o painel flutuante. */
