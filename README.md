@@ -31,10 +31,10 @@ mvn test
   (segure `Alt` para posicionar livremente)
 - Conexões entre cards (ferramenta Conexão ou alça na borda do card)
 - Estilos de seta: simples, tracejada, ponta dupla ou linha sem ponta. O ícone da ferramenta Conexão
-  desenha o estilo das setas novas; ao lado dele aparecem os outros estilos (com a ferramenta ativa, com o
-  mouse em cima ou com uma seta selecionada). Clicar num deles troca de lugar com o principal e vale para
-  as próximas setas, pela ferramenta ou pela alça. Com uma seta selecionada, esses botões mudam o estilo
-  dela (o ícone principal aplica o estilo dele na seta)
+  desenha o estilo das setas novas; com o mouse sobre ele, abre à direita da barra de ferramentas uma mini
+  barra com os outros três estilos (ela continua aberta enquanto o mouse está nela). Clicar num deles troca
+  de lugar com o principal e vale para as próximas setas, pela ferramenta ou pela alça. Com uma seta
+  selecionada, esses botões mudam o estilo dela (o ícone principal aplica o estilo dele na seta)
 - Setas com texto: clique na seta para selecioná-la (fica azul; `Delete` exclui) e duplo clique na seta
   (ou no texto dela) para escrever, por exemplo, "leva a" ou "depende de". `Enter` ou clicar fora confirma,
   `Esc` cancela. O texto fica no meio da seta, numa linha (até 60 caracteres; longo demais termina em "…"),
@@ -88,7 +88,7 @@ mvn test
 - Seleção múltipla: caixa de seleção, Shift+clique e mover/alterar/excluir em grupo
 - Desfazer/refazer de todas as ações no board
 - Barra de ferramentas: Selecionar, Retângulo, Elipse, Losango, Painel, Board aninhado, Seção, Imagem, Conexão
-  (com os estilos de seta ao lado) e cor dos novos cards
+  (com a mini barra dos estilos de seta) e cor dos novos cards
 - Barra flutuante da seleção: cor, formato, tamanho do texto, link e link para outro board (com um card selecionado),
   ordem (camadas), travar (cadeado), duplicar e excluir (só seções selecionadas: sem formato nem tamanho do texto)
 - Salvar e abrir: cada board é salvo numa **pasta** (`board.json` + `imagens/`);

@@ -9,7 +9,7 @@
 > (trazer para frente / enviar para trás), o lock de item (card travado, com cadeado), as seções
 > (frames: área colorida com título, atrás dos cards, que leva junto o que está dentro dela), as setas
 > com texto (duplo clique na seta) e os estilos de seta (simples, tracejada, ponta dupla, sem ponta,
-> escolhidos na barra lateral).
+> escolhidos numa mini barra ao lado da barra lateral, com o mouse sobre a ferramenta Conexão).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -41,7 +41,7 @@ Você escolhe quais cards ficam **por cima** de quais (a ordem é salva) e pode 
 (cadeado) para não movê-lo nem excluí-lo sem querer. **Seções** (frames) são áreas coloridas com título,
 sempre atrás dos cards, que organizam o board por tema: arrastar a seção leva junto o que está dentro dela.
 As setas podem ter um **texto** no meio ("leva a", "depende de") e um **estilo** (simples, tracejada,
-ponta dupla ou linha sem ponta), escolhido ao lado da ferramenta Conexão.
+ponta dupla ou linha sem ponta), escolhido numa mini barra que abre com o mouse sobre a ferramenta Conexão.
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
 pode virar uma **imagem PNG** (fundo branco ou transparente).
 Não há servidor nem banco de dados.
@@ -147,7 +147,7 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato (delega a `ConnectionGeometry`); recuo do texto dentro do formato. |
 | `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). Seção: fonte fixa do título, nunca cresce. |
 | `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica (inclusive `FRAME`, a Seção, tecla `S`). |
-| `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. Ao lado da ferramenta Conexão, os botões dos outros estilos de seta (aparecem com a ferramenta ativa, com o mouse em cima ou com uma seta selecionada); o ícone da Conexão desenha o estilo das setas novas (`connectionStyleProperty`). |
+| `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. Com o mouse sobre a ferramenta Conexão, uma mini barra flutuante à direita mostra os outros estilos de seta (`getConnectionStyleBar`); o ícone da Conexão desenha o estilo das setas novas (`connectionStyleProperty`). |
 | `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens; desabilitado se todos estão travados), tamanho do texto, modo do painel (Texto/Lista), link e link para outro board (só com um card), ordem (camadas), cadeado (travar/destravar, com estado misto), duplicar, excluir. |
 | `StackOrderButton` | Botão "Ordem" (camadas) da barra flutuante: popup com as quatro ações da ordem de empilhamento e os atalhos; as que não mudariam nada aparecem desabilitadas. |
 | `LinkEditorPopup` | Popup pequeno com o campo do endereço do link (Salvar, Cancelar, Remover), com a mensagem de erro da validação. |
@@ -1549,10 +1549,18 @@ As duas setas ficam sobre a mesma reta. O `BoardView` marca cada uma com `setRev
 ### Estilos (barra de ferramentas lateral)
 
 - O ícone da ferramenta **Conexão** desenha o **estilo principal**: o das setas novas, criadas pela
-  ferramenta **ou pela alça** do card. Ao lado dele ficam **botões extras** com os outros três estilos,
-  cada um desenhado no próprio estilo (`Icons.connectionStyle`).
-- **Quando os extras aparecem:** com a ferramenta Conexão ativa, com o mouse sobre ela (ou sobre eles), ou
-  com uma seta selecionada. A barra fica mais larga enquanto eles aparecem (acabamento visual fica para depois).
+  ferramenta **ou pela alça** do card. Os outros três estilos ficam numa **mini barra flutuante**
+  (`ToolBarView.getConnectionStyleBar()`), logo à direita da barra de ferramentas, na altura do botão da
+  Conexão, cada um desenhado no próprio estilo (`Icons.connectionStyle`). A barra de ferramentas não muda
+  de largura.
+- **Quando a mini barra aparece (decisão do Danilo):** só enquanto o mouse está sobre o botão da Conexão. Para
+  dar para chegar até ela, ela continua aberta enquanto o mouse está nela, e só fecha **350 ms** depois de o
+  mouse sair do botão e dela (`STYLE_BAR_CLOSE_DELAY`; o caminho passa pela borda da barra e por um vão de
+  6 px). Não abre por ter a ferramenta ativa nem por ter uma seta selecionada.
+- **Montagem:** a mini barra é um `HBox` com as classes `tool-bar-view connection-style-bar` (mesmo visual da
+  barra, deitada). A `MainWindow` a põe na mesma `StackPane` da barra, por cima; ela é `managed = false` e se
+  posiciona sozinha (`placeStyleBar`, pela caixa de **layout** da barra, porque o `boundsInParent` inclui a
+  sombra), e pega o mouse só no fundo desenhado (`pickOnBounds = false`, senão a sombra também pegaria).
 - **Clicar num extra troca de lugar** com o principal (`ConnectionStyleOrder.choose`): o escolhido vira o
   principal e o antigo principal vai para a posição do escolhido. São sempre os mesmos quatro estilos.
 - **Sem seta selecionada**, clicar num extra também ativa a ferramenta Conexão. **Com uma seta selecionada**,
@@ -2117,7 +2125,7 @@ constante; o `CanvasController.createCardAt` cria o card no clique, seleciona e 
 `Board.addCard` o põe na camada certa. O que a ferramenta tem de especial fica nas regras do formato (5.2).
 
 **Variações de uma ferramenta** (como os estilos de seta da Conexão, 3.24): em vez de uma ferramenta por
-variação, uma fileira (`HBox`) com o botão da ferramenta e botões extras ao lado (`ToolBarView.createConnectionRow`);
+variação, uma mini barra flutuante que abre com o mouse sobre a ferramenta (`ToolBarView.setUpConnectionStyles`);
 a ordem fica numa classe de lógica pura testável (`ConnectionStyleOrder`) e o valor escolhido sai por uma
 propriedade (`connectionStyleProperty`) que o controller lê. Estilo novo: constante em `ConnectionStyle`,
 caso em `Icons.connectionStyle` (switch exaustivo) e, se o desenho mudar, na `ConnectionView`.
@@ -2309,6 +2317,7 @@ empilhamento (3.21), o lock de item (3.22), as seções (3.23) e as setas com te
 | Textos das setas numa camada própria acima das linhas | Texto dentro da `ConnectionView` | A linha de outra seta (ex.: a contrária) desenhada depois cortava o texto (3.24) |
 | A→B e B→A: textos lado a lado e área de clique de cada lado da linha | Curvar as duas setas | Sem mudar o desenho das setas (curva ficou fora do escopo), as duas continuam legíveis e clicáveis |
 | Estilos ao lado do ícone Conexão, trocando de lugar com o principal | Seletor na barra flutuante; ferramenta por estilo | Decisão do Danilo: na barra lateral, com o ícone mostrando o estilo das setas novas (3.24) |
+| Estilos numa mini barra flutuante à direita, só com o mouse sobre a Conexão (fecha 350 ms depois de sair) | Botões dentro da barra, que alargavam a barra; abrir com a ferramenta ativa | Pedido do Danilo depois da primeira versão: a barra não muda de largura. O atraso deixa o mouse atravessar o vão até a mini barra |
 | Com seta selecionada, os botões de estilo mudam a seta | Estilo só para setas novas | Aprovado pelo Danilo; usa a mesma barra, sem botão novo |
 | Estilo principal não é lembrado entre sessões | Preferência do usuário salva | Decisão do Danilo |
 | Geometria da seta em `model/ConnectionGeometry` (Java puro) | Conta só na `view` | O PDF (texto invisível) usa a mesma conta sem depender da tela |
@@ -2435,9 +2444,14 @@ empilhamento (3.21), o lock de item (3.22), as seções (3.23) e as setas com te
     `BoardRenderer` põem na camada dos textos. Quem mostrar uma `ConnectionView` em outro lugar (teste, outra
     exportação) precisa pôr também esse grupo na cena; senão o texto não aparece (nem é medido). O destaque
     de seleção do texto usa `.connection-label-group:selected`, não `.connection:selected`.
-43. **Hover não sai em evento sintético.** Os botões de estilo aparecem com o mouse sobre a Conexão
-    (`hoverProperty`), que o JavaFX só atualiza com o mouse de verdade; disparar `MOUSE_ENTERED` num nó não
-    muda o hover. O roteiro de interface (C) não consegue conferir esse caminho.
+43. **Hover não sai de `Event.fireEvent`.** A mini barra de estilos abre com o mouse sobre a Conexão
+    (`hoverProperty`), que só a própria cena atualiza: disparar `MOUSE_ENTERED`/`MOUSE_MOVED` direto num nó não
+    muda o hover. O roteiro de interface (C) move o mouse pelo caminho interno da cena
+    (`Scene.processMouseEvent`, por reflexão), que faz o picking e o entrar/sair como o mouse físico. Atenção: a
+    cena reavalia o hover no ponto do **último** evento de mouse que recebeu; se o mouse físico passar sobre a
+    janela durante o roteiro, esse ponto muda (o roteiro confirma o hover e repete o movimento).
+    Outra: `boundsInParent`/`boundsInLocal` de um nó com `-fx-effect` (sombra) incluem a sombra; para posicionar
+    e conferir posições, use a caixa de layout (`getLayoutBounds`).
 44. **Pick da seta no meio de outra.** O texto de uma seta fica por cima da área de clique das outras (camada
     acima): um duplo clique sobre o texto de A→B, mesmo que caia sobre a linha de B→A, edita A→B.
 
@@ -2620,15 +2634,19 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   mesmo, e o alvo agora vem do picking real), os seletores nativos de arquivo (código não alterado) e o
   `mvn javafx:run` aberto à mão (o roteiro rodou no module path equivalente).
 - **Setas com texto e estilos de seta** (3.24) foram validadas pelo mesmo tipo de roteiro (dentro da JVM,
-  picking real, **141 verificações**, no classpath; janela de 1400×860). Roteiro: seis cards pela tecla `R` →
-  barra: ícone da Conexão desenha a seta simples, extras escondidos em Selecionar, tecla `C` mostra os extras
-  (ordem e ícone de cada um conferidos) → setas pela **ferramenta** nos quatro estilos, escolhendo cada estilo
-  pelo botão (troca de lugar, ícone principal redesenhado, ferramenta continua Conexão) → setas pela **alça**
+  picking real, **163 verificações**, no classpath; janela de 1400×860). Os movimentos do mouse (hover) passam
+  pelo caminho interno da cena (`Scene.processMouseEvent`, armadilha 43). Roteiro: seis cards pela tecla `R` →
+  barra: ícone da Conexão desenha a seta simples; mini barra fechada em Selecionar e com a Conexão ativa sem
+  mouse em cima; mouse sobre o botão abre a mini barra à direita da barra, na altura do botão, sem mudar a
+  largura da barra (ordem e ícone de cada estilo conferidos); atravessar o vão e ficar sobre a mini barra a
+  mantém aberta; sair dos dois a fecha (ainda aberta 150 ms depois, fechada depois do atraso) → setas pela
+  **ferramenta** nos quatro estilos, escolhendo cada estilo na mini barra (troca de lugar, ícone principal
+  redesenhado, ferramenta continua Conexão) → setas pela **alça**
   nos quatro estilos (`Esc`, escolher, voltar); B→A contrária; B→A repetida recusada → clique na seta seleciona
   (cards fora da seleção, sem barra flutuante, destaque); clicar num card, `Esc` ou no fundo limpa; A→B e B→A:
   acima da linha pega uma, abaixo a outra; dentro do card, sobre o fim da seta, o clique é do card; na
   ferramenta Retângulo, sobre a seta é fundo; caixa de seleção cruzando setas → `Delete` exclui a seta (um
-  passo), `Ctrl+Z`/`Ctrl+Y` → seta selecionada + botões de estilo (aparecem em Selecionar): extra muda a seta
+  passo), `Ctrl+Z`/`Ctrl+Y` → seta selecionada (mini barra continua só no hover) + estilo na mini barra: muda a seta
   (e vira o principal, ferramenta continua Selecionar, um passo), ícone principal aplica o estilo dele sem
   ativar a ferramenta, `Ctrl+Z`; sem seta, o ícone ativa Conexão → duplo clique na linha abre o campo com
   foco; letras e `R`/`C`/`V` não trocam de ferramenta; Backspace apaga letra, não a seta; `Enter` confirma
@@ -2636,9 +2654,9 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   clique no texto abre com o texto atual; `Ctrl+Z`/`Ctrl+Y` do texto; texto longo limitado (60 caracteres,
   220 px), cards do mesmo tamanho → mover e redimensionar cards: textos acompanham, seta de borda a borda →
   `Ctrl+D` não copia setas → salvar (`style`, `label`, versão 2), PNG (texto aparece), PDF (textos buscáveis)
-  → reabrir (estilos, textos e contrária na tela). **Não validado:** os botões de estilo aparecendo **com o
-  mouse em cima** da Conexão (o hover não sai de evento sintético, armadilha 43), clique e teclas físicas, e o
-  `mvn javafx:run` aberto à mão.
+  → reabrir (estilos, textos e contrária na tela). **Não validado:** o mouse e as teclas físicas (o hover passou
+  pelo caminho interno da cena, os cliques pelo `fireEvent` com o alvo do picking real) e o `mvn javafx:run`
+  aberto à mão.
 
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.

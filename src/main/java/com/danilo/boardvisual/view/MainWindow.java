@@ -71,7 +71,9 @@ public class MainWindow extends BorderPane {
         setTop(new MenuBar(fileMenu, editMenu, viewMenu));
 
         boardView.setSelectionOverlay(selectionToolbar);
-        StackPane canvasArea = new StackPane(boardView, toolBar, breadcrumb);
+        // A mini barra dos estilos de seta fica no mesmo pai da barra de ferramentas, por cima de tudo;
+        // ela não entra no layout da StackPane e se posiciona sozinha à direita da barra.
+        StackPane canvasArea = new StackPane(boardView, toolBar, breadcrumb, toolBar.getConnectionStyleBar());
         StackPane.setAlignment(toolBar, Pos.CENTER_LEFT);
         // Margem de cima maior: deixa espaço para o caminho no canto superior esquerdo.
         StackPane.setMargin(toolBar, new Insets(64, 12, 12, 12));

@@ -45,7 +45,7 @@ public enum Tool {
                     + "para o canvas  ·  Duplo clique na imagem escreve a legenda"),
     CONNECTION("Conexão", KeyCode.C, null, PanelMode.NONE, Icons.CONNECTION,
             "Arraste de um card até outro para conectá-los  ·  "
-                    + "Os botões ao lado do ícone escolhem o estilo das setas novas");
+                    + "Passe o mouse sobre o ícone da Conexão para escolher o estilo das setas novas");
 
     private final String label;
     private final KeyCode shortcut;

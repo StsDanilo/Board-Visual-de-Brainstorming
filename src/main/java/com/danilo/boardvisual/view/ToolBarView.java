@@ -2,7 +2,8 @@ package com.danilo.boardvisual.view;
 
 import com.danilo.boardvisual.model.Card;
 import com.danilo.boardvisual.model.ConnectionStyle;
-import javafx.beans.binding.Bindings;
+import javafx.animation.PauseTransition;
+import javafx.beans.InvalidationListener;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -11,6 +12,7 @@ import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringProperty;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.geometry.Bounds;
 import javafx.geometry.Side;
 import javafx.scene.control.Button;
 import javafx.scene.control.Separator;
@@ -22,6 +24,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -36,9 +39,9 @@ import java.util.function.Predicate;
  * - Ferramentas: a fonte da verdade é {@link #activeToolProperty()}; clicar
  *   num botão muda a propriedade, e mudar a propriedade por código (ex.:
  *   voltar para "Selecionar" depois de criar um card) atualiza os botões.
- * - Estilo das setas: ao lado da ferramenta Conexão, botões com os outros
- *   estilos ({@link #createConnectionRow}); o ícone da ferramenta mostra o
- *   estilo das setas novas ({@link #connectionStyleProperty()}).
+ * - Estilo das setas: com o mouse sobre a ferramenta Conexão, uma mini barra
+ *   flutuante à direita mostra os outros estilos ({@link #setUpConnectionStyles});
+ *   o ícone da ferramenta mostra o estilo das setas novas ({@link #connectionStyleProperty()}).
  * - Cor: botão que abre a paleta. A cor escolhida vira a cor atual (usada
  *   nos próximos cards) e é repassada a {@link #setOnColorPicked}, para o
  *   controller aplicar também na seleção.
@@ -59,6 +62,9 @@ public class ToolBarView extends VBox {
             new ReadOnlyObjectWrapper<>(this, "connectionStyle", ConnectionStyle.DEFAULT);
     private final BooleanProperty connectionSelected = new SimpleBooleanProperty(this, "connectionSelected");
     private Predicate<ConnectionStyle> onConnectionStylePicked = style -> false;
+    /** Mini barra flutuante com os outros estilos de seta (ver {@link #setUpConnectionStyles}). */
+    private final HBox styleBar = new HBox();
+    private final PauseTransition styleBarCloser = new PauseTransition(STYLE_BAR_CLOSE_DELAY);
 
     public ToolBarView() {
         getStyleClass().add("tool-bar-view");
@@ -67,8 +73,9 @@ public class ToolBarView extends VBox {
         for (Tool tool : Tool.values()) {
             ToggleButton button = createToolButton(tool);
             buttons.put(tool, button);
-            getChildren().add(tool == Tool.CONNECTION ? createConnectionRow(button) : button);
+            getChildren().add(button);
         }
+        setUpConnectionStyles(buttons.get(Tool.CONNECTION));
 
         group.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
             if (newToggle == null) {
@@ -99,12 +106,15 @@ public class ToolBarView extends VBox {
     // ------------------------------------------------------ estilos de seta
 
     /**
-     * A ferramenta Conexão com os botões de estilo ao lado. O ícone da
-     * ferramenta mostra o estilo principal (o das setas novas); os botões
-     * extras, os outros estilos, cada um desenhado no próprio estilo. Eles
-     * aparecem enquanto a ferramenta Conexão está ativa, o mouse está sobre
-     * ela (ou sobre eles) ou há uma seta selecionada. Clicar num extra troca de
-     * lugar com o principal ({@link ConnectionStyleOrder}) e:
+     * Os estilos de seta da ferramenta Conexão. O ícone da ferramenta mostra o
+     * estilo principal (o das setas novas); os outros estilos ficam numa
+     * <b>mini barra flutuante</b> à direita da barra de ferramentas
+     * ({@link #getConnectionStyleBar()}), cada um desenhado no próprio estilo.
+     * Ela aparece só enquanto o mouse está sobre o botão da Conexão, e continua
+     * aberta enquanto o mouse está nela (para dar tempo de chegar até ela, só
+     * fecha {@link #STYLE_BAR_CLOSE_DELAY} depois de o mouse sair dos dois).
+     * Clicar num estilo da mini barra troca de lugar com o principal
+     * ({@link ConnectionStyleOrder}) e:
      * <ul>
      * <li>sem seta selecionada, ativa a ferramenta Conexão;</li>
      * <li>com seta selecionada, aplica o estilo nela ({@link #setOnConnectionStylePicked})
@@ -112,9 +122,14 @@ public class ToolBarView extends VBox {
      *     estilo dele na seta, em vez de ativar a ferramenta (a tecla C continua ativando).</li>
      * </ul>
      */
-    private HBox createConnectionRow(ToggleButton connectionButton) {
-        HBox extras = new HBox();
-        extras.getStyleClass().add("connection-style-extras");
+    private void setUpConnectionStyles(ToggleButton connectionButton) {
+        HBox extras = styleBar;
+        extras.getStyleClass().addAll("tool-bar-view", "connection-style-bar");
+        extras.setManaged(false); // fica fora do layout de quem a contém: posição calculada (placeStyleBar)
+        extras.setVisible(false);
+        // Pega o mouse só no fundo desenhado: pelo retângulo, a sombra (-fx-effect) também contaria
+        // e cobriria a borda da barra de ferramentas.
+        extras.setPickOnBounds(false);
         for (int i = 0; i < styleOrder.extras().size(); i++) {
             Button button = new Button();
             button.getStyleClass().addAll("tool-button", "connection-style-button");
@@ -138,14 +153,70 @@ public class ToolBarView extends VBox {
             }
         });
 
-        HBox row = new HBox(connectionButton, extras);
-        row.getStyleClass().add("connection-tool-row");
-        extras.visibleProperty().bind(Bindings.createBooleanBinding(
-                () -> activeTool.get() == Tool.CONNECTION || row.isHover() || connectionSelected.get(),
-                activeTool, row.hoverProperty(), connectionSelected));
-        extras.managedProperty().bind(extras.visibleProperty());
+        // Abre com o mouse sobre o botão da Conexão; fecha um pouco depois de o
+        // mouse sair do botão e da mini barra (o caminho entre os dois passa pela
+        // borda da barra e por um vão, onde nenhum dos dois está com o mouse).
+        styleBarCloser.setOnFinished(e -> {
+            if (!connectionButton.isHover() && !extras.isHover()) {
+                extras.setVisible(false);
+            }
+        });
+        InvalidationListener hoverWatcher = obs -> {
+            if (connectionButton.isHover()) {
+                styleBarCloser.stop();
+                showStyleBar();
+            } else if (extras.isHover()) {
+                styleBarCloser.stop();
+            } else if (extras.isVisible()) {
+                styleBarCloser.playFromStart();
+            }
+        };
+        connectionButton.hoverProperty().addListener(hoverWatcher);
+        extras.hoverProperty().addListener(hoverWatcher);
+        // A barra muda de tamanho/lugar (janela redimensionada): a mini barra acompanha.
+        boundsInParentProperty().addListener(obs -> placeStyleBar());
         refreshConnectionStyleButtons();
-        return row;
+    }
+
+    /** Tempo que a mini barra de estilos espera, depois de o mouse sair, para fechar. */
+    static final Duration STYLE_BAR_CLOSE_DELAY = Duration.millis(350);
+    /** Espaço entre a barra de ferramentas e a mini barra de estilos. */
+    private static final double STYLE_BAR_GAP = 6;
+
+    private void showStyleBar() {
+        if (!styleBar.isVisible()) {
+            styleBar.setVisible(true);
+            placeStyleBar();
+        }
+    }
+
+    /**
+     * Põe a mini barra logo à direita da barra de ferramentas, centrada na
+     * altura do botão da Conexão. As duas precisam estar no mesmo pai (a área
+     * do canvas, montada pela {@code MainWindow}).
+     */
+    private void placeStyleBar() {
+        if (!styleBar.isVisible() || styleBar.getParent() == null || getParent() != styleBar.getParent()) {
+            return;
+        }
+        ToggleButton button = buttons.get(Tool.CONNECTION);
+        styleBar.applyCss();
+        styleBar.autosize();
+        Bounds buttonBounds = styleBar.getParent().sceneToLocal(
+                button.localToScene(button.getBoundsInLocal()));
+        // Pela caixa de layout, não pelo boundsInParent: este inclui a sombra da barra (-fx-effect).
+        double x = localToParent(getLayoutBounds()).getMaxX() + STYLE_BAR_GAP;
+        double y = buttonBounds.getCenterY() - styleBar.getHeight() / 2;
+        styleBar.relocate(Math.round(x), Math.round(y));
+    }
+
+    /**
+     * A mini barra flutuante com os outros estilos de seta. Quem monta a janela
+     * a põe no mesmo pai da barra de ferramentas, por cima do canvas; ela se
+     * posiciona sozinha.
+     */
+    public HBox getConnectionStyleBar() {
+        return styleBar;
     }
 
     /** Ícones e dicas conforme a ordem atual dos estilos. */

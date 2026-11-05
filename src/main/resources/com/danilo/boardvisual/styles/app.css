@@ -602,16 +602,12 @@
     -fx-stroke: -bv-accent;
 }
 
-/* Ferramenta Conexão + botões dos outros estilos de seta, ao lado dela. */
-.connection-tool-row {
-    -fx-spacing: 4;
-}
-
-.connection-style-extras {
+/*
+ * Mini barra flutuante dos estilos de seta, à direita da barra de ferramentas (aparece com o mouse
+ * sobre a ferramenta Conexão). Herda o visual da barra (.tool-bar-view), deitada.
+ */
+.connection-style-bar {
     -fx-spacing: 2;
-    -fx-padding: 0 0 0 4;
-    -fx-border-color: -bv-border;
-    -fx-border-width: 0 0 0 1;
 }
 
 /* Ícone da seta tracejada: só a linha leva o tracejado, a ponta fica cheia. */
