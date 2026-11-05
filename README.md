@@ -122,6 +122,11 @@ mvn test
 - Exportar PNG do board que está na tela (o principal ou o aninhado aberto): imagem nítida
   (2 pixels por unidade, reduzida acima de 8.000 px), com fundo branco ou transparente
   (`Arquivo › Exportar PNG com fundo transparente...`)
+- Exportar SVG do board que está na tela (`Arquivo › Exportar SVG...` e `Exportar SVG com fundo transparente...`):
+  desenho **vetorial**, nítido em qualquer tamanho, que abre no navegador e se edita no Inkscape ou no Figma.
+  Cards, seções, setas nos quatro estilos com o texto, imagens (embutidas no arquivo) com legenda e marcadores
+  saem como na tela, com as mesmas quebras de linha; o card com link externo é clicável no navegador. Fonte:
+  Segoe UI (ou a sans-serif do computador que abrir o arquivo)
 
 ## Atalhos de teclado
 
@@ -167,6 +172,7 @@ mvn test
 | `Ctrl+S` / `Ctrl+Shift+S` | Salvar / salvar como |
 | `Ctrl+E` | Exportar PDF (todos os boards) |
 | `Ctrl+Shift+E` | Exportar PNG do board atual (fundo branco) |
+| Menu `Arquivo` | Exportar PNG ou SVG com fundo transparente, Exportar SVG (sem atalho) |
 | `Ctrl+0` | Redefinir visualização |
 | `F5` | Apresentar em tela cheia (menu Exibir) |
 | `Shift+1` | Ajustar o zoom para caber todos os cards (menu Exibir) |
@@ -222,7 +228,7 @@ src/main/java/com/danilo/boardvisual
 ├─ view/         Nós JavaFX: canvas, cards, setas, barras
 ├─ controller/   Interações de mouse e ações sobre o board
 ├─ persistence/  Leitura e escrita do save (pasta com board.json e imagens/)
-└─ export/       Exportação para PDF (Apache PDFBox) e PNG
+└─ export/       Exportação para PDF (Apache PDFBox), PNG e SVG (escrito à mão a partir do modelo)
 src/main/resources/.../styles/app.css   Estilo visual (paleta e espaçamentos)
 ```
 

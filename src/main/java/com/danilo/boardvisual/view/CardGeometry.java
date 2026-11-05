@@ -13,8 +13,30 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** Cálculos geométricos sobre o contorno de cada formato de card. */
-final class CardGeometry {
+/**
+ * Cálculos geométricos sobre o contorno de cada formato de card.
+ *
+ * As contas são Java puro ({@link Padding}, {@link #panelButtonPoint}); os
+ * métodos que devolvem {@code Insets}/{@code Point2D} só embrulham o resultado
+ * para a tela. Quem desenha sem JavaFX (o SVG) usa as versões puras.
+ */
+public final class CardGeometry {
+
+    /**
+     * Silhueta da elipse: o mesmo {@code -fx-shape} de {@code .card.shape-ellipse}
+     * no app.css, desenhado num quadrado 100×100 e escalado ao tamanho do card.
+     * O {@code CssMirrorTest} confere que os dois continuam iguais.
+     */
+    public static final String ELLIPSE_PATH = "M 0 50 A 50 50 0 1 1 100 50 A 50 50 0 1 1 0 50 Z";
+    /** Silhueta do losango ({@code .card.shape-diamond} no app.css), no quadrado 100×100. */
+    public static final String DIAMOND_PATH = "M 50 0 L 100 50 L 50 100 L 0 50 Z";
+
+    /** Recuo do texto em cada lado (Java puro; a tela usa o {@code Insets} equivalente). */
+    public record Padding(double top, double right, double bottom, double left) {
+        Insets toInsets() {
+            return new Insets(top, right, bottom, left);
+        }
+    }
 
     private CardGeometry() {
     }
@@ -43,6 +65,10 @@ final class CardGeometry {
 
     /** Espaço entre a imagem e a legenda, num card de imagem. */
     static final double IMAGE_CAPTION_GAP = 6;
+    /** A imagem de um card fica dentro da borda dele ({@code .card}: 1 px). */
+    public static final double IMAGE_INSET = 1;
+    /** Raio dos cantos da imagem: o do card (8) menos a borda. */
+    public static final double IMAGE_CORNER = 7;
 
     /**
      * Como {@link #contentInsets(CardShape, double, double, boolean)}, num card
@@ -60,19 +86,25 @@ final class CardGeometry {
      */
     static Insets contentInsets(CardShape shape, double width, double height, boolean panel, double imageHeight,
                                 int markers) {
+        return contentPadding(shape, width, height, panel, imageHeight, markers).toInsets();
+    }
+
+    /** O mesmo que {@link #contentInsets(CardShape, double, double, boolean, double, int)}, em Java puro. */
+    public static Padding contentPadding(CardShape shape, double width, double height, boolean panel,
+                                         double imageHeight, int markers) {
         if (shape == CardShape.FRAME) {
             return frameTitleInsets(width, height, markers);
         }
-        Insets insets = shapeInsets(shape, width, height, panel);
-        double top = insets.getTop();
+        Padding insets = shapeInsets(shape, width, height, panel);
+        double top = insets.top();
         if (imageHeight > 0) {
             top = Math.max(top, imageHeight + IMAGE_CAPTION_GAP);
         }
         top = Math.max(top, CardMarkers.reservedTop(shape, width, height, markers));
-        if (top == insets.getTop()) {
+        if (top == insets.top()) {
             return insets;
         }
-        return new Insets(top, insets.getRight(), insets.getBottom(), insets.getLeft());
+        return new Padding(top, insets.right(), insets.bottom(), insets.left());
     }
 
     /** Recuo do título da seção à esquerda: livra o cadeado do canto (card travado). */
@@ -85,18 +117,18 @@ final class CardGeometry {
      * ({@link Frames#TITLE_HEIGHT}); o resto da seção fica livre para os cards.
      * Os marcadores ficam na mesma faixa, à direita, e o título termina antes deles.
      */
-    private static Insets frameTitleInsets(double width, double height, int markers) {
+    private static Padding frameTitleInsets(double width, double height, int markers) {
         double right = FRAME_TITLE_RIGHT;
         if (markers > 0) {
             right = CardMarkers.RIGHT + markers * CardMarkers.SIZE + (markers - 1) * CardMarkers.SPACING + 6;
         }
         double bottom = Math.max(0, height - Frames.TITLE_HEIGHT);
-        return new Insets(6, right, bottom, FRAME_TITLE_LEFT);
+        return new Padding(6, right, bottom, FRAME_TITLE_LEFT);
     }
 
-    private static Insets shapeInsets(CardShape shape, double width, double height, boolean panel) {
-        Insets base = switch (shape) {
-            case RECTANGLE, FRAME -> new Insets(12, 10, 10, 10);
+    private static Padding shapeInsets(CardShape shape, double width, double height, boolean panel) {
+        Padding base = switch (shape) {
+            case RECTANGLE, FRAME -> new Padding(12, 10, 10, 10);
             // Retângulo inscrito na elipse: lados a·√2 e b·√2.
             case ELLIPSE -> symmetric(width * (1 - Math.sqrt(0.5)) / 2 + 4, height * (1 - Math.sqrt(0.5)) / 2 + 2);
             // Retângulo inscrito no losango: metade da largura e da altura.
@@ -105,9 +137,9 @@ final class CardGeometry {
         if (!panel) {
             return base;
         }
-        double buttonTop = panelButtonCenter(shape, width, height).getY() - PANEL_BUTTON_SIZE / 2;
-        double bottom = Math.max(base.getBottom(), height - buttonTop + 4);
-        return new Insets(base.getTop(), base.getRight(), bottom, base.getLeft());
+        double buttonTop = panelButtonPoint(shape, width, height).y() - PANEL_BUTTON_SIZE / 2;
+        double bottom = Math.max(base.bottom(), height - buttonTop + 4);
+        return new Padding(base.top(), base.right(), bottom, base.left());
     }
 
     /**
@@ -115,16 +147,22 @@ final class CardGeometry {
      * (no losango, a ponta de baixo é estreita, então ele sobe um pouco mais).
      */
     static Point2D panelButtonCenter(CardShape shape, double width, double height) {
+        ConnectionGeometry.Point p = panelButtonPoint(shape, width, height);
+        return new Point2D(p.x(), p.y());
+    }
+
+    /** O mesmo que {@link #panelButtonCenter}, em Java puro (coordenadas do card). */
+    public static ConnectionGeometry.Point panelButtonPoint(CardShape shape, double width, double height) {
         double fromBottom = switch (shape) {
             case RECTANGLE, FRAME -> 18;
             case ELLIPSE -> 20;
             case DIAMOND -> 26;
         };
-        return new Point2D(width / 2, height - fromBottom);
+        return new ConnectionGeometry.Point(width / 2, height - fromBottom);
     }
 
-    private static Insets symmetric(double horizontal, double vertical) {
-        return new Insets(vertical, horizontal, vertical, horizontal);
+    private static Padding symmetric(double horizontal, double vertical) {
+        return new Padding(vertical, horizontal, vertical, horizontal);
     }
 
     /** Propriedades que, ao mudar, alteram a geometria dos cards informados. */

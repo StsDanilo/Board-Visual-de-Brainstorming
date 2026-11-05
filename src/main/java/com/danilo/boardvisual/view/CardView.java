@@ -98,9 +98,9 @@ public class CardView extends Region {
     /** Texto de exemplo da legenda de um card de imagem (aparece só enquanto ela é editada vazia). */
     public static final String CAPTION_PROMPT_TEXT = "Escreva uma legenda...";
     /** A imagem fica dentro da borda do card ({@code .card}: 1 px). */
-    private static final double IMAGE_INSET = 1;
+    private static final double IMAGE_INSET = CardGeometry.IMAGE_INSET;
     /** Raio dos cantos da imagem: o do card (8) menos a borda. */
-    private static final double IMAGE_CORNER = 7;
+    private static final double IMAGE_CORNER = CardGeometry.IMAGE_CORNER;
     /** Distância da alça de conexão para fora da borda direita. */
     private static final double CONNECTOR_OFFSET = 14;
 
@@ -115,7 +115,7 @@ public class CardView extends Region {
     /** Área da imagem no topo do card (só em cards de imagem): a imagem ou o aviso de que ela falta. */
     private final StackPane imageBox = new StackPane();
     private final ImageView imageView = new ImageView();
-    private final Label missingImage = new Label("Imagem não encontrada");
+    private final Label missingImage = new Label(CardTextLayout.MISSING_IMAGE_TEXT);
     /** Marcadores na borda de cima, um botão por tipo (ver {@link CardMarkers}). */
     private final Map<CardMarkers.Kind, Button> markers = new EnumMap<>(CardMarkers.Kind.class);
     /** Dica do marcador do link para outro board (o controller põe o caminho do destino). */

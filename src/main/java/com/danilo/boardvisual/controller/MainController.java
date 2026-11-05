@@ -2,6 +2,7 @@ package com.danilo.boardvisual.controller;
 
 import com.danilo.boardvisual.export.PdfExporter;
 import com.danilo.boardvisual.export.PngExporter;
+import com.danilo.boardvisual.export.SvgExporter;
 import com.danilo.boardvisual.model.Board;
 import com.danilo.boardvisual.model.BoardTree;
 import com.danilo.boardvisual.persistence.BoardImages;
@@ -9,6 +10,7 @@ import com.danilo.boardvisual.persistence.BoardStorage;
 import com.danilo.boardvisual.view.BoardRenderer;
 import com.danilo.boardvisual.view.BoardView;
 import com.danilo.boardvisual.view.MainWindow;
+import com.danilo.boardvisual.view.ScreenTextMetrics;
 import com.danilo.boardvisual.view.Tool;
 import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
@@ -63,6 +65,8 @@ public class MainController {
     private Path currentFolder;
     /** .json antigo aberto e ainda não salvo no formato novo (pasta); nulo nos demais casos. */
     private Path legacyFile;
+    /** Diálogo de salvar das exportações PNG e SVG (o nativo; os roteiros de teste trocam). */
+    private ExportDialog exportDialog;
 
     /**
      * @param linkOpener abre os links dos cards no navegador (na aplicação,
@@ -73,6 +77,7 @@ public class MainController {
         this.window = window;
         this.boardView = window.getBoardView();
         this.activeTool = window.getToolBar().activeToolProperty();
+        this.exportDialog = chooser -> chooser.showSaveDialog(stage);
 
         boardView.setActiveTool(activeTool.get());
         activeTool.addListener((obs, old, tool) -> boardView.setActiveTool(tool));
@@ -146,6 +151,9 @@ public class MainController {
         window.getExportPngItem().setOnAction(e -> unlessPresenting(() -> exportPng(PngExporter.Background.WHITE)));
         window.getExportTransparentPngItem().setOnAction(
                 e -> unlessPresenting(() -> exportPng(PngExporter.Background.TRANSPARENT)));
+        window.getExportSvgItem().setOnAction(e -> unlessPresenting(() -> exportSvg(PngExporter.Background.WHITE)));
+        window.getExportTransparentSvgItem().setOnAction(
+                e -> unlessPresenting(() -> exportSvg(PngExporter.Background.TRANSPARENT)));
         window.getExitItem().setOnAction(e -> Platform.exit());
         window.getResetViewItem().setOnAction(e -> boardView.resetView());
         window.getFitAllItem().setOnAction(e -> viewFit.fitAll());
@@ -419,7 +427,7 @@ public class MainController {
         List<String> path = new ArrayList<>(navigation.pathNames());
         path.set(0, displayName()); // o nome do principal é o da pasta do save, como no PDF
         chooser.setInitialFileName(PngExporter.suggestedFileName(path));
-        File file = chooser.showSaveDialog(stage);
+        File file = exportDialog.show(chooser);
         if (file == null) {
             return;
         }
@@ -431,6 +439,63 @@ public class MainController {
         } catch (IOException | RuntimeException e) {
             showError("Não foi possível exportar o PNG.", e);
         }
+    }
+
+    /**
+     * Exporta para SVG (vetorial) só o board que está na tela, como o PNG: mesmo
+     * nome sugerido, mesmas opções de fundo, mesmo aviso de board vazio. O
+     * arquivo é escrito a partir do modelo ({@link SvgExporter}); o texto é medido
+     * com a fonte da tela e as imagens vêm da mesma pasta que a tela usa (a do
+     * save ou a temporária de um board ainda não salvo). Não mexe no board nem na tela.
+     */
+    public void exportSvg(PngExporter.Background background) {
+        boardView.requestFocus(); // conclui uma edição de texto em andamento
+        Board board = navigation.getCurrent();
+        if (PngExporter.isEmpty(board)) {
+            showMessage(Alert.AlertType.INFORMATION, "Este board está vazio.",
+                    "Não há nada para exportar. Crie um card antes de exportar a imagem.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(background == PngExporter.Background.TRANSPARENT
+                ? "Exportar SVG com fundo transparente" : "Exportar SVG");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Imagem SVG (*.svg)", "*.svg"));
+        startInCurrentLocation(chooser);
+        List<String> path = new ArrayList<>(navigation.pathNames());
+        path.set(0, displayName()); // o nome do principal é o da pasta do save, como no PDF e no PNG
+        chooser.setInitialFileName(SvgExporter.suggestedFileName(path));
+        File file = exportDialog.show(chooser);
+        if (file == null) {
+            return;
+        }
+        SvgExporter exporter = new SvgExporter(new ScreenTextMetrics(), this::readImage,
+                BoardTree.ids(navigation.getRoot())::contains);
+        try {
+            exporter.export(board, String.join(" › ", path), SvgExporter.withSvgExtension(file.toPath()), background);
+        } catch (IOException | RuntimeException e) {
+            showError("Não foi possível exportar o SVG.", e);
+        }
+    }
+
+    /** Arquivo de imagem de um card, das mesmas pastas que a tela usa; {@code null} se não existe. */
+    private byte[] readImage(String fileName) throws IOException {
+        Path file = BoardImages.find(fileName, images.searchDirs()).orElse(null);
+        return file == null ? null : Files.readAllBytes(file);
+    }
+
+    /** Mostra o diálogo de salvar das exportações (PNG, SVG) e devolve o arquivo escolhido ou {@code null}. */
+    @FunctionalInterface
+    public interface ExportDialog {
+        File show(FileChooser chooser);
+    }
+
+    /**
+     * Troca o diálogo de salvar das exportações PNG e SVG. Só para os roteiros de
+     * teste de interface: eles não podem usar o diálogo nativo do sistema (nada de
+     * mouse/teclado do sistema), então conferem o seletor montado e devolvem um arquivo.
+     */
+    public void setExportDialog(ExportDialog dialog) {
+        this.exportDialog = dialog == null ? chooser -> chooser.showSaveDialog(stage) : dialog;
     }
 
     private void showBoard(Board board, Path folder, Path legacy) {

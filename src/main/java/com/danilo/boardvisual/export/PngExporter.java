@@ -130,6 +130,11 @@ public final class PngExporter {
      * @param path nomes do board principal até o board na tela
      */
     public static String suggestedFileName(List<String> path) {
+        return baseFileName(path) + ".png";
+    }
+
+    /** O nome sugerido sem a extensão (o SVG usa o mesmo, com ".svg"). */
+    static String baseFileName(List<String> path) {
         StringBuilder name = new StringBuilder();
         for (String level : path) {
             String clean = cleanName(level);
@@ -152,13 +157,18 @@ public final class PngExporter {
         if (RESERVED_NAMES.contains(base.toUpperCase(Locale.ROOT))) {
             base = base + "_";
         }
-        return base + ".png";
+        return base;
     }
 
     /** O arquivo escolhido, com ".png" no fim se o usuário não digitou. */
     public static Path withPngExtension(Path chosen) {
+        return withExtension(chosen, ".png");
+    }
+
+    /** O arquivo escolhido, com {@code extension} (".png", ".svg") no fim se o usuário não digitou. */
+    static Path withExtension(Path chosen, String extension) {
         String name = chosen.getFileName().toString();
-        return name.toLowerCase(Locale.ROOT).endsWith(".png") ? chosen : chosen.resolveSibling(name + ".png");
+        return name.toLowerCase(Locale.ROOT).endsWith(extension) ? chosen : chosen.resolveSibling(name + extension);
     }
 
     private static String cleanName(String name) {

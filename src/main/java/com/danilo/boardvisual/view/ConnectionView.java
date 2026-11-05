@@ -51,10 +51,10 @@ import java.util.List;
  */
 public class ConnectionView extends Group {
 
-    private static final double ARROW_LENGTH = 12;
-    private static final double ARROW_HALF_WIDTH = 6;
+    private static final double ARROW_LENGTH = ConnectionGeometry.ARROW_LENGTH;
+    private static final double ARROW_HALF_WIDTH = ConnectionGeometry.ARROW_HALF_WIDTH;
     /** Largura máxima do texto da seta (em unidades do board); passou disso, termina em "…". */
-    static final double LABEL_MAX_WIDTH = 220;
+    static final double LABEL_MAX_WIDTH = CardTextLayout.LABEL_MAX_WIDTH;
     /**
      * Quanto a área de clique sai para o lado quando existe a seta contrária:
      * metade da largura dela (14 no CSS), para a borda encostar na linha.

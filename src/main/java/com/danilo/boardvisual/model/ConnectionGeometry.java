@@ -12,6 +12,10 @@ public final class ConnectionGeometry {
 
     /** Espaço entre os textos de A→B e B→A, quando as duas setas existem. */
     static final double REVERSE_LABEL_GAP = 6;
+    /** Comprimento da ponta da seta (da base até a ponta), na tela e no SVG. */
+    public static final double ARROW_LENGTH = 12;
+    /** Meia largura da base da ponta da seta. */
+    public static final double ARROW_HALF_WIDTH = 6;
 
     private ConnectionGeometry() {
     }
@@ -59,6 +63,46 @@ public final class ConnectionGeometry {
     public static Point tip(Connection connection) {
         Card source = connection.getSource();
         return borderPoint(connection.getTarget(), source.getCenterX(), source.getCenterY());
+    }
+
+    /**
+     * A linha visível da seta: da borda da origem à borda do destino, encurtada
+     * do lado de cada ponta que o estilo desenha (a linha termina na base da
+     * ponta, para não "vazar" na frente dela). Mesma conta da {@code ConnectionView}.
+     */
+    public static Point[] line(Connection connection) {
+        Point a = start(connection);
+        Point b = tip(connection);
+        double angle = Math.atan2(b.y() - a.y(), b.x() - a.x());
+        double cos = Math.cos(angle);
+        double sin = Math.sin(angle);
+        ConnectionStyle style = connection.getStyle();
+        double startInset = style.hasStartArrow() ? ARROW_LENGTH : 0;
+        double endInset = style.hasEndArrow() ? ARROW_LENGTH : 0;
+        return new Point[] {
+                new Point(a.x() + startInset * cos, a.y() + startInset * sin),
+                new Point(b.x() - endInset * cos, b.y() - endInset * sin)
+        };
+    }
+
+    /**
+     * Os três cantos de uma ponta de seta com a ponta em {@code tip}, apontando
+     * no sentido de {@code from} para {@code tip}: a ponta e os dois cantos da
+     * base, {@link #ARROW_LENGTH} para trás e {@link #ARROW_HALF_WIDTH} para cada
+     * lado (o triângulo da {@code ConnectionView}, girado). A ponta da origem de
+     * uma seta de ponta dupla é {@code arrowHead(start, tip)}.
+     */
+    public static Point[] arrowHead(Point tip, Point from) {
+        double angle = Math.atan2(tip.y() - from.y(), tip.x() - from.x());
+        double cos = Math.cos(angle);
+        double sin = Math.sin(angle);
+        return new Point[] {
+                tip,
+                new Point(tip.x() - ARROW_LENGTH * cos + ARROW_HALF_WIDTH * sin,
+                        tip.y() - ARROW_LENGTH * sin - ARROW_HALF_WIDTH * cos),
+                new Point(tip.x() - ARROW_LENGTH * cos - ARROW_HALF_WIDTH * sin,
+                        tip.y() - ARROW_LENGTH * sin + ARROW_HALF_WIDTH * cos)
+        };
     }
 
     /**

@@ -62,6 +62,8 @@ public class MainWindow extends BorderPane {
     private final MenuItem exportPdfItem = new MenuItem("Exportar PDF...");
     private final MenuItem exportPngItem = new MenuItem("Exportar PNG...");
     private final MenuItem exportTransparentPngItem = new MenuItem("Exportar PNG com fundo transparente...");
+    private final MenuItem exportSvgItem = new MenuItem("Exportar SVG...");
+    private final MenuItem exportTransparentSvgItem = new MenuItem("Exportar SVG com fundo transparente...");
     private final MenuItem exitItem = new MenuItem("Sair");
     private final MenuItem resetViewItem = new MenuItem("Redefinir visualização");
     private final MenuItem fitAllItem = new MenuItem("Ajustar tudo à tela");
@@ -104,7 +106,8 @@ public class MainWindow extends BorderPane {
 
         Menu fileMenu = new Menu("Arquivo", null,
                 newItem, openItem, new SeparatorMenuItem(), saveItem, saveAsItem, new SeparatorMenuItem(), exportPdfItem,
-                exportPngItem, exportTransparentPngItem, new SeparatorMenuItem(), exitItem);
+                exportPngItem, exportTransparentPngItem, exportSvgItem, exportTransparentSvgItem,
+                new SeparatorMenuItem(), exitItem);
         Menu editMenu = new Menu("Editar", null, undoItem, redoItem, new SeparatorMenuItem(),
                 cutItem, copyItem, pasteItem, new SeparatorMenuItem(), selectAllItem, searchItem);
         Menu viewMenu = new Menu("Exibir", null, resetViewItem, fitAllItem, fitSelectionItem,
@@ -230,6 +233,8 @@ public class MainWindow extends BorderPane {
     public MenuItem getExportPdfItem() { return exportPdfItem; }
     public MenuItem getExportPngItem() { return exportPngItem; }
     public MenuItem getExportTransparentPngItem() { return exportTransparentPngItem; }
+    public MenuItem getExportSvgItem() { return exportSvgItem; }
+    public MenuItem getExportTransparentSvgItem() { return exportTransparentSvgItem; }
     public MenuItem getExitItem() { return exitItem; }
     public MenuItem getResetViewItem() { return resetViewItem; }
     public MenuItem getFitAllItem() { return fitAllItem; }

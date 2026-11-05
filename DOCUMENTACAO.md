@@ -12,8 +12,9 @@
 > escolhidos numa mini barra ao lado da barra lateral, com o mouse sobre a ferramenta Conexão) e o
 > copiar, recortar e colar cards (`Ctrl+C` / `Ctrl+X` / `Ctrl+V`) no mesmo board ou em outro, com as setas
 > entre eles, os boards aninhados, as imagens e os links; o zoom para caber tudo (`Shift+1`) ou a seleção
-> (`Shift+2`) e a busca de texto (`Ctrl+F`), no board da tela ou em todos os boards; e o modo apresentação (`F5`):
-> o board em tela cheia, sem barras nem menu, só para ver e navegar, passando de um board ao outro como slides.
+> (`Shift+2`) e a busca de texto (`Ctrl+F`), no board da tela ou em todos os boards; o modo apresentação (`F5`):
+> o board em tela cheia, sem barras nem menu, só para ver e navegar, passando de um board ao outro como slides; e a
+> exportação do board atual para SVG (vetorial, escrito a partir do modelo, com as quebras de linha da tela).
 
 Este documento está organizado em **níveis de profundidade**. Cada nível pressupõe os anteriores,
 mas você pode parar em qualquer um:
@@ -52,7 +53,8 @@ Com **F5** o board da tela vira uma **apresentação em tela cheia**: sem barras
 navegar (zoom, mover a visão, entrar nos boards, abrir painéis e links), com as setas do teclado passando de
 um board ao próximo como slides; `Esc` sai.
 Tudo pode ser exportado para um **PDF navegável**, com links entre os boards, e o board da tela
-pode virar uma **imagem PNG** (fundo branco ou transparente).
+pode virar uma **imagem PNG** ou um desenho vetorial **SVG** (fundo branco ou transparente; o SVG fica
+nítido em qualquer tamanho e se edita no Inkscape ou no Figma).
 Não há servidor nem banco de dados.
 
 ## Tecnologias
@@ -105,12 +107,18 @@ A tela e as setas "escutam" esse número e se reposicionam sozinhas. Esse é o m
 | `model` | nada do projeto (só `javafx.beans`/`javafx.collections`) | view, controller, persistence |
 | `alignment` | nada (Java puro, sem JavaFX) | todo o resto |
 | `persistence` | model | view, controller |
-| `export` | model, alignment | view, controller (a imagem do board chega por uma interface) |
+| `export` | model, alignment; da view, só as **contas puras** (`CardGeometry`, `CardTextLayout`, os paths de `Icons`) | controller e qualquer desenho do JavaFX (a imagem do board e o medidor de texto chegam por interface) |
 | `view` | model, alignment | controller, persistence |
 | `controller` | model, view, persistence, export, alignment | — |
 
 Consequência prática: o **modelo é testável sem abrir janela**, e dá para trocar a aparência inteira
 sem tocar no modelo.
+
+> **Por que o SVG usa contas da `view`.** O SVG é desenhado a partir do modelo (3.28) e precisa saber
+> exatamente onde a tela põe o texto, o botão e a silhueta de cada card. Essas contas moram na `view`
+> (`CardGeometry`, `CardTextFit`), então o `export` passou a usá-las em vez de duplicar números. Só as partes
+> **puras**: nada que monte nós ou dependa do toolkit do JavaFX (o medidor de texto de verdade,
+> `ScreenTextMetrics`, chega ao `SvgExporter` por interface, como a imagem chega ao PDF).
 
 > **Por que o modelo usa classes do JavaFX?** `javafx.beans` e `javafx.collections` são a parte
 > "não visual" do JavaFX (propriedades observáveis e listas observáveis). Usá-las no modelo é o que
@@ -132,7 +140,7 @@ sem tocar no modelo.
 | `Frames` | Regras das seções (Java puro): conteúdo por geometria (centro dentro da área), o que um arrasto de seções leva junto (`carriedBy`, sem repetir card, seção dentro de seção), caixa de seleção (seção só inteira) e as camadas (`layered`: seções antes dos cards). Altura da faixa do título. |
 | `Connection` | Uma seta: id, card de origem, card de destino (fixos) e, mutáveis e observáveis, o **texto** (`label`, uma linha, `""` = sem texto) e o **estilo** (`style`) (3.24). |
 | `ConnectionStyle` | Enum dos estilos de seta: `ARROW` (simples, o padrão), `DASHED` (tracejada), `DOUBLE` (ponta dupla), `LINE` (sem ponta); cada um diz se é tracejado e onde tem ponta. |
-| `ConnectionGeometry` | Geometria da seta (Java puro, sem JavaFX): onde ela toca a borda de cada formato (`borderPoint`), início, ponta e o centro do texto (`labelCenter`, que afasta os textos de A→B e B→A). Usada pela tela e pelo PDF. |
+| `ConnectionGeometry` | Geometria da seta (Java puro, sem JavaFX): onde ela toca a borda de cada formato (`borderPoint`), início, ponta e o centro do texto (`labelCenter`, que afasta os textos de A→B e B→A); a linha visível encurtada nas pontas (`line`) e os três cantos de cada ponta (`arrowHead`, com `ARROW_LENGTH`/`ARROW_HALF_WIDTH`). Usada pela tela, pelo PDF e pelo SVG. |
 | `Board` | Conjunto de cards e conexões. Garante consistência (sem seta para card inexistente, sem seta duplicada, sem seta de/para seção). `connect(a, b, estilo)`, `removeConnection`, `findConnection`, `hasReverse` (existe B→A). A ordem da lista de cards é a **ordem de empilhamento** (o último fica por cima); `reorder` a muda por permutação (3.21). As seções ficam sempre no começo da lista (atrás dos cards): `addCard`, `reorder` e `restore` mantêm isso (3.23). |
 | `BoardSnapshot` | "Foto" imutável do board, usada pelo desfazer/refazer. |
 | `CardClip` | O que o `Ctrl+C` guardou (Java puro): foto imutável dos cards copiados e das setas entre eles (com os boards aninhados), independente do board de origem; monta a colagem (`pasteCenteredAt`: ids novos, destravar, posição, links remapeados). 3.25. |
@@ -152,14 +160,16 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainWindow` | Layout da janela: menu (Editar: desfazer, refazer, recortar, copiar, colar, selecionar tudo, Buscar...; Exibir: redefinir visualização, ajustar tudo à tela, ajustar à seleção; com os aceleradores), área do canvas (com a barra de ferramentas e a caixa de busca por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). O menu Exibir tem também **Apresentar** (`F5`). A propriedade `presentingProperty` (apresentação, 3.27) esconde o menu, a barra de ferramentas e a barra de status por binding (visible e managed), liga a pseudo-classe `:presenting` e põe o `BoardView` em leitura; embaixo, no meio, fica o aviso discreto da apresentação (`showPresentationNotice`). |
+| `MainWindow` | Layout da janela: menu (Arquivo: novo, abrir, salvar, salvar como, exportar PDF, PNG e SVG, os dois últimos também com fundo transparente; Editar: desfazer, refazer, recortar, copiar, colar, selecionar tudo, Buscar...; Exibir: redefinir visualização, ajustar tudo à tela, ajustar à seleção; com os aceleradores), área do canvas (com a barra de ferramentas e a caixa de busca por cima), barra de status (com avisos curtos e passageiros, `showStatusMessage`). O menu Exibir tem também **Apresentar** (`F5`). A propriedade `presentingProperty` (apresentação, 3.27) esconde o menu, a barra de ferramentas e a barra de status por binding (visible e managed), liga a pseudo-classe `:presenting` e põe o `BoardView` em leitura; embaixo, no meio, fica o aviso discreto da apresentação (`showPresentationNotice`). |
 | `BoardView` | O canvas: pan/zoom, camadas (seções numa camada atrás das setas), cria/remove `CardView`/`ConnectionView` quando o board muda, mantém os `CardView`s na ordem de empilhamento (sem recriá-los), seleção, caixa de seleção (seção só inteira), posição da barra flutuante, "caber tudo / a seleção" (`fitAll`, `fitSelection`), destaque e "revelar" dos resultados da busca (`setSearchHighlights`, `revealCard`, `revealConnection`). `setPresenting` (3.27): nada se seleciona, sem barra flutuante nem alças, textos dos cards só de leitura; `fitAllForPresentation` enquadra com as folgas da apresentação. |
 | `CardView` | Desenho de um card: fundo com a silhueta do formato, imagem no topo (cards de imagem, ou o aviso "Imagem não encontrada"), campo de texto, marcadores (clipe do link, seta do link para outro board, com o estado "quebrado"), alça de conexão, cadeado de card travado (`:locked`, só na tela). Seção: fundo translúcido sem clique, anel da borda e faixa do título que pegam o clique, título de uma linha com reticências (`:frame`, 3.23); `hitsScenePoint` diz se um ponto pega o card. `setReadOnly` (apresentação, 3.27): o texto não se edita nem recebe foco. |
 | `CardImageLoader` | Interface "nome do arquivo → imagem carregada": a view não sabe onde as imagens moram; o controller sabe. |
 | `ConnectionView` | Desenho de uma seta, calculado por binding a partir dos dois cards e da própria seta: linha (cheia ou tracejada, `:dashed`), pontas conforme o estilo, área de clique larga e invisível (`connection-hit`), destaque de seta selecionada (`:selected`), texto no meio e o campo de edição dele (os dois em `getLabelLayer()`, que vai para uma camada acima de todas as linhas). |
 | `ConnectionStyleOrder` | Ordem dos estilos de seta na barra (Java puro): a posição 0 é o ícone principal; escolher um extra troca de lugar com ele. |
-| `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato (delega a `ConnectionGeometry`); recuo do texto dentro do formato. |
+| `CardGeometry` | Matemática: onde a seta toca o contorno de cada formato (delega a `ConnectionGeometry`); recuo do texto dentro do formato. Pública, com as contas em Java puro para o SVG: `contentPadding` (o recuo como record `Padding`; o `contentInsets` da tela só o embrulha), `panelButtonPoint`, as silhuetas do app.css (`ELLIPSE_PATH`, `DIAMOND_PATH`) e a moldura da imagem (`IMAGE_INSET`, `IMAGE_CORNER`). |
 | `CardTextFit` | Mede o texto e decide a fonte e o tamanho do card para o texto caber inteiro (3.14). Seção: fonte fixa do título, nunca cresce. |
+| `CardTextLayout` | Onde a tela põe cada linha de texto, em Java puro, com o medidor injetado (`Metrics`): quebra as linhas com a mesma regra do JavaFX (`wrap`), posiciona o texto do card, a legenda, o título da seção (com "..."), o aviso de imagem e o texto da seta (caixa e linha). Usada pelo SVG (3.28, 4.6). |
+| `ScreenTextMetrics` | O medidor do `CardTextLayout` com a fonte da tela (JavaFX): o mesmo do `CardTextFit` para escolher a fonte, mais largura de uma linha e altura/linha de base da linha (limites `LOGICAL_VERTICAL_CENTER`, como o `TextArea` e o `Label`). |
 | `Tool` | Enum das ferramentas: nome, tecla de atalho, formato que cria, ícone, dica (inclusive `FRAME`, a Seção, tecla `S`). |
 | `ToolBarView` | Barra lateral de ferramentas + bolinha de cor dos novos cards. Com o mouse sobre a ferramenta Conexão, uma mini barra flutuante à direita mostra os outros estilos de seta (`getConnectionStyleBar`); o ícone da Conexão desenha o estilo das setas novas (`connectionStyleProperty`). |
 | `SelectionToolbarView` | Barra flutuante acima da seleção: cor, formato (some se só há imagens; desabilitado se todos estão travados), tamanho do texto, modo do painel (Texto/Lista), link e link para outro board (só com um card), ordem (camadas), cadeado (travar/destravar, com estado misto), duplicar, excluir. |
@@ -175,13 +185,13 @@ board tem um **id único na árvore** (`Board.getId()`), que é como o link para
 | `ColorPickerButton` / `ShapePickerButton` / `FontSizePickerButton` | Os botões com popup (cor, formato e tamanho do texto). |
 | `ColorSwatchGrid` | Grade de bolinhas de cor. |
 | `CardPalette` | As 8 cores oferecidas. |
-| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado; camadas da ordem; cadeado aberto e fechado; setas ↑ ↓ da busca; cada estilo de seta desenhado no próprio estilo, `connectionStyle`). |
+| `Icons` | Ícones desenhados com path SVG (inclusive o clipe do link, a seta curva do link para outro board e o ícone de cada marcador, riscado quando quebrado; camadas da ordem; cadeado aberto e fechado; setas ↑ ↓ da busca; cada estilo de seta desenhado no próprio estilo, `connectionStyle`). Pública: os paths que aparecem nos cards (marcadores, botão do painel e do board aninhado) são lidos pelo SVG. |
 
 ### `controller/` — o comportamento
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `MainController` | Monta e conecta tudo (recebe de fora quem abre links no navegador); ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF, exportar PNG do board atual); desfazer/refazer do menu. Na apresentação as ações de arquivo e de edição do menu são ignoradas (`unlessPresenting`), os itens ficam desabilitados e criar ou abrir um board encerra a apresentação (3.27). |
+| `MainController` | Monta e conecta tudo (recebe de fora quem abre links no navegador); ações de arquivo (novo, abrir, salvar, salvar como em pasta, limpeza de `imagens/`, exportar PDF, exportar PNG e SVG do board atual); desfazer/refazer do menu. `setExportDialog` troca o diálogo de salvar do PNG e do SVG (só os roteiros de teste usam, 3.28). Na apresentação as ações de arquivo e de edição do menu são ignoradas (`unlessPresenting`), os itens ficam desabilitados e criar ou abrir um board encerra a apresentação (3.27). |
 | `ImageController` | Imagens: inserir (ferramenta Imagem, colar a imagem do sistema, arrastar arquivo), pasta de trabalho das imagens ainda não salvas, carregar a imagem de cada card (com cache); diz ao `ClipboardController` onde as imagens do board atual ficam (`ImageSpace`). |
 | `ClipboardController` | Copiar, recortar e colar cards (3.25): a cópia da sessão (`CardClip`), a colagem num passo do desfazer, a regra imagem do sistema × cards copiados, os itens do menu Editar e dos menus de clique direito (card e fundo). |
 | `CanvasController` | Mouse no fundo (inclusive o meio vazio de uma seção): pan, zoom, caixa de seleção, criar card (e seção). |
@@ -234,13 +244,14 @@ e de reaproveitar — o mesmo alinhamento serve ao arrastar e ao redimensionar (
 | `ClipboardImages` | As imagens dos cards copiados: guardadas numa pasta temporária ao copiar e entregues ao colar só se o board de destino ainda não as tem (3.25). |
 | `ImageImporter` | Traz uma imagem (arquivo ou imagem em memória) para uma pasta de imagens: confere o formato, reduz se passar de 2000 px, nome novo `<uuid>.png/.jpg`. |
 
-### `export/` — o PDF e o PNG
+### `export/` — o PDF, o PNG e o SVG
 
 | Arquivo | Responsabilidade |
 |---|---|
+| `SvgExporter` | SVG de um board (3.28): escrito à mão a partir do modelo, sem JavaFX (medidor de texto e imagens por interface): camadas como na tela, formatos com os paths do app.css, setas nos quatro estilos, texto em `<tspan>` por linha, imagens embutidas em base64, link externo como `<a>`, XML sempre válido (escapes, números com ponto), gravação segura. |
 | `PdfExporter` | Monta o PDF: páginas na ordem da árvore, caminho no topo, links (entre páginas e para sites), páginas de detalhes, marcadores. Seção: texto invisível só na faixa do título, links só nos marcadores (não cobrem os cards de dentro). Texto das setas também invisível no meio da seta (buscável). |
 | `PdfText` | Fonte padrão do PDF (Helvetica), medida e quebra de linha, troca de caracteres sem suporte. |
-| `PngExporter` | PNG de um board: área e escala (com os limites de tamanho), nome sugerido do arquivo, gravação segura. Sem JavaFX (3.18). |
+| `PngExporter` | PNG de um board: área e escala (com os limites de tamanho), nome sugerido do arquivo (o SVG usa o mesmo nome-base, `baseFileName`), gravação segura. Sem JavaFX (3.18). |
 
 ### Outros
 
@@ -1077,7 +1088,8 @@ não perde o dado, e devolver o arquivo à `imagens/` faz a imagem voltar ao rea
 
 ### Fora do escopo (ficou o caminho aberto)
 
-- **Exportar PNG:** feito em 3.18, com o mesmo `CardImageLoader`. **SVG** continua fora (tarefa 8).
+- **Exportar PNG:** feito em 3.18, com o mesmo `CardImageLoader`. **SVG:** feito em 3.28 (a imagem vai
+  embutida no arquivo, lida das mesmas pastas: `ImageController.searchDirs`).
 - Copiar/colar **cards** entre boards: **feito** em 3.25. O `Ctrl+V` agora é um acelerador do menu Editar
   (`ClipboardController`), que decide entre a imagem do sistema e os cards copiados (vale o que foi copiado
   por último); a pasta de trabalho das imagens e o `imagens/` do save atual são achados pelo
@@ -1087,7 +1099,8 @@ não perde o dado, e devolver o arquivo à `imagens/` faz a imagem voltar ao rea
 
 `Arquivo › Exportar PNG...` (`Ctrl+Shift+E`) grava uma imagem **só do board que está na tela** — o
 principal ou o aninhado que estiver aberto. Para a árvore inteira existe o PDF (3.15).
-`Arquivo › Exportar PNG com fundo transparente...` faz o mesmo sem o fundo branco.
+`Arquivo › Exportar PNG com fundo transparente...` faz o mesmo sem o fundo branco. A versão **vetorial**
+(SVG), com o mesmo nome sugerido, a mesma área e as mesmas opções de fundo, está em 3.28.
 
 ```
 MainController.exportPng(fundo)
@@ -1130,7 +1143,7 @@ são testados sem tela; um teste de ponta a ponta liga o JavaFX e gera PNGs de v
 Decisões tomadas (o card deixou "a decidir"):
 - **Fundo transparente = segundo item de menu**, não uma pergunta a cada exportação: o caso comum
   (branco) continua com um clique/atalho e nenhuma caixa extra; quem quer transparência acha a opção
-  escrita no menu. O `PngExporter.Background` fica pronto para o SVG (tarefa 8) reaproveitar.
+  escrita no menu. O SVG (3.28) reaproveita o `PngExporter.Background` e os dois itens de menu.
 - **Board vazio = aviso**, sem gerar arquivo: uma imagem em branco não serve para nada e esconderia o
   engano (por exemplo, exportar estando dentro de um aninhado vazio).
 - **"Só a seleção" ficou para depois:** com cards selecionados, exportar só eles mudaria o resultado
@@ -2046,6 +2059,133 @@ Ponteiro laser, cronômetro, anotações do apresentador, projetar num segundo m
 arquivo, ordem de slides escolhida pelo usuário (hoje a do PDF), agrupar elementos, exportar SVG. **Não validado:** vários monitores (o JavaFX escolhe a
 tela onde a janela está), a tela cheia "exclusiva" do sistema, o `Esc` e o `F5` físicos, e `mvn javafx:run` aberto à mão.
 
+## 3.28 Exportar SVG do board atual
+
+`Arquivo › Exportar SVG...` grava o **board que está na tela** (como o PNG, 3.18: só ele; a árvore inteira é o
+PDF) num desenho **vetorial**: nítido em qualquer zoom, abre no navegador e se edita no Inkscape ou no Figma.
+`Arquivo › Exportar SVG com fundo transparente...` faz o mesmo sem o retângulo branco do fundo. Sem atalho de
+teclado (os dois itens ficam logo depois dos de PNG).
+
+**Por que é diferente do PNG.** O JavaFX não sabe gerar SVG: o snapshot da tela é uma imagem de pixels. O
+arquivo é **escrito à mão a partir do modelo**, card por card e seta por seta, com as mesmas contas da tela
+(não com o desenho dela). É o "PDF vetorial" que o 3.15 deixou como evolução; o PDF não foi mexido.
+
+```
+MainController.exportSvg(fundo)                 (o mesmo roteiro do exportPng)
+  boardView.requestFocus()                      conclui uma edição de texto em andamento
+  board = navigation.getCurrent()               board vazio? → aviso "Este board está vazio." e para
+  seletor (exportDialog): nome = SvgExporter.suggestedFileName(caminho) = o do PNG com ".svg"
+  new SvgExporter(new ScreenTextMetrics(), readImage, BoardTree.ids(raiz)::contains)
+      .export(board, "Principal › Filho", arquivo + ".svg" se faltar, fundo)
+    escreve num .svg.tmp da mesma pasta (UTF-8, direto no arquivo: nada de um texto gigante na memória)
+    move para o nome final (ATOMIC_MOVE): nunca fica arquivo pela metade
+```
+
+### O que sai no arquivo
+
+```
+<svg width=W height=H viewBox="0 0 W H">   área = PdfExporter.contentBounds (cards + 32), 1 unidade = 1 px
+  <title> o caminho do board   <desc>
+  <defs>   filtro da sombra (bv-sombra) e um recorte de cantos por card de imagem (bv-recorte-N)
+  <rect id="fundo">              só com fundo branco
+  <g id="secoes">                seções, atrás de tudo        (como BoardView e BoardRenderer)
+  <g id="setas">                 linha e pontas de cada seta
+  <g id="textos-das-setas">      acima de todas as linhas
+  <g id="cards">                 na ordem do board (a ordem de empilhamento, com o invariante das seções)
+```
+
+Cada card é um `<g id="card-N" transform="translate(x y)">` com tudo em coordenadas do card (como o
+`CardView`): mover o grupo no Inkscape move o card inteiro.
+
+| Elemento | Como sai |
+|---|---|
+| Retângulo | `<rect>` com cantos de 8, fundo na cor do card e a borda de 1 px por dentro (`#d8d8d2`) |
+| Elipse e losango | `<path>`: o **mesmo** `-fx-shape` do app.css (quadrado 100×100), escalado para o card (`SvgExporter.scalePath`; constantes em `CardGeometry`, conferidas contra o app.css pelo `SvgCssMirrorTest`) |
+| Sombra | aproximada: filtro SVG 1.1 (desfoque de ~3,3, 2 px para baixo, 8% de preto), o equivalente do `dropshadow(gaussian, …, 10, 0, 0, 2)` |
+| Board aninhado | a "folha" atrás (borda e fundo deslocados 6 px) e o botão de entrar |
+| Seção | fundo na cor a 45%, borda 1,5 px na cor escurecida 30% (a conta do `derive` do CSS do JavaFX, refeita em `SvgExporter.derive`), título em negrito numa linha com "...", sem sombra |
+| Painel | só o botão redondo com o ícone do modo (o painel aberto não sai, como no PNG) |
+| Seta | `<line>` com ponta quadrada (como o `Line` do JavaFX) e `<polygon>` em cada ponta (`ConnectionGeometry.line`/`arrowHead`); tracejada `8 6`; ponta dupla e sem ponta como na tela |
+| Texto da seta | caixa branca de cantos 4 (mesmo com fundo transparente, como no PNG) e o texto no meio |
+| Texto do card | um `<text>` com um `<tspan x y>` por linha, centralizado, na fonte e nas linhas da tela (abaixo) |
+| Imagem | `<image>` com o arquivo **embutido em base64** (`data:image/png;base64,…`), proporção preservada (`xMidYMid meet`), recortado com os cantos do card; legenda embaixo |
+| Imagem que falta | o quadro cinza "Imagem não encontrada", como na tela (arquivo que não existe, não abre ou não é imagem) |
+| Marcadores | desenhados como na tela: círculo e o ícone dos mesmos paths do `Icons` (clipe inclinado, seta curva; quebrada em vermelho, riscada, esmaecida) |
+| Link externo | o card inteiro dentro de um `<a xlink:href target="_blank">` com `<title>` (dica com o endereço); na seção, só o marcador (como no PDF: a área cobriria os cards de dentro) |
+
+### Texto: as mesmas linhas da tela
+
+A tela não "sabe" em que linhas quebrou o texto: quem quebra é o `Text` interno do `TextArea`. O SVG precisa
+gravar as linhas prontas (o SVG 1.1 não quebra texto). Por isso a classe **`CardTextLayout`** (Java puro, na
+`view`) refaz a quebra com a **regra do JavaFX** e o medidor de texto injetado (`CardTextLayout.Metrics`; na
+aplicação, `ScreenTextMetrics`, que mede com a fonte da tela; nos testes, uma medida fixa). A fonte é a do
+`CardTextFit` (automática de 9 a 24 px ou a manual; legenda 14; título da seção 15). Os detalhes foram
+**medidos no app** e estão em 4.6; o `ScreenTextMetricsTest` compara a quebra com a do JavaFX de verdade
+(200 combinações de texto, fonte e largura, todas iguais) e o roteiro de interface confere a linha de base e
+o começo de cada linha no app real (diferença zero).
+
+**Fonte.** `font-family="'Segoe UI', 'Helvetica Neue', sans-serif"`: a lista do app.css, terminando na
+genérica `sans-serif`. No Windows o arquivo usa a mesma Segoe UI da tela; em outro computador (Mac, Linux, um
+Figma sem a fonte) entra outra, com **métrica um pouco diferente**: as linhas continuam as da tela (cada uma
+é um `tspan` com posição fixa), mas uma linha pode ficar um pouco mais larga ou mais estreita e, num texto
+justo, encostar na borda. O SVG também desliga o **kerning** (`style="font-kerning:none"`): o JavaFX não
+aproxima pares como "Va", e os navegadores sim, o que deixaria as linhas mais estreitas que as medidas.
+
+### Imagens
+
+Lidas pelo `MainController.readImage`: o nome gravado no card procurado nas **mesmas pastas da tela**
+(`ImageController.searchDirs`: a pasta temporária das imagens de um board ainda não salvo e a `imagens/`
+do save), com a proteção de sempre contra nomes com pasta (`BoardImages.find`). O tipo vem do **conteúdo**
+do arquivo, não do nome (PNG, JPEG e GIF vão como estão; BMP, que nem todo editor mostra, vira PNG), e a imagem
+precisa abrir de verdade (ImageIO). Cada arquivo é lido e codificado uma vez por exportação.
+
+### XML sempre válido e seguro
+
+- Texto de card, de seta, título e endereço passam por `SvgExporter.escape`: `& < > " '` viram entidades,
+  quebras e tabulações em atributo viram `&#10;`/`&#9;`, e o que o XML 1.0 não aceita (controles, surrogates
+  soltos, U+FFFE/FFFF) é **retirado**. Texto do usuário nunca vira marcação (testado com `<script>`).
+- Cores: só `#RGB`/`#RRGGBB` (e com alfa) passam; qualquer outra coisa de um arquivo editado à mão vira a cor
+  padrão. Nada do arquivo chega cru a um atributo.
+- Links: só o que o `WebLink.toBrowserUri` aceita (`http`/`https`, já em ASCII); `javascript:` nunca entra
+  (o modelo já recusa). O link para outro board não tem destino no SVG: fica só o desenho do marcador.
+- Números (`SvgExporter.num`): até 3 casas, **sempre com ponto** e nunca em notação científica, qualquer que
+  seja o idioma do computador (o teste roda em pt-BR); `NaN`/infinito viram 0.
+- Ids únicos: `bv-sombra`, `bv-recorte-N`, `secao-N`, `seta-N`, `card-N` (nunca o id do modelo, que vem do arquivo).
+
+### Limites (vetorial, mas não infinito)
+
+Não há limite de pixels. O que cresce com o board é o **arquivo**: as imagens embutidas. Passou de
+**100 MB** de imagem (somando cada vez que uma imagem aparece), as seguintes saem com o aviso "Imagem não
+incluída (SVG grande demais)" no lugar, em vez de um SVG que os editores nem abrem. O texto vai direto para o
+arquivo (sem montar o SVG inteiro na memória).
+
+### O diálogo de salvar é trocável (para os roteiros)
+
+O seletor nativo do Windows não pode ser usado por um roteiro sem mouse e teclado do sistema. O
+`MainController` guarda quem mostra o diálogo das exportações PNG e SVG (`ExportDialog`, por padrão
+`chooser.showSaveDialog(stage)`); `setExportDialog` troca. O roteiro confere o seletor montado (título,
+nome sugerido, filtro `*.svg`) e devolve um arquivo.
+
+### Decisões
+
+- **Fonte = lista do app.css + `sans-serif`**, e não só a genérica: no computador do Danilo o SVG fica igual à
+  tela; nos outros, cai na genérica (a diferença de métrica está acima).
+- **Marcadores desenhados** (e não deixados de fora): o PNG os mostra e eles avisam que o card tem link.
+  Desenho simples: o ícone é centrado pelo meio da área 24×24 (na tela, pelo meio do desenho; diferença de
+  menos de 1 px).
+- **Link externo clicável no card todo**; seção só no marcador; link para outro board não vira link.
+- **Sombra aproximada** com um filtro SVG 1.1 (os editores entendem); sombra fiel (a do JavaFX) fica de fora.
+- **Fundo transparente = segundo item de menu**, como no PNG; a caixa do texto da seta continua branca.
+- **Board vazio = aviso**, sem arquivo, como no PNG.
+
+### Fora desta versão
+
+Sombras fiéis; painéis flutuantes abertos; cadeado do card travado e elementos de interface (alças, barra
+flutuante, seleção, destaque da busca); a fonte exata em outro computador (o arquivo não embute a fonte);
+SVG da árvore inteira; PDF vetorial; importar SVG. **Não validado:** abrir no Inkscape e no Figma (não instalados nesta máquina; a
+estrutura usa só SVG 1.1 com `xlink:href`), o seletor de arquivo nativo (trocado no roteiro) e `mvn javafx:run`
+aberto à mão.
+
 ---
 
 # Nível 4 — Aprofundamento técnico
@@ -2292,6 +2432,14 @@ evitam isso com **duas bordas**: a de dentro com a largura de sempre e um anel p
 O path é desenhado num quadrado 100×100 e o JavaFX **escala** para o tamanho do `Region`. Fundo,
 borda e sombra seguem a silhueta automaticamente.
 
+O SVG (3.28) não lê o CSS: os dois paths estão copiados em `CardGeometry.ELLIPSE_PATH`/`DIAMOND_PATH`, e as
+cores e medidas que ele usa (paleta, bordas, raios, tracejado, fonte do texto da seta...), em constantes do
+`SvgExporter`. O **`SvgCssMirrorTest`** lê o app.css e quebra se uma cópia ficar diferente: quem mudar a
+aparência no CSS vê o teste falhar e atualiza o SVG junto.
+
+Num `Region` com `-fx-shape`, a borda **não entra no recuo** dos filhos (medido no app: o texto de uma elipse
+começa no recuo calculado, sem o 1 px da borda; no retângulo, com). O `CardTextLayout` repete isso (4.6).
+
 ### Precedência: código × CSS (armadilha importante)
 
 No JavaFX a ordem de prioridade é:
@@ -2346,7 +2494,13 @@ contrária (B→A), o texto anda ao longo da reta para o lado do próprio destin
 é mais deitada, `altura/2 / |sin|` se é mais em pé, mais 6 px. Assim as duas caixas horizontais ficam lado a
 lado, encostadas, em qualquer inclinação.
 
+A linha encurtada nas pontas e os três cantos de cada ponta também estão no modelo
+(`ConnectionGeometry.line` e `arrowHead`): o SVG desenha a mesma seta sem a `ConnectionView`.
+
 ### Área do texto dentro do formato (`CardGeometry.contentInsets`)
+
+(A conta é feita em Java puro, `contentPadding`, que devolve um `CardGeometry.Padding`; o `contentInsets`
+da tela só o converte em `Insets`. O SVG usa a versão pura.)
 
 | Formato | Maior retângulo inscrito |
 |---|---|
@@ -2371,6 +2525,29 @@ conta e a barra de rolagem aparecendo mesmo assim:
 
 Mais uma folga de 3 px para arredondamentos. Os testes de interface conferem que nenhum de 70 textos
 de tamanhos crescentes (em cada formato e no painel) mostra rolagem.
+
+### Onde o JavaFX põe cada linha (`CardTextLayout`, para o SVG)
+
+O `CardTextFit` só precisa da **altura** do texto; o SVG precisa das **linhas** e da posição de cada uma.
+O `CardTextLayout` repete o que o JavaFX faz. Cada regra abaixo foi **medida no app** (o roteiro lê, no
+`Text` interno do `TextArea`, o cursor antes de cada caractere e a linha de base) e lida no código do JavaFX 21
+(`PrismTextLayout`); o `ScreenTextMetricsTest` e o roteiro de interface as conferem:
+
+| Regra do JavaFX | Consequência se ignorar |
+|---|---|
+| **Quebra só em espaço.** Acha o primeiro caractere que passa da largura; se é um espaço, anda um; volta até o começo da palavra (um não-espaço depois de um espaço). **Não** quebra depois de hífen ("guarda-chuva" é uma palavra só); sem onde quebrar, corta a palavra onde passou | Com o `BreakIterator` (a regra "certa" de quebra), "bem-vinda" quebraria no hífen e várias linhas ficariam diferentes |
+| Parado num espaço (dois ou mais espaços seguidos na quebra), volta até o começo da palavra **anterior**; como ela é o começo da linha, corta onde passou: os espaços que sobram começam a linha seguinte | Linhas com espaços no começo (ou uma linha vazia) que a tela mostra e o SVG não |
+| Texto com escrita complexa, emoji (fora do plano básico) ou ideogramas: aí sim usa o `BreakIterator` de linha, para o texto **inteiro** | `CardTextLayout.needsLineBreaker` aproxima a marcação do JavaFX (que ainda olha a fonte para emoji colorido do plano básico) |
+| A linha mede com os limites **`LOGICAL_VERTICAL_CENTER`** (o `TextArea` e também o `Label`): Segoe UI 16 px → linhas de 19 px, linha de base a 15 px do topo (com `LOGICAL` seriam 21,3 e 17,3) | Texto ~3 px abaixo e linhas mais espaçadas |
+| A posição do texto é **arredondada para pixel inteiro** (`Math.round`, o `snapToPixel` dos `Region`): recuo de 42,5 vira 43, de 23,97 vira 24 | Elipse e losango com o texto até 1 px fora |
+| Em elipse e losango (`-fx-shape`) a borda não entra no recuo; no retângulo, entra (4.5) | 1 px a mais no topo e dos lados |
+| A linha é **centralizada com os espaços pendurados** no fim dela (o espaço da quebra conta na largura) | Toda linha que termina numa quebra fica meio espaço (2 a 3,5 px) à direita |
+| Título da seção: o rótulo fica dentro da borda arredondada (1,5 → 2) e o texto centralizado na faixa de 34 px com a posição arredondada; aviso de imagem idem dentro da área da imagem | Até 1 px de diferença |
+| Texto da seta: o rótulo anda por `translate` (não pelo layout), então **nada é arredondado**: caixa = texto + 10 de largura e linha + 2 de altura | Caixa 1 px maior e texto meio pixel abaixo |
+| Medir com o mesmo `Text` trocando o tipo de limite devolve os limites antigos | Um `Text` por tipo de limite (armadilha 62) |
+
+Com isso o SVG renderizado pelo navegador e o PNG do app diferem em **0,08%** dos pixels de um board com
+todos os elementos (só a suavização das bordas das letras e dos ícones).
 
 ## 4.7 Desfazer: por que fotos, e como `restore` funciona
 
@@ -2486,6 +2663,10 @@ conferir PNG/JPG/GIF/BMP, reduzir e gravar PNG/JPG (`ImageImporter`). O JavaFX s
 não grava; o caminho "oficial" seria `SwingFXUtils` do módulo `javafx.swing`, evitado aqui do mesmo jeito
 que no PDF: a imagem colada (JavaFX) vira `BufferedImage` pixel a pixel no `ImageController`.
 O **Exportar PNG** usa o mesmo par: `BoardRenderer` converte pixel a pixel e o `ImageIO` grava (3.18).
+O **Exportar SVG** (3.28) também não pede módulo novo: o XML é escrito como texto (`java.base`), o base64 é o
+`java.util.Base64` e a conferência das imagens é o mesmo `ImageIO`. Os testes leem o SVG de volta com o
+`DocumentBuilder` (`java.xml`), que o módulo já enxerga porque o `java.desktop` o exporta adiante (`requires
+transitive java.xml`).
 
 - Sem `exports`, o JavaFX não consegue criar a `Application`.
 - Sem `opens`, o Gson falha em tempo de execução ao ler/escrever os records.
@@ -2548,6 +2729,9 @@ você estava editando.
 - [ ] Campo de **texto** que o usuário vê (como o texto do card, o detalhe do painel): decidir se a **busca** (3.26) deve
   achá-lo: `BoardSearch.hitOf` (card) ou `searchBoard` (seta); acrescente o campo à ordem e a um caso do `BoardSearchTest`
 - [ ] Campo de **texto** novo na tela, ação nova que **edita** ou diálogo novo: respeitar a **apresentação** (3.27, 5.7)
+- [ ] Efeito **visual** novo: o PNG e o PDF o mostram sozinhos (usam a tela), mas o **SVG não** (é escrito a partir do
+  modelo, 3.28): desenhe-o também no `SvgExporter.writeCard`/`writeFrame` (cores e medidas copiadas do app.css entram no
+  `SvgCssMirrorTest`) e acrescente um caso ao `SvgExporterTest`
 - [ ] Testes: `BoardStorageTest` (salvar/abrir) e `BoardSnapshotTest` (desfazer)
 
 > **Rede de segurança (`CardAllPropertiesTest`):** um card com **todas** as propriedades diferentes do
@@ -2579,6 +2763,9 @@ você estava editando.
 6. `app.css`: `.card.shape-hexagon { -fx-shape: "..."; }` e incluir na regra de seleção de formatos não retangulares.
 7. `CardResizeController.freeAspect`: se o formato muda largura e altura livremente (senão mantém a proporção).
 8. Teste em `CardGeometryTest`; o `switch` do `CardMarkersTest.inside` também precisa do caso novo.
+9. SVG (3.28): o path do `-fx-shape` copiado em `CardGeometry` (`HEXAGON_PATH`) e conferido no `SvgCssMirrorTest`;
+   `SvgExporter.writeShape` (`switch` exaustivo); o `scalePath` só entende `M L H V A Z` absolutos. No
+   `CardTextLayout.cardText`, um formato com `-fx-shape` não desconta a borda no recuo (4.6).
 
 A barra de ferramentas, o seletor de formato da barra flutuante, o atalho e a persistência passam
 a funcionar sem mais nada.
@@ -2658,7 +2845,8 @@ as teclas na raiz (armadilha 29).
 ### Marcador novo no card
 
 Ver o fim de "O marcador" em 3.19 (`CardMarkers.Kind`, `Icons.marker`, `CardView.setUpMarkers`). Texto,
-PDF e alças passam a respeitar o marcador novo sem mais nada. Exemplo completo: o `BOARD_LINK` (3.20),
+PDF e alças passam a respeitar o marcador novo sem mais nada; o SVG pede o ícone no `switch` exaustivo de
+`SvgExporter.writeMarkers` (e, se o marcador for um link, decidir se vira `<a>`). Exemplo completo: o `BOARD_LINK` (3.20),
 que também mostra como ter um estado "quebrado" (`CardView.setMarkerBroken`, `Icons.marker(kind, broken)`,
 `:broken` no CSS) e uma dica montada pelo controller (`setBoardLinkDescription`).
 
@@ -2692,7 +2880,8 @@ Sequência planejada (no Trello, numerada `[1]`→`[4]`, cada card com "Pré-req
 **[1], [2] e [3] estão feitos** (3.13, 3.14 e 3.15), assim como o salvamento em pasta (3.9), as
 imagens nos cards (3.17), o PNG (3.18), o link externo (3.19), o link para outro board (3.20), a ordem de
 empilhamento (3.21), o lock de item (3.22), as seções (3.23), as setas com texto e estilos (3.24) e o copiar e
-colar entre boards (3.25), a busca de texto (3.26), o zoom para caber tudo (3.8) e o modo apresentação (3.27):
+colar entre boards (3.25), a busca de texto (3.26), o zoom para caber tudo (3.8), o modo apresentação (3.27) e o
+SVG do board atual (3.28):
 
 ```
 [1] Redimensionar cards ──► [2] Fonte automática/manual + crescimento do card ──► [3] Exportar PDF ──► [4] Notas "post-it" no PDF
@@ -2710,7 +2899,8 @@ colar entre boards (3.25), a busca de texto (3.26), o zoom para caber tudo (3.8)
 | ~~Copiar e colar entre boards~~ (tarefa 6) | **Feito** (3.25): `CardClip` (foto imutável), colar num passo do desfazer, imagens entre pastas, links remapeados, prioridade com a imagem do sistema | Colar entre processos e na posição do mouse com `Ctrl+V` ficaram de fora |
 | **Agrupar** | `groupId` no card, ou um modelo `Group`; seleção de um membro seleciona o grupo todo | Seleção múltipla e mover em grupo já existem. **Recomendação (depois da 4b):** manter separado das seções e fazer pequeno. A seção já resolve "juntar por tema e mover junto" pelo espaço; o que ela não resolve é juntar cards **espalhados** ou **sem área visível** (ex.: dois cards em cantos opostos que devem andar juntos). Se esse caso não aparecer no uso, descartar o card. Se aparecer, `groupId` no card (5.1) + `CardDragController.draggedCards` incluindo os do mesmo grupo (o mesmo ponto em que a seção soma o conteúdo). Não reaproveitar a seção para isso: ela é geometria, o grupo seria vínculo salvo |
 | **Aviso de alterações não salvas** | Comparar `board.snapshot()` com a foto do último salvamento | O snapshot já resolve a detecção |
-| **Exportar SVG** (tarefa 8) | Item ao lado dos de PNG no menu `Arquivo`; pode reaproveitar `PngExporter.Background` e `suggestedFileName` | Vetorial: não dá para usar o snapshot; desenhar formatos e setas à mão |
+| ~~Exportar SVG~~ (tarefa 8) | **Feito** (3.28): `SvgExporter` escreve o SVG a partir do modelo; `CardTextLayout` repete a quebra e a posição do texto da tela | Fora: sombra fiel, fonte embutida, SVG da árvore, importar SVG |
+| **PDF vetorial / SVG da árvore** | O `SvgExporter` já desenha um board inteiro em vetorial; o PDF poderia desenhar as mesmas formas com o PDFBox (`PDPageContentStream`) em vez da imagem, e um SVG por board sairia percorrendo `BoardTree.entries` | O texto já tem as linhas prontas (`CardTextLayout`); no PDF falta a fonte (Helvetica tem outra métrica: as linhas teriam de ser refeitas com ela, ou a fonte embutida) |
 | **PNG só da seleção / de todos os boards** | Seleção: `BoardRenderer` com só os cards selecionados e as setas entre eles. Todos: percorrer a árvore como o `PdfExporter.BoardNode`, um arquivo por board nomeado pelo caminho | Decisões em 3.18 |
 
 ## 5.7 Nova edição, novo campo de texto ou novo diálogo: respeitar a apresentação
@@ -2859,6 +3049,16 @@ Na apresentação (3.27) o app é só leitura. Um controller novo costuma já na
 | Na apresentação os avisos vão para um aviso discreto, não para a barra de status nem para diálogos | `Alert` / barra de status | A barra de status está escondida; um diálogo por cima da tela cheia pode aparecer atrás e prender o teclado |
 | O caminho e o botão voltar ficam na apresentação, a 60% de opacidade | Esconder tudo; deixar sem esmaecer | São a navegação do canvas e ajudam a se localizar; discretos, não competem com o board |
 | Destaque da busca vence o da seleção | Mostrar os dois | O resultado atual precisa se ver mesmo com o card selecionado; selecionar já tem a barra flutuante |
+| SVG escrito à mão a partir do modelo | Converter o snapshot (pixels) ou pôr a imagem do PNG dentro do SVG | Só o desenho a partir do modelo é vetorial e editável; o JavaFX não gera SVG (3.28) |
+| `export` usa as contas puras da `view` (`CardGeometry`, `CardTextLayout`, paths de `Icons`) | Copiar os números para o `export` | Uma conta só para a tela e o SVG; o que é JavaFX de verdade (o medidor) chega por interface (Nível 2) |
+| Linhas do texto calculadas pela regra do JavaFX (lida no código e conferida no app) | `BreakIterator` de linha; deixar o visualizador quebrar (SVG 2 `inline-size`) | O SVG 1.1 não quebra texto; o `BreakIterator` quebra em hífen e o JavaFX não; com a regra repetida, as linhas são as da tela (4.6) |
+| Fonte do SVG = `'Segoe UI', 'Helvetica Neue', sans-serif` | Só `sans-serif`; embutir a fonte | Igual à tela onde a fonte existe; cai na genérica nos outros; embutir a Segoe UI esbarra na licença da fonte |
+| `font-kerning:none` no texto do SVG | Deixar o kerning do navegador | O JavaFX não faz kerning: as linhas ficam com a largura medida (sem isso, "Vazio" saía 2 px mais estreito) |
+| Imagens embutidas em base64 | Referenciar o arquivo (`href="imagens/x.png"`) | O SVG é um arquivo só, que abre em qualquer lugar; o board não salvo nem tem pasta (3.28) |
+| Limite de 100 MB de imagem embutida, com aviso no lugar das excedentes | Sem limite; falhar | Um SVG de centenas de MB os editores nem abrem; o resto do board sai inteiro |
+| Marcadores desenhados no SVG; link externo como `<a>` no card todo (seção: só no marcador); link para outro board só desenhado | Deixar os marcadores de fora; `<a href="#…">` para o board | Igual ao PNG e ao PDF; o SVG tem um board só, então o atalho não tem destino |
+| Sombra aproximada com filtro SVG 1.1 | `feDropShadow` (SVG 2); sem sombra | Os editores (Inkscape) entendem os filtros 1.1; sem sombra o board fica chapado |
+| Diálogo de salvar das exportações trocável (`setExportDialog`) | Roteiro dirigindo o seletor nativo com o `Robot` | O `Robot` já clicou fora do app em tarefas anteriores; o roteiro confere o seletor montado sem entrada do sistema |
 
 ## B. Armadilhas conhecidas
 
@@ -3040,13 +3240,29 @@ Na apresentação (3.27) o app é só leitura. Um controller novo costuma já na
     discreto (`showPresentationNotice`).
 60. **Roteiro de interface com tela cheia real.** O roteiro cobre a tela do usuário por alguns segundos: precisa de um vigia (thread que tira a janela da tela
     cheia e derruba a JVM se travar) e de `try/finally` que sai dela mesmo com erro; e nunca usar `java.awt.Robot` nem entrada do sistema.
+61. **O JavaFX não quebra texto como o `BreakIterator`.** Para texto comum ele só quebra em espaço (não depois de hífen) e, com vários espaços
+    na quebra, pode começar a linha seguinte com espaços; o `BreakIterator` só entra com escrita complexa, emoji ou ideogramas. Quem precisar
+    das linhas da tela (o SVG) usa o `CardTextLayout.wrap`, conferido contra o JavaFX no `ScreenTextMetricsTest` (4.6).
+62. **Trocar o tipo de limite de um `Text` já medido devolve os limites antigos.** `setBoundsType(LOGICAL)` depois de medir com
+    `LOGICAL_VERTICAL_CENTER` (no mesmo `Text`) continuou dando a altura antiga. Um `Text` por tipo de limite (`ScreenTextMetrics`).
+63. **`LOGICAL` × `LOGICAL_VERTICAL_CENTER`.** O `TextArea` e o `Label` medem a linha com `LOGICAL_VERTICAL_CENTER` (linha mais baixa, linha de
+    base mais alta); um `Text` novo usa `LOGICAL`. Posicionar texto com o `Text` padrão deixa tudo uns 3 px abaixo.
+64. **Posições arredondadas e a borda das silhuetas.** O layout dos `Region` arredonda recuos para pixel inteiro (`Math.round`), e num `Region`
+    com `-fx-shape` a borda não entra no recuo dos filhos. Contas que imitam a tela precisam fazer o mesmo (4.6).
+65. **A linha centralizada conta o espaço pendurado**, e os navegadores aplicam **kerning** que o JavaFX não aplica: os dois deslocam texto
+    em 2 a 4 px se ignorados (4.6, 3.28).
+66. **Espaço entre `<tspan>` vira texto.** Com quebras de linha e recuo entre os `tspan` de um `<text>`, o SVG trata os espaços como parte do texto
+    (alarga o bloco centralizado). O `SvgExporter` grava cada `<text>` numa linha só, com o `xml:space="preserve"` só dentro de cada `tspan`.
+67. **Seletor de arquivo nativo num roteiro.** Sem mouse e teclado do sistema não dá para usá-lo: o roteiro troca o diálogo
+    (`MainController.setExportDialog`) e confere o `FileChooser` montado. O aviso de board vazio (`Alert.showAndWait`) é aberto com
+    `Platform.runLater(item::fire)` (sem esperar) e fechado pelo botão OK dele num segundo `runLater`.
 
 ## C. Testes
 
-### Automatizados (`mvn test`) — 555 testes, sem abrir janela
+### Automatizados (`mvn test`) — 614 testes, sem abrir janela
 
 (O `BoardRendererPngTest`, o `FrameViewTest`, o `ConnectionViewTest`, o `ConnectionEditControllerTest` e o
-`ClipboardControllerTest`, o `ViewFitControllerTest`, o `SearchControllerTest` e o `PresentationControllerTest` ligam o JavaFX, sem janela, para desenhar de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
+`ClipboardControllerTest`, o `ViewFitControllerTest`, o `SearchControllerTest`, o `PresentationControllerTest` e o `ScreenTextMetricsTest` ligam o JavaFX, sem janela, para desenhar ou medir de verdade; num ambiente sem tela eles são pulados em vez de falhar.)
 
 | Classe | Cobre |
 |---|---|
@@ -3085,6 +3301,10 @@ Na apresentação (3.27) o app é só leitura. Um controller novo costuma já na
 | `ImageImporterTest` | (imagens reais geradas no teste) PNG e JPG pequenos copiados byte a byte com nome novo, grande reduzido a 2000 px mantendo a proporção (JPG continua JPG, PNG mantém transparência), GIF e BMP viram PNG, formato pelo conteúdo e não pela extensão, arquivo quebrado/não imagem/inexistente recusado sem sobras, imagem em memória vira PNG, extensões aceitas |
 | `ImageCardTest` | card de imagem nasce retângulo do tamanho da imagem, altura da imagem pela proporção, nome em branco = sem imagem, duplicar reutiliza o arquivo, desfazer/refazer a inserção, imagens da árvore inteira e das fotos |
 | `ImageCardControllerTest` | limpeza ao salvar mantém imagens de boards aninhados e do histórico e remove só a órfã; histórico zerado libera a imagem; tamanho inicial (limite, natural, ampliada); redimensionar mantém a proporção em todos os cantos, canto oposto parado, mínimo pelo maior lado |
+| `SvgExporterTest` | (Java puro, medidor fixo; o SVG é lido de volta com o `DocumentBuilder`) board com todos os tipos de elemento: tamanho, `viewBox` e título; ordem das camadas (fundo, seções, setas, textos das setas, cards); cards na ordem do board e na posição certa; fundo branco × transparente; cada formato com cor, borda, sombra e o path do app.css escalado; seção (fundo a 45%, borda escurecida, título em negrito, sem sombra); board aninhado (folha e botão) e painel (botão); os quatro estilos de seta (tracejado e número de pontas); textos das setas acima das linhas, com caixa branca; linhas, fonte, posição, `font-family` e `font-kerning` do texto do card iguais às do `CardTextLayout`; texto com `<script>`, aspas, controle e surrogate solto vira texto (XML válido, sem `script`); números com ponto e sem expoente em pt-BR; `num` e `escape`; link externo no card todo (normalizado, `_blank`), seção só no marcador, link para outro board não vira link, `javascript:` não entra; marcador quebrado vermelho e esmaecido; imagem embutida igual ao arquivo, proporção e recorte; imagem que falta (aviso); limite de imagem (aviso no lugar); tipo pelo conteúdo, BMP vira PNG, PNG corrompido e erro de leitura = falta; cores só hex; `derive` como o CSS; `scalePath`; gravação segura (substitui, sem `.tmp`); board vazio recusado sem arquivo; exportar não muda o board; nome sugerido e `.svg` |
+| `SvgCssMirrorTest` | as cópias do app.css usadas pelo SVG continuam iguais ao CSS: silhuetas da elipse e do losango, paleta e fonte, medidas do card, da seção, da folha do board aninhado, do aviso de imagem, da seta e do texto dela, do botão, dos ícones e do marcador quebrado |
+| `CardTextLayoutTest` | (Java puro, medidor fixo) quebra: parágrafos e linhas vazias, último espaço que cabe, palavra maior que a linha cortada, espaço pendurado, vários espaços descem (como o JavaFX), sem quebra depois de hífen, largura 0 sem quebra, ao menos um caractere por linha, par de surrogates inteiro, texto longo sem passar da largura; reticências; posição: fonte automática e manual da tela, texto no topo da área e centralizado, linha com espaço pendurado meio espaço à esquerda, texto longo cabe no card que cresceu, elipse e losango (recuo arredondado, sem a borda), marcadores e botão empurram o texto, legenda abaixo da imagem, card vazio sem texto, título da seção (uma linha, negrito, faixa do título, reticências, em branco não sai), aviso de imagem centralizado, caixa e linha do texto da seta (e o corte em 220 px) |
+| `ScreenTextMetricsTest` | (JavaFX) a quebra do `CardTextLayout` medindo com a fonte da tela é **igual** à do JavaFX em 200 combinações (8 textos com hífen, espaços, palavra enorme, parágrafos, números e emoji × 5 fontes × 5 larguras; as linhas do JavaFX lidas pelo cursor de cada caractere); a altura da linha e a linha de base são as de um `TextArea` e de um `Label` de verdade |
 | `PngExporterTest` | área com margem e 2 px por unidade, redução pelo lado maior (8.000 px exatos, sem 1 px a mais) e pelo total de pixels, arredondamento, nome sugerido (principal, caminho do aninhado, caracteres proibidos, ponto/espaço no fim, nome reservado, vazio, comprimento), `.png` acrescentado só se faltar, PNG gravado no tamanho previsto e sem `.tmp`, substitui arquivo existente, board vazio recusado sem gravar |
 | `BoardRendererPngTest` | (JavaFX de verdade, CSS do app) a exportação segue a ordem de empilhamento (na sobreposição aparece o card de cima, antes e depois de "trazer para o topo"); o cadeado do card travado não sai na imagem (PNG idêntico ao do destravado); clipe desenhado no card com link e ausente no sem link; PNG de board com formatos, cor, seta e card de imagem: tamanho previsto, fundo branco, cor do card, seta entre os cards, imagem do card no lugar certo; a mesma exportação com fundo transparente (canto transparente, card opaco); board de 30.000 unidades reduzido a 8.000 px com os dois extremos desenhados |
 | `WebLinkTest` | aceita `http`/`https`, acrescenta `https://` (inclusive `site:porta` e `//site`), apara e põe o esquema em minúsculas, vazio = sem link; recusa outros esquemas, caminhos e executáveis, espaços e caracteres de controle, usuário antes do site, site sem domínio, porta e `%` inválidos, endereço longo; forma ASCII (site com acento); `Card.setLink` nunca guarda link perigoso |
@@ -3316,6 +3536,27 @@ no repositório (dependem de tela, foco do sistema operacional e tempo). Liçõe
   se a combinação padrão estivesse ligada: aqui está desligada e conferida pela propriedade), vários monitores, a tela cheia exclusiva do sistema, o `mvn javafx:run` aberto à mão e o
   módulo (`module path`) com a janela (os testes do Maven rodam no módulo; o roteiro, no classpath).
 
+- **Exportar SVG** (3.28) foi validado por um roteiro dentro da JVM (janela real de 1400×860, mandada para trás; **92 verificações**), **sem
+  `java.awt.Robot` e sem mouse nem teclado do sistema**: os itens do menu Arquivo são acionados com `MenuItem.fire` (o que o menu faz ao clicar), a
+  entrada no board aninhado é um clique com o alvo do picking real, o diálogo nativo de salvar é trocado por `MainController.setExportDialog` (B.67) e o
+  aviso de board vazio é fechado pelo botão OK dele. Roteiro: board **não salvo** com retângulo com link e texto de várias linhas, elipse, losango, seção
+  com título e link, imagem com legenda (na pasta temporária, como o app insere), imagem que falta, painel de lista, board aninhado (com dois cards e uma
+  seta), board aninhado vazio, atalho para outro board e atalho quebrado, card travado, fonte manual, setas nos quatro estilos com texto e uma contrária
+  → os itens de SVG logo depois dos de PNG → **linha de base e começo de cada linha** de cada texto (card, legenda, elipse e losango em mais 8 tamanhos,
+  título da seção, aviso de imagem, textos das setas com a caixa) **iguais** aos do app, com diferença menor que 0,01 px → "Exportar SVG...": título,
+  nome sugerido (`Sem título.svg`) e filtro do seletor; `viewBox` = área do PNG; um grupo por card, a seção atrás, 5 setas, os textos das setas; a imagem
+  da pasta temporária embutida byte a byte; aviso da imagem que falta; link escapado; sem cadeado e sem a borda azul do card que estava selecionado;
+  linhas e fonte do card iguais às da tela; **board, pan/zoom, seleção, desfazer e título da janela iguais** antes e depois; nenhum link aberto →
+  "com fundo transparente" (sem o retângulo de fundo) → entrar no aninhado pelo botão do card: só os 2 cards e a seta dele, nome
+  `Sem título - Board filho.svg`, título do documento com o caminho → aninhado vazio: aviso "Este board está vazio.", o seletor nem abre, nenhum
+  arquivo → salvar em pasta (`saveTo`): a imagem vai para `imagens/`, a pasta temporária esvazia e o SVG seguinte embute a imagem lida de `imagens/`.
+  O roteiro também exportou o PNG do mesmo board pelo menu. **Conferência visual:** o SVG foi **renderizado de verdade** pelo navegador embutido do
+  Claude Code (Chromium; não o navegador do usuário), servido por um servidor local, e comparado pixel a pixel com o PNG do app: diferença forte em
+  **0,08%** dos pixels (board principal), 0,05% (aninhado) e 0,13% (transparente), só na suavização das bordas das letras e dos ícones. Essa comparação
+  achou seis diferenças que viraram regras (4.6): métrica `LOGICAL_VERTICAL_CENTER`, arredondamento, borda das silhuetas, espaço pendurado, caixa do texto
+  da seta e kerning (antes delas, 1,17% dos pixels). **Não validado:** Inkscape e Figma (não instalados), o seletor nativo de arquivo (trocado), o mouse e
+  as teclas físicas, e o `mvn javafx:run` aberto à mão.
+
 Se quiser trazê-los para o projeto, o caminho padrão é **TestFX** (biblioteca de testes de interface
 para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
 
@@ -3345,6 +3586,11 @@ para JavaFX), em um perfil Maven separado para não rodar no `mvn test` comum.
 | **Permutação** | Mudança de uma lista observável em que só a ordem muda (nada entra nem sai). |
 | **Card travado (lock)** | Card protegido contra mover, redimensionar, trocar o formato e excluir (3.22). |
 | **Seção (frame)** | Área colorida com título, sempre atrás dos cards; arrastá-la leva o que tem o centro dentro dela (3.23). |
+| **SVG** | Formato de desenho **vetorial** (formas e textos descritos em XML, não pixels): nítido em qualquer tamanho e editável (3.28). |
+| **`viewBox`** | A área do desenho que o SVG mostra; com `width`/`height` iguais, 1 unidade do board = 1 px. |
+| **Data URI / base64** | Arquivo escrito dentro do próprio texto (`data:image/png;base64,…`): é assim que as imagens vão dentro do SVG. |
+| **Linha de base (baseline)** | A linha onde as letras "assentam"; o SVG posiciona cada linha de texto por ela. |
+| **Kerning** | Ajuste do espaço entre pares de letras ("Va" mais juntas); o JavaFX não faz, os navegadores sim (desligado no SVG). |
 
 ## E. Comandos úteis
 
